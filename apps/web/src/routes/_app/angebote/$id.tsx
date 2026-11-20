@@ -36,6 +36,7 @@ function QuotePage() {
         kind="angebot"
         initial={{
           contactId: quote.contactId,
+          brandProfileId: quote.brandProfileId,
           contactPersonId: quote.contactPersonId,
           issueDate: quote.issueDate,
           validUntil: quote.validUntil,
@@ -72,6 +73,7 @@ function QuotePage() {
         contactPersons={data.contactPersons}
         contacts={data.contacts}
         seller={data.company}
+        brandProfiles={data.brandProfiles}
         sellerIssues={data.sellerIssues}
         letterIssues={data.letterIssues}
         issues={data.issues}

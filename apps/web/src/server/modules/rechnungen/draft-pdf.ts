@@ -1,9 +1,10 @@
+import { documentBranding } from "./branding.ts";
 import { buildQuoteDraftPdf, renderInvoiceDraftPdf, type DraftPdf } from "@haben/einvoice";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../../db/index.ts";
 import { directDebitFor } from "./lastschrift.ts";
 import { UserError } from "../../errors.ts";
-import { ansprechpartnerSnapshot, loadCompany, loadLetterhead, loadUnitCodes, withCustomLayout } from "../stammdaten/index.ts";
+import { ansprechpartnerSnapshot, loadCompany, loadUnitCodes, withCustomLayout } from "../stammdaten/index.ts";
 import { invoiceDocumentTotals, invoiceTotalsById } from "./invoice-taxes.ts";
 import { buyerFrom, deductedRefs, documentFor, getInvoice, sellerFrom } from "./invoices.ts";
 import { getQuote, quoteDocumentFor } from "./quotes.ts";
@@ -30,13 +31,14 @@ export async function invoiceDraftPdf(id: string): Promise<DraftPdf | null> {
   const buyer = original?.buyer ?? (contact ? buyerFrom(contact, await ansprechpartnerSnapshot(db, invoice.contactPersonId)) : null);
   if (!buyer) throw new DraftPdfError(NO_CUSTOMER);
   const company = await loadCompany();
+  const branding = await documentBranding(sellerFrom(company), invoice.brandProfileId);
   // Die Nummer setzt renderInvoiceDraftPdf
   const { number: _none, ...doc } = documentFor(
     invoice,
     lines,
     await invoiceDocumentTotals(id),
     (await invoiceTotalsById([id])).get(id)!,
-    sellerFrom(company),
+    branding.seller,
     buyer,
     "",
     corrects?.number ? { number: corrects.number, issueDate: corrects.issueDate } : null,
@@ -44,7 +46,7 @@ export async function invoiceDraftPdf(id: string): Promise<DraftPdf | null> {
     await directDebitFor(invoice, company, db),
     await loadUnitCodes(),
   );
-  return withCustomLayout("rechnung", await loadLetterhead(), (letterhead) => renderInvoiceDraftPdf({ ...doc, ...letterhead }));
+  return withCustomLayout("rechnung", branding.letterhead, (letterhead) => renderInvoiceDraftPdf({ ...doc, ...letterhead }));
 }
 
 /** Entwurf eines Angebots; null, wenn es keinen Entwurf mit dieser Id gibt */
@@ -52,12 +54,13 @@ export async function quoteDraftPdf(id: string): Promise<DraftPdf | null> {
   const data = await getQuote(id);
   if (data?.quote.status !== "draft") return null;
   if (!data.contact) throw new DraftPdfError(NO_CUSTOMER);
+  const branding = await documentBranding(sellerFrom(await loadCompany()), data.quote.brandProfileId);
   const { number: _none, ...doc } = quoteDocumentFor(
     data.quote,
     data.lines,
-    sellerFrom(await loadCompany()),
+    branding.seller,
     buyerFrom(data.contact, await ansprechpartnerSnapshot(db, data.quote.contactPersonId)),
     "",
   );
-  return withCustomLayout("angebot", await loadLetterhead(), (letterhead) => buildQuoteDraftPdf({ ...doc, ...letterhead }));
+  return withCustomLayout("angebot", branding.letterhead, (letterhead) => buildQuoteDraftPdf({ ...doc, ...letterhead }));
 }

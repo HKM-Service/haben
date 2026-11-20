@@ -62,6 +62,7 @@ function InvoicePage() {
           kind={invoice.kind}
           initial={{
             contactId: invoice.contactId,
+            brandProfileId: invoice.brandProfileId,
             contactPersonId: invoice.contactPersonId,
             issueDate: invoice.issueDate,
             serviceFrom: invoice.serviceFrom,
@@ -115,6 +116,7 @@ function InvoicePage() {
           }}
           contacts={data.contacts}
           seller={data.company}
+          brandProfiles={data.brandProfiles}
           sellerIssues={data.sellerIssues}
           letterIssues={data.letterIssues}
           issues={data.issues}

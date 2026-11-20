@@ -1,3 +1,5 @@
+import { documentBranding } from "./branding.ts";
+import type { Seller } from "@haben/einvoice";
 import {
   alternativeMain,
   computeInvoice,
@@ -38,7 +40,6 @@ import { z } from "zod";
 import { db } from "../../db/index.ts";
 import { UserError } from "../../errors.ts";
 import {
-  type Company,
   customLayoutFor,
   customLayoutJob,
   dataForVersion,
@@ -47,7 +48,6 @@ import {
   getContact,
   layoutRenderer,
   loadCompany,
-  loadLetterhead,
   rendererFor,
   typstMeldung,
 } from "../stammdaten/index.ts";
@@ -79,6 +79,7 @@ export const documentPreviewSchema = z.object({
   // Beim Tippen steht hier auch „14 Tage“ oder „-“; dann zählt das Rechnungsdatum, wie im Editor
   paymentTermDays: z.number().int().min(0).max(1000).catch(0),
   contactId: z.uuid().nullable(),
+  brandProfileId: z.uuid().nullable().optional(),
   /** Ansprechpartner des Kunden (#424), für die Zeile „z. Hd.“ in der Vorschau */
   contactPersonId: z.uuid().nullable().default(null),
   ...referenceFieldsSchema,
@@ -149,7 +150,7 @@ async function previewBuyer(contactId: string | null, contactPersonId: string | 
   return found ? buyerFrom(found.contact, person) : { name: "[Kunde wählen]", strasse: "", plz: "", ort: "", land: "DE" };
 }
 
-function invoiceDocument(input: Input, company: Company, buyer: Buyer, letterhead: Letterhead, directDebit: InvoiceDocument["directDebit"]): InvoiceDocument {
+function invoiceDocument(input: Input, seller: Seller, buyer: Buyer, letterhead: Letterhead, directDebit: InvoiceDocument["directDebit"]): InvoiceDocument {
   if (input.kind === "angebot") throw new DocumentPreviewError("Ein Angebot ist keine Rechnung.");
   const { lineNets, totals } = computeInvoice(input.lines, input.priceMode, input.discount);
   const treatment = input.taxTreatment;
@@ -166,7 +167,7 @@ function invoiceDocument(input: Input, company: Company, buyer: Buyer, letterhea
     ...(input.serviceFrom ? { serviceFrom: input.serviceFrom } : {}),
     ...(input.serviceTo ? { serviceTo: input.serviceTo } : {}),
     currency: input.currency,
-    seller: sellerFrom(company),
+    seller,
     buyer,
     lines: input.lines.map((line, index) => ({
       position: index + 1,
@@ -198,7 +199,7 @@ function invoiceDocument(input: Input, company: Company, buyer: Buyer, letterhea
   };
 }
 
-function quoteDocument(input: Input, company: Company, buyer: Buyer, letterhead: Letterhead): QuoteDocument {
+function quoteDocument(input: Input, seller: Seller, buyer: Buyer, letterhead: Letterhead): QuoteDocument {
   const { exemptionReason } = outgoingTaxColumns(input);
   const lines = input.lines.map((line, index) => ({ ...line, position: index + 1 }));
   const calc = quoteCalculation(lines, input.priceMode, input.discount);
@@ -210,7 +211,7 @@ function quoteDocument(input: Input, company: Company, buyer: Buyer, letterhead:
     validUntil: input.validUntil || input.issueDate,
     ...(input.serviceFrom ? { serviceFrom: input.serviceFrom } : {}),
     ...(input.serviceTo ? { serviceTo: input.serviceTo } : {}),
-    seller: sellerFrom(company),
+    seller,
     buyer,
     lines: lines.map((line, index) => ({
       position: line.position,
@@ -241,7 +242,8 @@ function quoteDocument(input: Input, company: Company, buyer: Buyer, letterhead:
 
 /** Das Blatt als SVG samt Text für Screenreader; statt des GiroCodes ein Platzhalter, damit niemand eine Vorschau bezahlt */
 export async function documentPreview(input: Input): Promise<DocumentPreview> {
-  const [company, stored, buyer] = await Promise.all([loadCompany(), loadLetterhead(), previewBuyer(input.contactId, input.contactPersonId)]);
+  const [company, buyer] = await Promise.all([loadCompany(), previewBuyer(input.contactId, input.contactPersonId)]);
+  const { seller, letterhead: stored } = await documentBranding(sellerFrom(company), input.brandProfileId);
   const letterhead = withDesign(stored, input.design);
   const dueDate = input.dueDate || input.issueDate;
   const directDebit = await directDebitFor(
@@ -260,8 +262,8 @@ export async function documentPreview(input: Input): Promise<DocumentPreview> {
   const t = texts(input.language, input.currency);
   const data =
     input.kind === "angebot"
-      ? quotePdfData(quoteDocument(input, company, buyer, letterhead))
-      : pdfData(invoiceDocument(input, company, buyer, letterhead, directDebit));
+      ? quotePdfData(quoteDocument(input, seller, buyer, letterhead))
+      : pdfData(invoiceDocument(input, seller, buyer, letterhead, directDebit));
   const { draft: _noMark, ...sheet } = asDraft(data, t);
   return renderPreview(input.kind === "angebot" ? "angebot" : "rechnung", "rechnung.typ", sheet, letterhead, () => sheetText(sheet as unknown as SheetData));
 }
@@ -277,7 +279,7 @@ export async function renderPreview(
   letterhead: Letterhead,
   text: () => SheetTextPart[],
 ): Promise<DocumentPreview> {
-  const layout = await customLayoutFor(type);
+  const layout = await customLayoutFor(type, letterhead.layoutAssignments?.[type]);
   const job = layout
     ? await customLayoutJob(layout, dataForVersion(layout.schemaVersion, templateInputs(sheet, letterhead)), letterhead)
     : renderJob(template, sheet, letterhead);

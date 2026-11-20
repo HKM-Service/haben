@@ -1,3 +1,4 @@
+import { defaultBrandProfileId, listBrandProfiles } from "../modules/stammdaten/index.ts";
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -21,6 +22,7 @@ import { detailId } from "./schemas.ts";
 async function formContext() {
   const [company, textBlocks, units] = await Promise.all([loadCompany(), listTextBlocks(), listUnits()]);
   return {
+    brandProfiles: await listBrandProfiles(),
     textBlocks: textBlocks.map(({ id, name, kind, text, contactId }) => ({ id, name, kind, text, contactId })),
     /** Eigene Einheiten (#748), ohne archivierte */
     units: units.filter((unit) => !unit.archivedAt).map((unit) => unit.label),
@@ -35,7 +37,12 @@ async function formContext() {
       isCustomer: c.isCustomer,
       isSupplier: c.isSupplier,
     })),
-    defaults: { paymentTermDays: company.paymentTermDays, format: company.defaultFormat, kleinunternehmer: company.kleinunternehmer },
+    defaults: {
+      brandProfileId: await defaultBrandProfileId(),
+      paymentTermDays: company.paymentTermDays,
+      format: company.defaultFormat,
+      kleinunternehmer: company.kleinunternehmer,
+    },
     today: today(),
   };
 }

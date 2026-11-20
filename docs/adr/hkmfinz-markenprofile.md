@@ -6,11 +6,14 @@ description: >-
 
 # Entscheidung: Markenprofile der HKM Service GmbH
 
-**Status:** fachlich von Boris bestätigt; Umsetzung ausstehend.
+**Status:** fachlich von Boris bestätigt; Umsetzung im Arbeitsbranch begonnen, Migration und Abnahme noch offen.
 
 Die HKM Service GmbH betreibt mehrere Marken. Beim Erstellen einer Rechnung muss die passende
 Marke mit ihrem Briefpapier auswählbar sein. Diese Funktion ist Voraussetzung für die Ablösung
 von sevDesk.
+
+Die erste Marke heißt **HKMcore**. Logo, Briefpapier und Farbgestaltung liefert bzw. pflegt Boris
+später. Die Erweiterung muss sich zunächst allein mit einem Markennamen einrichten lassen.
 
 ## Gemeinsame Firmendaten
 
@@ -21,14 +24,14 @@ Rechnungsnummernvergabe.
 
 ## Inhalt eines Markenprofils
 
-- Interner Profilname und sichtbarer Markenname.
+- Markenname zugleich als Name in der Profilauswahl.
 - Eigenes Logo, Briefpapier und Gestaltung einschließlich Fußzeile und Standardtexten.
 - Kontaktdaten der Marke: E-Mail, Telefon und Website.
 - Bankverbindung aus den angelegten Konten der GmbH.
 
 Die Pflichtangaben der GmbH bleiben im Dokument enthalten. Ein Profil kann als Standard für neue
 Entwürfe gewählt und später deaktiviert werden; bereits verwendete Profile bleiben zuordenbar.
-Die anfänglichen Markennamen und Briefpapiere werden bei der Einrichtung hinterlegt.
+Logo und Briefpapier sind optional und können nach dem Anlegen ergänzt werden.
 
 ## Auswahl und Dokumente
 

@@ -1,3 +1,5 @@
+import { BrandProfilesCard } from "../../components/BrandProfilesCard.tsx";
+import { getBrandProfiles } from "../../server/functions/brand-profiles.ts";
 import {
   BUNDESLAENDER,
   RECHTSFORM_KEYS,
@@ -160,6 +162,7 @@ export const Route = createFileRoute("/_app/einstellungen")({
     ]);
     return {
       ...company,
+      brands: await getBrandProfiles(),
       certificate: vat.certificate,
       mode: vat.mode,
       numbering,
@@ -197,6 +200,7 @@ function SettingsPage() {
   const { oidc, ausgeblendet } = Route.useRouteContext();
   const {
     company,
+    brands,
     numbering,
     logo,
     background,
@@ -266,6 +270,7 @@ function SettingsPage() {
           )}
           {bereich === "gestaltung" && (
             <>
+              <BrandProfilesCard data={brands} baseDesign={design} />
               <LetterheadOptionsCard design={design} logo={logo?.sha256 ?? null} hints={layoutHints} />
               <LetterheadBackgroundCard design={design} background={background?.sha256 ?? null} hints={layoutHints} />
               <AccentColorCard color={design.accent} hint={layoutHints.accent} />

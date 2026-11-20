@@ -138,6 +138,34 @@ Mit [Firmenportal](installation.md#firmenportal) steht das Zeichen auch dort auf
 
 Das Zeichen gilt für alle Zugänge der Instanz, auch für die [Steuerberatung](steuerberatung.md), und hängt nicht an der Beleggestaltung: Ändern sich [Akzentfarbe](#akzentfarbe), Layout oder Logo-Einstellungen der Belege, bleibt die eigene Farbe, und Firmen mit gleich aussehenden Belegen haben trotzdem verschiedene Zeichen. Das Theme (Hell, Dunkel, Farbe der Oberfläche) wählt dagegen jeder Zugang für sich. Die Änderung steht im Änderungsprotokoll.
 
+### Markenprofile
+
+Unter **Einstellungen › Beleggestaltung › Markenprofile** legst du Marken derselben Firma an,
+zum Beispiel HKMcore. Ein Markenname reicht zunächst. Über **Bearbeiten** ergänzt du später
+Logo, Briefpapier, Farbe, Schrift und Kontaktdaten. Logo und Briefpapier werden beim Hochladen
+sofort gespeichert; die übrigen Angaben mit **Marke speichern**.
+
+Im Rechnungs- und Angebotseditor wählst du unter **Marke / Rechnungsprofil** das passende
+Profil. **Gemeinsame Firmengestaltung** verwendet die bisherigen Einstellungen. Ein Profil
+kann als Standard für neue Belege gewählt werden. Seine Einleitung und sein Schlusstext werden
+dabei vorgeschlagen. Vorhandene Entwürfe behalten ihre Auswahl. Wiederkehrende Rechnungen
+verwenden die Marke ihrer Vorlage.
+
+Rechtlicher Rechnungsaussteller, Anschrift, Register- und Steuerangaben, Buchhaltung und
+Nummernvergabe bleiben gemeinsam. Marken können eigene E-Mail, Telefon und Website sowie
+ein Bankkonto der Firma verwenden; private oder ausgeschlossene Konten stehen nicht zur Wahl.
+Leere E-Mail, Telefon und Kontowahl übernehmen die Firmendaten. Neue Profile starten mit der
+gemeinsamen Gestaltung; ihre Bilder lädst du gesondert hoch.
+
+Rechnungen aus Angeboten, Storno, Korrektur, Mahnung und Lieferschein behalten die
+Markenzuordnung des Ausgangsbelegs. Festgeschriebene PDFs und XML-Dateien ändern sich nicht,
+wenn du später das Profil bearbeitest. **Deaktivieren** entfernt eine Marke aus der Auswahl
+für neue Belege; vorhandene Zuordnungen bleiben erhalten. **Aktivieren** macht sie wieder
+auswählbar.
+
+Die folgenden Gestaltungseinstellungen gelten für **Gemeinsame Firmengestaltung**. Eine Marke
+bearbeitest du stattdessen in ihrem Profil.
+
 ### Logo
 
 Unter **Einstellungen › Beleggestaltung › Logo und Blatt** oder über das Zahnrad in der [Vorschau](rechnungen.md#vorschau) lädst du dein Logo hoch, als PNG (gern mit transparentem Hintergrund) oder JPEG bis 1 MB.

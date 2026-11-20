@@ -17,6 +17,7 @@ function NewQuotePage() {
       initial={{ ...data.draft, paymentTermDays: 0, format: "zugferd" }}
       contacts={data.contacts}
       seller={data.company}
+      brandProfiles={data.brandProfiles}
       sellerIssues={data.sellerIssues}
       letterIssues={data.letterIssues}
       issues={[]}

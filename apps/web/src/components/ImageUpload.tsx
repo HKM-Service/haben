@@ -79,7 +79,7 @@ export function ImageUpload({
 
   return (
     <div className="logo-upload">
-      {current ? <img src={`${url}?v=${current.slice(0, 12)}`} alt={texts.alt} /> : <p className="small">{texts.empty}</p>}
+      {current ? <img src={`${url}${url.includes("?") ? "&" : "?"}v=${current.slice(0, 12)}`} alt={texts.alt} /> : <p className="small">{texts.empty}</p>}
       <div className="actions">
         <UploadButton
           accept={accept}

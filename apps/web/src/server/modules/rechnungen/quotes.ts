@@ -1,3 +1,5 @@
+import { checkedBrandProfileId, defaultBrandProfileId, brandProfile } from "../stammdaten/index.ts";
+import { documentBranding } from "./branding.ts";
 import { UserError } from "../../errors.ts";
 import {
   addDays,
@@ -42,7 +44,7 @@ import { z } from "zod";
 import { ansprechpartnerSnapshot, contactPersonProblem, contactRoleProblem, loadCompany, sellerIssues } from "../stammdaten/index.ts";
 import { withActor } from "../../db/actor.ts";
 import { db, schema, type Db, type Tx } from "../../db/index.ts";
-import { loadLetterhead, withCustomLayout } from "../stammdaten/index.ts";
+import { withCustomLayout } from "../stammdaten/index.ts";
 import { circleFor, documentNumber, peekNumber, takeNumber } from "./number-counter.ts";
 import { quoteDraftLineSchema } from "./draft-line.ts";
 import { buyerFrom, effectivePriceMode, insertDraft, invoiceDiscountOf, lineDiscountOf, openAbschlaege, sellerFrom, type Invoice } from "./invoices.ts";
@@ -70,6 +72,7 @@ const isoDate = z.iso.date();
 export const quoteDraftSchema = z
   .object({
     contactId: z.uuid().nullable(),
+    brandProfileId: z.uuid().nullable().optional(),
     /** Ansprechpartner des Kunden (#424); der Stand beim Festschreiben steht im Käufer des Angebots */
     contactPersonId: z.uuid().nullable().default(null),
     issueDate: isoDate,
@@ -196,10 +199,18 @@ function draftValues(input: QuoteDraftInput) {
 }
 
 /** Legt den Entwurf an; parsed ist schon durch quoteDraftSchema gelaufen */
-async function insertQuoteDraft(tx: Tx, parsed: z.output<typeof quoteDraftSchema>): Promise<Quote> {
+async function insertQuoteDraft(tx: Tx, parsed: z.output<typeof quoteDraftSchema>, inheritedBrand: string | null = null): Promise<Quote> {
   const personProblem = await contactPersonProblem(tx, parsed.contactId, parsed.contactPersonId);
   if (personProblem) throw new QuoteError(personProblem);
-  const [quote] = await tx.insert(schema.quotes).values(draftValues(parsed)).returning();
+  const brandProfileId = await checkedBrandProfileId(
+    parsed.brandProfileId === undefined ? await defaultBrandProfileId(tx) : parsed.brandProfileId,
+    inheritedBrand,
+    tx,
+  );
+  const [quote] = await tx
+    .insert(schema.quotes)
+    .values({ ...draftValues(parsed), brandProfileId })
+    .returning();
   if (parsed.lines.length > 0) await tx.insert(schema.quoteLines).values(lineRows(quote!.id, parsed));
   return quote!;
 }
@@ -243,7 +254,18 @@ export async function updateQuoteDraft(actor: string, id: string, input: QuoteDr
     if (personProblem) throw new QuoteError(personProblem);
     await tx.delete(schema.quoteLines).where(eq(schema.quoteLines.quoteId, id));
     if (parsed.lines.length > 0) await tx.insert(schema.quoteLines).values(lineRows(id, parsed));
-    const [updated] = await tx.update(schema.quotes).set(draftValues(parsed)).where(eq(schema.quotes.id, id)).returning();
+    const [updated] = await tx
+      .update(schema.quotes)
+      .set({
+        ...draftValues(parsed),
+        brandProfileId: await checkedBrandProfileId(
+          parsed.brandProfileId === undefined ? draft.brandProfileId : parsed.brandProfileId,
+          draft.brandProfileId,
+          tx,
+        ),
+      })
+      .where(eq(schema.quotes.id, id))
+      .returning();
     return updated!;
   });
 }
@@ -262,14 +284,17 @@ export async function deleteQuoteDraft(actor: string, id: string): Promise<void>
 /** Neues Angebot mit den Vorgaben aus den Firmendaten */
 export async function newQuoteDefaults(today: string) {
   const company = await loadCompany();
+  const brandProfileId = await defaultBrandProfileId();
+  const brand = brandProfileId ? await brandProfile(brandProfileId) : null;
   return {
     contactId: null,
+    brandProfileId,
     issueDate: today,
     validUntil: addDays(today, QUOTE_VALID_DAYS),
     serviceFrom: null,
     serviceTo: null,
-    intro: company.quoteIntro,
-    note: "",
+    intro: brand?.intro || company.quoteIntro,
+    note: brand?.note ?? "",
     taxTreatment: (company.kleinunternehmer ? "kleinunternehmer" : "regulaer") as TaxTreatment,
     exemptionReason: "",
     priceMode: "netto" as PriceMode,
@@ -475,10 +500,10 @@ export async function finalizeQuote(actor: string, id: string): Promise<Quote> {
     const circle = await circleFor(tx, "angebot", quote.issueDate);
     const counter = await peekNumber(tx, "angebot", circle);
     const number = await documentNumber(tx, "angebot", company.quoteNumberFormat, quote.issueDate, counter);
-    const seller = sellerFrom(company);
+    const { seller, letterhead: selectedLetterhead } = await documentBranding(sellerFrom(company), quote.brandProfileId, tx);
     const buyer = buyerFrom(contact!, await ansprechpartnerSnapshot(tx, quote.contactPersonId));
     const doc = quoteDocumentFor(quote, lines, seller, buyer, number);
-    const pdf = await withCustomLayout("angebot", await loadLetterhead(), (letterhead) => buildQuotePdf({ ...doc, ...letterhead }));
+    const pdf = await withCustomLayout("angebot", selectedLetterhead, (letterhead) => buildQuotePdf({ ...doc, ...letterhead }));
     const now = new Date();
     await takeNumber(tx, "angebot", circle, counter);
     const [finalized] = await tx
@@ -583,6 +608,7 @@ export async function quoteToInvoice(
       tx,
       {
         contactId: locked.contactId,
+        brandProfileId: locked.brandProfileId,
         contactPersonId,
         issueDate: today,
         serviceFrom: newFinal ? today : locked.serviceFrom,
@@ -637,6 +663,7 @@ export async function copyQuote(actor: string, id: string, today: string): Promi
   const validDays = Math.max(0, Math.round((Date.parse(quote.validUntil) - Date.parse(quote.issueDate)) / 86_400_000));
   const input: QuoteDraftInput = {
     contactId: quote.contactId,
+    brandProfileId: quote.brandProfileId,
     // Eine Kopie behält die Person, solange sie noch aktiv ist
     contactPersonId: quote.contactPersonId && (await contactPersonProblem(db, quote.contactId, quote.contactPersonId)) === null ? quote.contactPersonId : null,
     issueDate: today,
@@ -668,7 +695,7 @@ export async function copyQuote(actor: string, id: string, today: string): Promi
   };
   const parsed = quoteDraftSchema.parse(input);
   return withActor(actor, async (tx) => {
-    const copy = await insertQuoteDraft(tx, parsed);
+    const copy = await insertQuoteDraft(tx, parsed, quote.brandProfileId);
     await copyQuoteAttachments(tx, id, copy.id);
     return copy;
   });

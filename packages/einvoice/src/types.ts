@@ -1,4 +1,16 @@
-import type { BasisPoints, Cents, Discount, InvoiceTotals, LegalInfo, LetterheadOptions, Millis, PriceMode, SkontoStufe, TaxTreatment } from "@haben/core";
+import type {
+  BasisPoints,
+  Cents,
+  Discount,
+  InvoiceTotals,
+  LegalInfo,
+  LayoutAssignment,
+  LetterheadOptions,
+  Millis,
+  PriceMode,
+  SkontoStufe,
+  TaxTreatment,
+} from "@haben/core";
 
 /** Rechnung, Stornorechnung oder Rechnungskorrektur (Gutschrift) */
 export type InvoiceKind = "rechnung" | "storno" | "korrektur";
@@ -19,6 +31,9 @@ export interface Address {
 
 export interface Seller extends Address {
   name: string;
+  /** Marke derselben Firma; name bleibt der vollständige rechtliche Rechnungsaussteller. */
+  brand?: string;
+  website?: string;
   email: string;
   telefon?: string;
   steuernummer?: string;
@@ -100,6 +115,8 @@ export interface Logo {
 
 /** Briefkopf aus den Einstellungen; nur für das PDF, nicht für das XML */
 export interface Letterhead {
+  /** Gespeicherte Layoutwahl eines Markenprofils; ohne Angabe gilt die zentrale Beleggestaltung. */
+  layoutAssignments?: LayoutAssignment;
   logo?: Logo;
   /** Briefpapier als Bild hinter dem Beleg; nur PNG oder JPEG, ein PDF als Hintergrund geht in PDF/A-3b nicht */
   background?: Logo;

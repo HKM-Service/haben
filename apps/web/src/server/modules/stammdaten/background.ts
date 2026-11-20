@@ -56,7 +56,7 @@ async function firstPageImage(pdf: Uint8Array): Promise<Uint8Array> {
   }
 }
 
-export async function saveBackground(actor: string, upload: Uint8Array): Promise<void> {
+export async function prepareBackground(upload: Uint8Array) {
   if (upload.length === 0) throw new BackgroundError("Die Datei ist leer.");
   if (upload.length > MAX_BACKGROUND_BYTES) throw new BackgroundError("Das Briefpapier darf höchstens 2 MB groß sein.");
   const data = isPdf(upload) ? await firstPageImage(upload) : upload;
@@ -66,7 +66,11 @@ export async function saveBackground(actor: string, upload: Uint8Array): Promise
   if (!format) throw new BackgroundError("Als Briefpapier gehen PNG, JPEG und PDF.");
   if (!embedsInPdf({ data, format }))
     throw new BackgroundError("Das Bild lässt sich nicht in ein PDF einbetten. Die Datei ist beschädigt oder im Farbraum CMYK; bitte als RGB speichern.");
-  const values = { background: Buffer.from(data), format, sha256: createHash("sha256").update(data).digest("hex"), createdAt: new Date() };
+  return { background: Buffer.from(data), format, sha256: createHash("sha256").update(data).digest("hex"), createdAt: new Date() };
+}
+
+export async function saveBackground(actor: string, upload: Uint8Array): Promise<void> {
+  const values = await prepareBackground(upload);
   await withActor(actor, (tx) =>
     tx
       .insert(schema.letterheadBackground)

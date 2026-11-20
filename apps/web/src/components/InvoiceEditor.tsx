@@ -1,3 +1,6 @@
+import { BrandDesignPanel } from "./BrandDesignPanel.tsx";
+import { BrandProfileSelect } from "./BrandProfileSelect.tsx";
+import type { BrandProfileOption } from "./BrandProfilesCard.tsx";
 import {
   type LetterheadDesign,
   type InvoicePaymentMethod,
@@ -140,6 +143,7 @@ export function InvoiceEditor({
   initial,
   contacts,
   seller,
+  brandProfiles = [],
   sellerIssues,
   letterIssues = [],
   issues,
@@ -174,6 +178,7 @@ export function InvoiceEditor({
   contacts: ContactOption[];
   /** Gestaltung aus dem Profil und das Logo; die Firmendaten fürs Blatt liest der Server */
   seller: { logo?: string | null; design?: LetterheadDesign };
+  brandProfiles?: BrandProfileOption[];
   sellerIssues: string[];
   /** GmbH und UG: fehlende Pflichtangaben für Geschäftsbriefe (§ 35a GmbHG); nur ein Hinweis, keine Sperre */
   letterIssues?: string[];
@@ -239,6 +244,7 @@ export function InvoiceEditor({
   /** Rechnung oder Angebot, an dem Kunde und Steuer noch frei wählbar sind */
   const editable = kind === "rechnung" || quote;
 
+  const [brandProfileId, setBrandProfileId] = useState(initial.brandProfileId ?? null);
   const [contactId, setContactId] = useState(initial.contactId ?? "");
   const [contactPersonId, setContactPersonId] = useState(initial.contactPersonId ?? "");
   /** Offener Dialog „Neuer Kunde“ mit dem vorgetragenen Namen; null = geschlossen */
@@ -526,6 +532,7 @@ export function InvoiceEditor({
 
   function draft(): DraftInput {
     return {
+      brandProfileId,
       contactId: contactId || null,
       contactPersonId: contactPersonId || null,
       issueDate,
@@ -784,7 +791,11 @@ export function InvoiceEditor({
       <PreviewLayout
         preview={preview}
         design={{
-          panel: <DesignPanel draft={designDraft} vatRates={distinctVatRates(parsed.filter((l) => l.valid))} logo={logo} onLogoChanged={setLogo} />,
+          panel: (
+            <BrandDesignPanel profileId={brandProfileId}>
+              <DesignPanel draft={designDraft} vatRates={distinctVatRates(parsed.filter((l) => l.valid))} logo={logo} onLogoChanged={setLogo} />
+            </BrandDesignPanel>
+          ),
           onClosed: designDraft.discard,
         }}
         label="Vorschau"
@@ -823,7 +834,8 @@ export function InvoiceEditor({
               skonto: skonto.stufen,
               sepaMandateId: lastschrift ? mandateId || null : null,
               ...(paidPayment ? { paidPayment } : {}),
-              design: designDraft.changes,
+              brandProfileId,
+              design: brandProfileId ? {} : designDraft.changes,
             }}
           />
         }
@@ -878,6 +890,16 @@ export function InvoiceEditor({
                   </span>
                 </div>
               )}
+              <BrandProfileSelect
+                profiles={brandProfiles}
+                value={brandProfileId}
+                disabled={!editable}
+                onChange={(value) => {
+                  setBrandProfileId(value);
+                  designDraft.discard();
+                  setDirty(true);
+                }}
+              />
               <Field label="Kunde" error={error("contact")} style={{ gridColumn: "1 / -1" }}>
                 {(control) => (
                   <ContactCombobox

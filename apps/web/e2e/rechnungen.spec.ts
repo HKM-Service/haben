@@ -1,3 +1,4 @@
+import { markenprofilePruefen } from "./markenprofile.ts";
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
@@ -2970,6 +2971,11 @@ test("Artikel-API: Rechte, Anlegen, Suchen und Ändern im Katalog (#297)", async
   expect(await active.json()).toMatchObject({ data: [], total: 0 });
   const archived = await request.get(path, { headers: writer, params: { q: changes.description, archived: true } });
   expect(await archived.json()).toMatchObject({ data: [{ id: result.id, archived: true }], total: 1 });
+});
+
+test("Markenprofile wählen, Bilder zuordnen und Entwürfe behalten", async ({ request }, testInfo) => {
+  expect((await request.get("/api/logo?profile=ungueltig")).status()).toBe(401);
+  await markenprofilePruefen(page, testInfo);
 });
 
 test("Keine Fehler im Browser", async () => {

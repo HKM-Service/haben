@@ -1,3 +1,4 @@
+import { listBrandProfiles } from "./brand-profiles.ts";
 import { legalInfo } from "@haben/core";
 import { legalLine } from "@haben/einvoice";
 import { db, schema } from "../../db/index.ts";
@@ -31,6 +32,7 @@ export async function editorContext(kind: "rechnung" | "angebot") {
   const { name, strasse, plz, ort, email, telefon, steuernummer, ustId, iban, bic, bank, kontoinhaber } = company;
   return {
     contacts,
+    brandProfiles: await listBrandProfiles(),
     /** Gültige Lastschriftmandate je Kunde (#445), für die Zahlungsart der Rechnung */
     mandates,
     /** Ansprechpartner aller Kunden (#424), für die Auswahl unter „Kunde“ */

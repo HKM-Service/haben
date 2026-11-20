@@ -1,3 +1,5 @@
+import { checkedBrandProfileId, defaultBrandProfileId, brandProfile } from "../stammdaten/index.ts";
+import { documentBranding } from "./branding.ts";
 import {
   computeInvoice,
   CURRENCY_CODE,
@@ -46,15 +48,7 @@ import { and, asc, desc, eq, inArray, isNull, lte, ne, or, sql, type SQL } from 
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { loadCompany, NO_RATE, resolveExchangeRate, sellerIssues, type Company, type RateFields } from "../stammdaten/index.ts";
-import {
-  ansprechpartnerSnapshot,
-  type Contact,
-  contactPersonProblem,
-  contactRoleProblem,
-  loadLetterhead,
-  loadUnitCodes,
-  withCustomLayout,
-} from "../stammdaten/index.ts";
+import { ansprechpartnerSnapshot, type Contact, contactPersonProblem, contactRoleProblem, loadUnitCodes, withCustomLayout } from "../stammdaten/index.ts";
 import { invoiceLastSettledOn, invoiceLosses, invoicePayments, invoiceWrittenOff } from "./zahlungsstand.ts";
 import { withActor } from "../../db/actor.ts";
 import { db, schema, type Db, type Tx } from "../../db/index.ts";
@@ -97,6 +91,7 @@ const isoDate = z.iso.date();
 export const draftSchema = z
   .object({
     contactId: z.uuid().nullable(),
+    brandProfileId: z.uuid().nullable().optional(),
     issueDate: isoDate,
     serviceFrom: isoDate.nullable(),
     serviceTo: isoDate.nullable(),
@@ -641,9 +636,26 @@ export async function insertDraft(tx: Tx, input: DraftInput, extra: DraftExtra =
   if (mandateProblem) throw new InvoiceError(mandateProblem);
   const personProblem = await contactPersonProblem(tx, values.contactId, values.contactPersonId);
   if (personProblem) throw new InvoiceError(personProblem);
+  const inherited = extra.correctsId
+    ? (await tx.select({ id: schema.invoices.brandProfileId }).from(schema.invoices).where(eq(schema.invoices.id, extra.correctsId)))[0]?.id
+    : input.quoteId
+      ? (await tx.select({ id: schema.quotes.brandProfileId }).from(schema.quotes).where(eq(schema.quotes.id, input.quoteId)))[0]?.id
+      : extra.recurringId
+        ? (
+            await tx
+              .select({ id: schema.recurringInvoices.brandProfileId })
+              .from(schema.recurringInvoices)
+              .where(eq(schema.recurringInvoices.id, extra.recurringId))
+          )[0]?.id
+        : null;
+  const brandProfileId = await checkedBrandProfileId(
+    input.brandProfileId === undefined ? await defaultBrandProfileId(tx) : input.brandProfileId,
+    inherited,
+    tx,
+  );
   const [invoice] = await tx
     .insert(schema.invoices)
-    .values({ ...values, ...extra })
+    .values({ ...values, ...extra, brandProfileId })
     .returning();
   await storeLines(tx, invoice!.id, lines, calculation, taxes);
   await syncQuoteBilling(tx, [invoice!.quoteId]);
@@ -662,6 +674,9 @@ export async function updateDraft(actor: string, id: string, input: DraftInput) 
   return withActor(actor, async (tx) => {
     const quoteIds = await lockQuotes(tx, await quotesTouching(tx, [id], [input.quoteId]));
     const draft = await lockDraft(tx, id);
+    if (draft.correctsId && input.brandProfileId !== undefined && input.brandProfileId !== draft.brandProfileId) {
+      throw new InvoiceError("Die Marke einer Korrektur wird von der ursprünglichen Rechnung übernommen.");
+    }
     for (const reference of [...new Set(input.deducts ?? [])].sort()) await lockInvoice(tx, reference);
     // Nur ein neuer Kunde wird geprüft: ein Kontakt, der inzwischen kein Kunde mehr ist, bleibt an der Rechnung
     if (input.contactId !== draft.contactId) {
@@ -693,7 +708,11 @@ export async function updateDraft(actor: string, id: string, input: DraftInput) 
     const keepsPlanRow = values.variant === "abschlag" && values.quoteId === draft.quoteId;
     const [updated] = await tx
       .update(schema.invoices)
-      .set({ ...values, ...(keepsPlanRow ? {} : { paymentPlanRow: null }) })
+      .set({
+        ...values,
+        brandProfileId: await checkedBrandProfileId(input.brandProfileId === undefined ? draft.brandProfileId : input.brandProfileId, draft.brandProfileId, tx),
+        ...(keepsPlanRow ? {} : { paymentPlanRow: null }),
+      })
       .where(eq(schema.invoices.id, id))
       .returning();
     await storeLines(tx, id, lines, calculation, taxes);
@@ -722,16 +741,19 @@ export async function deleteDraft(actor: string, id: string) {
 /** Neue Rechnung mit den Vorgaben aus den Firmendaten */
 export async function newDraftDefaults(today: string) {
   const company = await loadCompany();
+  const brandProfileId = await defaultBrandProfileId();
+  const brand = brandProfileId ? await brandProfile(brandProfileId) : null;
   return {
     contactId: null,
+    brandProfileId,
     issueDate: today,
     serviceFrom: null,
     serviceTo: null,
     paymentTermDays: company.paymentTermDays,
     skonto: defaultSkonto(company, null, company.paymentTermDays),
     format: company.defaultFormat,
-    intro: company.invoiceIntro,
-    note: "",
+    intro: brand?.intro || company.invoiceIntro,
+    note: brand?.note ?? "",
     propertyRetention: false,
     taxTreatment: (company.kleinunternehmer ? "kleinunternehmer" : "regulaer") as TaxTreatment,
     exemptionReason: "",
@@ -1213,7 +1235,7 @@ async function finalizeDraft(tx: Tx, id: string, bestaetigt?: UmsatzgrenzeBestae
   const number = await documentNumber(tx, "rechnung", company.invoiceNumberFormat, invoice.issueDate, counter);
 
   // Storno und Korrektur gehen an die Anschrift der ursprünglichen Rechnung.
-  const seller = sellerFrom(company);
+  const { seller, letterhead: selectedLetterhead } = await documentBranding(sellerFrom(company), invoice.brandProfileId, tx);
   const buyer = corrects?.buyer ?? buyerFrom(contact!, await ansprechpartnerSnapshot(tx, invoice.contactPersonId));
   const totals = (await invoiceTotalsById([id], tx)).get(id)!;
   await pruefeUmsatzgrenze(tx, invoice, totals.net, company.foundedOn, bestaetigt);
@@ -1230,7 +1252,7 @@ async function finalizeDraft(tx: Tx, id: string, bestaetigt?: UmsatzgrenzeBestae
     await directDebitFor(invoice, company, tx),
     await loadUnitCodes(tx),
   );
-  const rendered = await withCustomLayout("rechnung", await loadLetterhead(), (letterhead) => buildEInvoice({ ...doc, ...letterhead }));
+  const rendered = await withCustomLayout("rechnung", selectedLetterhead, (letterhead) => buildEInvoice({ ...doc, ...letterhead }));
   const now = new Date();
 
   await takeNumber(tx, "rechnung", circle, counter);
@@ -1411,6 +1433,7 @@ export async function cancelInvoice(actor: string, id: string, today: string): P
         tx,
         {
           contactId: target.contactId,
+          brandProfileId: target.brandProfileId,
           issueDate: today,
           serviceFrom: target.serviceFrom,
           serviceTo: target.serviceTo,
@@ -1452,6 +1475,7 @@ export async function createCorrection(actor: string, id: string, today: string)
     actor,
     {
       contactId: invoice.contactId,
+      brandProfileId: invoice.brandProfileId,
       issueDate: today,
       serviceFrom: invoice.serviceFrom,
       serviceTo: invoice.serviceTo,

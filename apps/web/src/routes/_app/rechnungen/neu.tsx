@@ -44,6 +44,7 @@ function NewInvoicePage() {
       initial={initial}
       contacts={data.contacts}
       seller={data.company}
+      brandProfiles={data.brandProfiles}
       sellerIssues={data.sellerIssues}
       letterIssues={data.letterIssues}
       issues={[]}

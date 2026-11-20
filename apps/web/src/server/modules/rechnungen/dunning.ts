@@ -21,7 +21,7 @@ import { db, schema, type Db, type Tx } from "../../db/index.ts";
 import { type DocumentPreview, renderPreview, withDesign } from "./document-preview.ts";
 import { listInvoices, withCurrentLegalInfo } from "./invoices.ts";
 import { importedDunnings, type ImportedDunning } from "./mahnung-altbestand.ts";
-import { loadDesign, loadLetterhead, logoInfo, withCustomLayout } from "../stammdaten/index.ts";
+import { brandProfile, loadDesign, loadLetterhead, logoInfo, withCustomLayout } from "../stammdaten/index.ts";
 
 export class DunningError extends UserError {}
 
@@ -125,12 +125,14 @@ export async function dunningDraft(invoiceId: string, today: string) {
   const found = await finalInvoice(invoiceId, today);
   if (!found) return null;
   const invoice = assertOpen(found);
+  const [source] = await db.select({ brandProfileId: schema.invoices.brandProfileId }).from(schema.invoices).where(eq(schema.invoices.id, invoiceId));
+  const brandProfileId = source?.brandProfileId ?? null;
   const [{ dunning }, [last], imported, design, logo] = await Promise.all([
     loadCompany(),
     dunningsFor([invoiceId]),
     importedDunnings([invoiceId]),
-    loadDesign(),
-    logoInfo(),
+    loadDesign(db, brandProfileId),
+    brandProfileId ? brandProfile(brandProfileId).then((row) => (row.logoHash ? { sha256: row.logoHash } : null)) : logoInfo(),
   ]);
   const level = nextLevel(last, imported.get(invoiceId));
   return {
@@ -150,6 +152,7 @@ export async function dunningDraft(invoiceId: string, today: string) {
     texts: DUNNING_TEXTS,
     /** Für Vorschau und Gestaltung, wie im Rechnungseditor */
     design,
+    brandProfileId,
     logo: logo?.sha256 ?? null,
   };
 }
@@ -190,7 +193,8 @@ async function checkedInput(input: DunningInput, today: string, preview = false)
   if (input.interest && company.dunning.baseRate === null) {
     throw new DunningError("Für Verzugszinsen bitte zuerst den Basiszinssatz in den Einstellungen eintragen.");
   }
-  return { open: listed.open, company, letterhead: await loadLetterhead() };
+  const [invoice] = await db.select({ brandProfileId: schema.invoices.brandProfileId }).from(schema.invoices).where(eq(schema.invoices.id, input.invoiceId));
+  return { open: listed.open, company, letterhead: await loadLetterhead(invoice?.brandProfileId) };
 }
 
 /**

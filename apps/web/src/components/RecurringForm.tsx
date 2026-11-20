@@ -1,3 +1,5 @@
+import { BrandProfileSelect } from "./BrandProfileSelect.tsx";
+import type { BrandProfileOption } from "./BrandProfilesCard.tsx";
 import {
   fillPlaceholders,
   formatDecimal,
@@ -45,6 +47,7 @@ export interface RecurringValues {
   name: string;
   active: boolean;
   contactId: string;
+  brandProfileId?: string | null;
   format: InvoiceFormat;
   paymentTermDays: number;
   intro: string;
@@ -84,6 +87,7 @@ let nextKey = 1;
 export function RecurringForm({
   initial,
   contacts,
+  brandProfiles = [],
   textBlocks = [],
   units = [],
   kleinunternehmer,
@@ -94,6 +98,7 @@ export function RecurringForm({
   initial: RecurringValues;
   /** Nur Kunden stehen zur Auswahl; der gewählte bleibt sichtbar */
   contacts: ContactChoice[];
+  brandProfiles?: BrandProfileOption[];
   /** Kopf- und Fußtexte zum Einfügen */
   textBlocks?: TextBlockOption[];
   /** Eigene Einheiten (#748) neben den festen */
@@ -105,6 +110,7 @@ export function RecurringForm({
 }) {
   const [name, setName] = useState(initial.name);
   const [active, setActive] = useState(initial.active);
+  const [brandProfileId, setBrandProfileId] = useState(initial.brandProfileId ?? null);
   const [contactId, setContactId] = useState(initial.contactId);
   /** Getippter Name, wenn der Dialog für einen neuen Kunden offen ist; null = geschlossen */
   const [newContactName, setNewContactName] = useState<string | null>(null);
@@ -197,6 +203,7 @@ export function RecurringForm({
       name: name.trim(),
       active,
       contactId,
+      brandProfileId,
       format,
       paymentTermDays: term,
       intro,
@@ -236,6 +243,7 @@ export function RecurringForm({
                   />
                 )}
               </Field>
+              <BrandProfileSelect profiles={brandProfiles} value={brandProfileId} onChange={setBrandProfileId} />
               <Field label="Kunde" error={error("contact")}>
                 {(control) => (
                   <ContactCombobox
