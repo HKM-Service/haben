@@ -7,6 +7,7 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
   let invoices: typeof import("./invoices.ts");
   let quotes: typeof import("./quotes.ts");
   let brands: typeof import("../stammdaten/brand-profiles.ts");
+  let editor: typeof import("../stammdaten/editor-context.ts");
   let sql: postgres.Sql;
   let contactId: string;
   let brandProfileId: string;
@@ -31,6 +32,7 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
     invoices = await import("./invoices.ts");
     quotes = await import("./quotes.ts");
     brands = await import("../stammdaten/brand-profiles.ts");
+    editor = await import("../stammdaten/editor-context.ts");
   }, 120_000);
   afterAll(async () => {
     await sql?.end();
@@ -53,6 +55,14 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
     if (state === "privat") await sql`update bank_accounts set purpose = 'privat' where id = ${accountId}`;
     else await sql`update bank_accounts set excluded_at = now() where id = ${accountId}`;
   }
+
+  it.each(["email", "iban"] as const)("trennt Marken- und Firmenhinweise im Editor trotz leerem Firmenfeld %s", async (field) => {
+    await sql`update company set ${sql(field)} = '' where id = 1`;
+
+    const context = await editor.editorContext("rechnung");
+    expect(context.brandProfiles.find((profile) => profile.id === brandProfileId)).toMatchObject({ id: brandProfileId, sellerIssues: [] });
+    expect(context.sellerIssues).toContain(field === "email" ? "E-Mail-Adresse fehlt" : "IBAN fehlt");
+  });
 
   it.each(["email", "iban"] as const)("schreibt eine Rechnung mit Markenangaben trotz leerem Firmenfeld %s fest", async (field) => {
     await sql`update company set ${sql(field)} = '' where id = 1`;
