@@ -44,9 +44,7 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
       values ('Beispielkunde', 'Hafenstraße 5', '20457', 'Hamburg', 'kunde@example.invalid', '10001') returning id`;
     contactId = contact!.id;
     const [account] = await sql`insert into bank_accounts (name, iban) values ('Firmenkonto der Marke', ${iban}) returning id`;
-    brandProfileId = (
-      await brands.saveBrandProfile(actor, null, brandProfileInputSchema.parse({ name: "HKMcore", email, bankAccountId: account!.id }))
-    ).id;
+    brandProfileId = (await brands.saveBrandProfile(actor, null, brandProfileInputSchema.parse({ name: "HKMcore", email, bankAccountId: account!.id }))).id;
   });
 
   it.each(["email", "iban"] as const)("schreibt eine Rechnung mit Markenangaben trotz leerem Firmenfeld %s fest", async (field) => {
