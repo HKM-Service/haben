@@ -461,8 +461,8 @@ export async function quoteIssues(id: string): Promise<string[]> {
   const data = await getQuote(id);
   if (!data) return ["Angebot nicht gefunden"];
   const { quote, lines, contact } = data;
-  const { company, seller } = await documentIssuer(quote.brandProfileId);
-  const issues = sellerIssues(seller).map((issue) => `Firmendaten: ${issue}`);
+  const { company, seller, issues } = await documentIssuer(quote.brandProfileId);
+  issues.push(...sellerIssues(seller).map((issue) => `Firmendaten: ${issue}`));
   issues.push(...outgoingTaxIssues(quote.taxTreatment, quote.taxDetails, company.kleinunternehmer));
   issues.push(
     ...treatmentIssues(quote.taxTreatment, {

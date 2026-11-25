@@ -2,7 +2,7 @@ import { deductionPreviewLines } from "../lib/editor-deductions.ts";
 import { SellerNotices } from "./SellerNotices.tsx";
 import { BrandDesignPanel } from "./BrandDesignPanel.tsx";
 import { BrandProfileSelect } from "./BrandProfileSelect.tsx";
-import type { BrandProfileOption } from "./BrandProfilesCard.tsx";
+import type { EditorBrandProfile } from "../server/modules/stammdaten/index.ts";
 import {
   type LetterheadDesign,
   type InvoicePaymentMethod,
@@ -180,7 +180,7 @@ export function InvoiceEditor({
   contacts: ContactOption[];
   /** Gestaltung aus dem Profil und das Logo; die Firmendaten fürs Blatt liest der Server */
   seller: { logo?: string | null; design?: LetterheadDesign };
-  brandProfiles?: BrandProfileOption[];
+  brandProfiles?: EditorBrandProfile[];
   sellerIssues: string[];
   /** GmbH und UG: fehlende Pflichtangaben für Geschäftsbriefe (§ 35a GmbHG); nur ein Hinweis, keine Sperre */
   letterIssues?: string[];
@@ -650,7 +650,8 @@ export function InvoiceEditor({
     });
   };
 
-  const currentSellerIssues = alreadyPaid || (!quote && kind !== "rechnung") ? sellerIssues.filter((i) => i !== "IBAN fehlt") : sellerIssues;
+  const profileSellerIssues = brandProfiles.find((profile) => profile.id === brandProfileId)?.sellerIssues ?? sellerIssues;
+  const currentSellerIssues = alreadyPaid || (!quote && kind !== "rechnung") ? profileSellerIssues.filter((i) => i !== "IBAN fehlt") : profileSellerIssues;
   const blocking = [...currentSellerIssues.map((i) => `Firmendaten: ${i}`), ...(dirty ? [] : issues.filter((i) => !i.startsWith("Firmendaten")))];
 
   return (

@@ -1030,8 +1030,8 @@ export async function finalizeIssues(id: string, q: Db | Tx = db): Promise<strin
   const data = await getInvoice(id, q);
   if (!data) return ["Rechnung nicht gefunden"];
   const { invoice, lines, contact } = data;
-  const { company, seller } = await documentIssuer(invoice.brandProfileId, q);
-  const issues = sellerIssues(seller, invoice.kind === "rechnung" && invoice.paymentMethod !== "bereits_bezahlt").map((issue) => `Firmendaten: ${issue}`);
+  const { company, seller, issues } = await documentIssuer(invoice.brandProfileId, q);
+  issues.push(...sellerIssues(seller, invoice.kind === "rechnung" && invoice.paymentMethod !== "bereits_bezahlt").map((issue) => `Firmendaten: ${issue}`));
   // Storno und Korrektur übernehmen die Behandlung des Originals, auch nach einem Wechsel der Einstellung
   if (invoice.kind === "rechnung") issues.push(...outgoingTaxIssues(invoice.taxTreatment, invoice.taxDetails, company.kleinunternehmer));
   issues.push(...(await versteuerungIssues(company, invoice.issueDate, q)));

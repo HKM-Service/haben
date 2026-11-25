@@ -130,7 +130,11 @@ export function brandLetterhead(row: BrandProfile): Letterhead {
 
 /** § 14 Abs. 4 Nr. 1 UStG: Der Markenname ergänzt den rechtlichen Aussteller, dessen Name und Anschrift bleiben erhalten.
  * Quelle: https://www.gesetze-im-internet.de/ustg_1980/__14.html */
-export async function brandSeller(seller: Seller, row: BrandProfile, q: Db | Tx = db): Promise<Seller> {
+export async function brandSeller(
+  seller: Seller,
+  row: Pick<BrandProfile, "name" | "email" | "phone" | "website" | "bankAccountId">,
+  q: Db | Tx = db,
+): Promise<Seller> {
   const account = await selectedBank(row.bankAccountId, q);
   return {
     ...seller,
