@@ -1,3 +1,5 @@
+import { deductionPreviewLines } from "../lib/editor-deductions.ts";
+import { SellerNotices } from "./SellerNotices.tsx";
 import { BrandDesignPanel } from "./BrandDesignPanel.tsx";
 import { BrandProfileSelect } from "./BrandProfileSelect.tsx";
 import type { BrandProfileOption } from "./BrandProfilesCard.tsx";
@@ -318,22 +320,7 @@ export function InvoiceEditor({
   const foreign = kind === "rechnung" && currencyCode !== "EUR";
   const amountLabel = grossPrices ? "Brutto" : "Netto";
   // Vorschau: je Abschlagsrechnung und Steuersatz eine negative Position, wie beim Speichern
-  const deductionPreview = [
-    ...deducted.flatMap((a) =>
-      a.rates
-        .filter((r) => r.base !== 0)
-        .map((r) => ({
-          description: `Abzüglich Abschlagsrechnung ${a.number} vom ${formatDate(a.issueDate)}`,
-          quantity: 1000,
-          unit: "Psch." as UnitLabel,
-          unitPrice: -(grossPrices ? r.base + r.tax : r.base),
-          taxRate: r.rate as 1900 | 700 | 0,
-          valid: true,
-          deductionOf: a.id,
-        })),
-    ),
-    ...keptDeductions.map((line) => ({ ...line, valid: true })),
-  ];
+  const deductionPreview = [...deductionPreviewLines(deducted, grossPrices), ...keptDeductions.map((line) => ({ ...line, valid: true }))];
   const title = invoiceTitle(kind, variant);
   const term = Number(paymentTermDays);
   const termValid = Number.isInteger(term) && term >= 0 && term <= 120;
@@ -761,31 +748,7 @@ export function InvoiceEditor({
         </div>
       </div>
 
-      {blocking.length > 0 && (
-        <div className="banner" role="status">
-          <Icon name="alert" />
-          <span>
-            Vor dem Festschreiben: {blocking.join(", ")}.{" "}
-            {currentSellerIssues.length > 0 && (
-              <Link to="/einstellungen" search={{ bereich: "firma" }}>
-                Firmendaten ergänzen
-              </Link>
-            )}
-          </span>
-        </div>
-      )}
-      {letterIssues.length > 0 && (
-        <div className="banner" role="status" id="letter-issues">
-          <Icon name="alert" />
-          <span>
-            Pflichtangaben für Geschäftsbriefe unvollständig (§ 35a GmbHG): {letterIssues.join(", ")}. Festschreiben geht trotzdem, der Fuß nennt dann nur, was
-            eingetragen ist.{" "}
-            <Link to="/einstellungen" search={{ bereich: "firma" }}>
-              Firmendaten ergänzen
-            </Link>
-          </span>
-        </div>
-      )}
+      <SellerNotices blocking={blocking} currentSellerIssues={currentSellerIssues} letterIssues={letterIssues} />
       <NoticeBanner notice={notice} />
 
       <PreviewLayout

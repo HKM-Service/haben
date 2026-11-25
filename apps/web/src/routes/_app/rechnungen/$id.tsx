@@ -1,16 +1,4 @@
-import {
-  describeExchangeRate,
-  discountFromColumns,
-  DUNNING_LEVELS,
-  formatEuro,
-  formatExchangeRate,
-  parseEuro,
-  formatDecimal,
-  TAX_TREATMENTS,
-  WRITE_OFF_KINDS,
-  type DunningLevel,
-  type UnitLabel,
-} from "@haben/core";
+import { describeExchangeRate, DUNNING_LEVELS, formatEuro, parseEuro, formatDecimal, TAX_TREATMENTS, WRITE_OFF_KINDS, type DunningLevel } from "@haben/core";
 import { Link, createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, type FormEvent } from "react";
@@ -19,7 +7,7 @@ import { InvoiceStatus } from "../../../components/InvoiceStatus.tsx";
 import { LockedAndArchived } from "../../../components/ArchiveStatus.tsx";
 import { Icon } from "../../../components/Icon.tsx";
 import { InvoiceAttachments } from "../../../components/InvoiceAttachments.tsx";
-import { InvoiceEditor } from "../../../components/InvoiceEditor.tsx";
+import { InvoiceDraftEditor } from "../../../components/InvoiceDraftEditor.tsx";
 import { InvoiceServiceEntries } from "../../../components/InvoiceServiceEntries.tsx";
 import { RechnungVerrechnung } from "../../../components/RechnungVerrechnung.tsx";
 import { SendMailForm } from "../../../components/SendMail.tsx";
@@ -48,118 +36,12 @@ const titleOf = (invoice: Detail["invoice"]) => invoiceTitle(invoice.kind, invoi
 function InvoicePage() {
   const data = Route.useLoaderData();
   const { invoice } = data;
-  const draftAction = useAction();
   // Nachweis der Leistungen, aus denen die Rechnung entstanden ist (#417)
   const nachweis = <InvoiceServiceEntries entries={data.serviceEntries} />;
   if (invoice.status === "draft") {
     return (
       <>
-        <InvoiceEditor
-          // nach dem Speichern mit den gespeicherten Werten neu aufsetzen
-          key={`${invoice.id}-${String(invoice.updatedAt)}`}
-          action={draftAction}
-          id={invoice.id}
-          kind={invoice.kind}
-          initial={{
-            contactId: invoice.contactId,
-            brandProfileId: invoice.brandProfileId,
-            contactPersonId: invoice.contactPersonId,
-            issueDate: invoice.issueDate,
-            serviceFrom: invoice.serviceFrom,
-            serviceTo: invoice.serviceTo,
-            paymentTermDays: invoice.paymentTermDays,
-            skonto: invoice.skonto,
-            format: invoice.format,
-            intro: invoice.intro,
-            note: invoice.note,
-            propertyRetention: invoice.propertyRetention,
-            buyerOrderReference: invoice.buyerOrderReference,
-            sellerOrderReference: invoice.sellerOrderReference,
-            despatchAdviceReference: invoice.despatchAdviceReference,
-            taxTreatment: invoice.taxTreatment,
-            taxDetails: invoice.taxDetails,
-            exemptionReason: invoice.exemptionReason,
-            priceMode: invoice.priceMode,
-            language: invoice.language,
-            variant: invoice.variant,
-            advanceType: invoice.advanceType,
-            currency: invoice.currency,
-            // Ein übernommener USt-Kurs bleibt im Feld leer: er folgt dem Leistungsmonat
-            exchangeRate: invoice.exchangeRate && invoice.exchangeRateSource !== "ust" ? formatExchangeRate(invoice.exchangeRate) : null,
-            exchangeRateDate: invoice.exchangeRateSource === "ust" ? null : invoice.exchangeRateDate,
-            // Schlussrechnung zu einem Angebot: inzwischen festgeschriebene Abschläge dieses Angebots gleich mit vorschlagen
-            deducts: [
-              ...new Set([
-                ...data.lines.flatMap((line) => (line.deductionOf ? [line.deductionOf] : [])),
-                ...(invoice.variant === "schluss" && invoice.quoteId ? data.abschlaege.filter((a) => a.quoteId === invoice.quoteId).map((a) => a.id) : []),
-              ]),
-            ],
-            quoteId: invoice.quoteId,
-            discount: discountFromColumns(invoice.discountPercent, invoice.discountAmount),
-            paymentMethod: invoice.paymentMethod,
-            paidVia: invoice.paidVia,
-            paidOn: invoice.paidOn,
-            sepaMandateId: invoice.sepaMandateId,
-            // Abzüge erzeugt Haben beim Speichern; im Editor stehen nur die eigenen Positionen
-            lines: data.lines
-              .filter((line) => !line.deductionOf)
-              .map((line) => ({
-                description: line.description,
-                detail: line.detail,
-                itemNumber: line.itemNumber,
-                quantity: line.quantity,
-                unit: line.unit as UnitLabel,
-                unitPrice: line.unitPrice,
-                taxRate: line.taxRate as 1900 | 700 | 0,
-                discount: discountFromColumns(line.discountPercent, line.discountAmount),
-              })),
-          }}
-          contacts={data.contacts}
-          seller={data.company}
-          brandProfiles={data.brandProfiles}
-          sellerIssues={data.sellerIssues}
-          letterIssues={data.letterIssues}
-          issues={data.issues}
-          numberCounters={data.numberCounters}
-          numberRunning={data.numberRunning}
-          numberFormat={data.numberFormat}
-          lastFinalized={data.lastFinalized}
-          corrects={data.corrects}
-          bundesland={data.bundesland}
-          kleinunternehmer={data.kleinunternehmer}
-          companySkonto={data.companySkonto}
-          mandates={data.mandates}
-          contactPersons={data.contactPersons}
-          articles={data.articles}
-          units={data.units}
-          textBlocks={data.textBlocks}
-          abschlaege={data.abschlaege}
-          quotes={data.quotes}
-          tageskurs={data.tageskurs}
-          rateInfo={
-            invoice.exchangeRate ? describeExchangeRate(invoice.currency, invoice.exchangeRate, invoice.exchangeRateSource, invoice.exchangeRateDate) : null
-          }
-          attachments={<InvoiceAttachments ownerId={invoice.id} attachments={data.attachments} editable />}
-          // Korrektur einer Schlussrechnung: Ihre Abzüge bleiben fest und außerhalb der Grundlage des Gesamtrabatts
-          keptDeductions={
-            invoice.kind === "rechnung"
-              ? []
-              : data.lines.flatMap((line) =>
-                  line.deductionOf
-                    ? [
-                        {
-                          description: line.description,
-                          quantity: line.quantity,
-                          unit: line.unit as UnitLabel,
-                          unitPrice: line.unitPrice,
-                          taxRate: line.taxRate as 1900 | 700 | 0,
-                          deductionOf: line.deductionOf,
-                        },
-                      ]
-                    : [],
-                )
-          }
-        />
+        <InvoiceDraftEditor data={data} />
         {nachweis}
       </>
     );

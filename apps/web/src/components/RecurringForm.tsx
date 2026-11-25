@@ -83,6 +83,19 @@ interface LineState {
 
 let nextKey = 1;
 
+function recurringLineState(line: RecurringValues["lines"][number]): LineState {
+  return {
+    key: nextKey++,
+    description: line.description,
+    detail: line.detail,
+    itemNumber: line.itemNumber ?? "",
+    quantity: formatQuantity(line.quantity),
+    unit: line.unit,
+    unitPrice: line.unitPrice ? formatDecimal(line.unitPrice) : "",
+    taxRate: line.taxRate,
+  };
+}
+
 /** Formular für eine Vorlage; Platzhalter wie {monat} werden in der Vorschau ersetzt */
 export function RecurringForm({
   initial,
@@ -130,18 +143,7 @@ export function RecurringForm({
   const [mode, setMode] = useState(initial.mode);
   const [sendByMail, setSendByMail] = useState(initial.sendByMail);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initial.paymentMethod);
-  const [lines, setLines] = useState<LineState[]>(() =>
-    initial.lines.map((line) => ({
-      key: nextKey++,
-      description: line.description,
-      detail: line.detail,
-      itemNumber: line.itemNumber ?? "",
-      quantity: formatQuantity(line.quantity),
-      unit: line.unit,
-      unitPrice: line.unitPrice ? formatDecimal(line.unitPrice) : "",
-      taxRate: line.taxRate,
-    })),
-  );
+  const [lines, setLines] = useState<LineState[]>(() => initial.lines.map(recurringLineState));
 
   const special = taxTreatment !== "regulaer";
   /** Bruttopreise nur mit Steuerausweis */
