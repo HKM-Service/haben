@@ -45,7 +45,7 @@ export function BrandProfileForm({
       const parsed = brandProfileInputSchema.safeParse(value);
       if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Bitte die Angaben prüfen.");
       await save({ data: { id: profile?.id ?? null, profile: parsed.data } });
-      await router.invalidate();
+      await router.invalidate({ sync: true });
     });
     if (ok) onClose();
   }
