@@ -41,7 +41,13 @@ export async function markenprofilePruefen(page: Page, testInfo: TestInfo) {
   await page.getByLabel("Beschreibung Position 1", { exact: true }).fill("Markentest");
   await page.getByLabel("Menge Position 1", { exact: true }).fill("2");
   await page.getByLabel(/Einzelpreis Position 1/).fill("75");
+  const preview = page.getByLabel("Vorschau der Rechnung");
+  await expect(preview).toContainText("HKMcore");
+  await expect(preview).toContainText("core@example.invalid");
   await choice.selectOption({ label: "Zweite Marke" });
+  await expect(preview).toContainText("Zweite Marke");
+  await expect(preview).toContainText("rechnung@mustermann.example");
+  await expect(preview).not.toContainText("core@example.invalid");
   await expect(page.getByLabel("Beschreibung Position 1", { exact: true })).toHaveValue("Markentest");
   await expect(page.getByLabel("Menge Position 1", { exact: true })).toHaveValue("2");
   await page.getByRole("button", { name: "Entwurf speichern", exact: true }).click();
@@ -54,6 +60,8 @@ export async function markenprofilePruefen(page: Page, testInfo: TestInfo) {
   await markenFusszeilePruefen(page);
   await page.goto(savedInvoice);
   await expect(choice.locator("option:checked")).toHaveText("Zweite Marke");
+  await expect(preview).toContainText("Zweite Marke");
+  await expect(preview).toContainText("Markentest");
 
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -61,7 +69,8 @@ export async function markenprofilePruefen(page: Page, testInfo: TestInfo) {
       await page.evaluate((value) => {
         document.documentElement.dataset.mode = value;
       }, mode);
-      await page.screenshot({ path: testInfo.outputPath(`rechnung-${mode}-${width}-nachher.png`), fullPage: true, animations: "disabled" });
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await page.screenshot({ path: testInfo.outputPath(`rechnung-${mode}-${width}-nachher.png`), animations: "disabled" });
       const sizes = await choice.evaluate((element) => ({ width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height }));
       if (width === 390) expect(sizes.height).toBeGreaterThanOrEqual(44);
       expect(sizes.width).toBeLessThanOrEqual(width);

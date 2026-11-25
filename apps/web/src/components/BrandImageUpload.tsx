@@ -1,9 +1,11 @@
 import { MAX_LOGO_BYTES } from "@haben/core";
+import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { getBrandProfiles, removeBrandImage, uploadBrandImage } from "../server/functions/brand-profiles.ts";
 import { ImageUpload } from "./ImageUpload.tsx";
 
 export function BrandImageUpload({ id, kind, hash }: { id: string; kind: "logo" | "background"; hash: string | null }) {
+  const router = useRouter();
   const upload = useServerFn(uploadBrandImage);
   const remove = useServerFn(removeBrandImage);
   const load = useServerFn(getBrandProfiles);
@@ -33,6 +35,7 @@ export function BrandImageUpload({ id, kind, hash }: { id: string; kind: "logo" 
         const sha256 = kind === "logo" ? row?.logoHash : row?.backgroundHash;
         return sha256 ? { sha256 } : null;
       }}
+      onChanged={() => router.invalidate({ sync: true })}
     />
   );
 }
