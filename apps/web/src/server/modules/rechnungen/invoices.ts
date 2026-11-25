@@ -1,5 +1,5 @@
 import { checkedBrandProfileId, defaultBrandProfileId, brandProfile } from "../stammdaten/index.ts";
-import { documentBranding } from "./branding.ts";
+import { documentBranding, documentSeller } from "./branding.ts";
 import {
   computeInvoice,
   CURRENCY_CODE,
@@ -647,9 +647,9 @@ export async function insertDraft(tx: Tx, input: DraftInput, extra: DraftExtra =
               .from(schema.recurringInvoices)
               .where(eq(schema.recurringInvoices.id, extra.recurringId))
           )[0]?.id
-        : null;
+        : undefined;
   const brandProfileId = await checkedBrandProfileId(
-    input.brandProfileId === undefined ? await defaultBrandProfileId(tx) : input.brandProfileId,
+    input.brandProfileId === undefined ? (inherited === undefined ? await defaultBrandProfileId(tx) : inherited) : input.brandProfileId,
     inherited,
     tx,
   );
@@ -1055,7 +1055,8 @@ export async function finalizeIssues(id: string, q: Db | Tx = db): Promise<strin
   if (!data) return ["Rechnung nicht gefunden"];
   const { invoice, lines, contact } = data;
   const company = await loadCompany(q);
-  const issues = sellerIssues(company, invoice.kind === "rechnung" && invoice.paymentMethod !== "bereits_bezahlt").map((issue) => `Firmendaten: ${issue}`);
+  const seller = await documentSeller(sellerFrom(company), invoice.brandProfileId, q);
+  const issues = sellerIssues(seller, invoice.kind === "rechnung" && invoice.paymentMethod !== "bereits_bezahlt").map((issue) => `Firmendaten: ${issue}`);
   // Storno und Korrektur übernehmen die Behandlung des Originals, auch nach einem Wechsel der Einstellung
   if (invoice.kind === "rechnung") issues.push(...outgoingTaxIssues(invoice.taxTreatment, invoice.taxDetails, company.kleinunternehmer));
   issues.push(...(await versteuerungIssues(company, invoice.issueDate, q)));
@@ -1152,7 +1153,7 @@ export async function finalizeIssues(id: string, q: Db | Tx = db): Promise<strin
       lines,
       await invoiceDocumentTotals(id, q),
       (await invoiceTotalsById([id], q)).get(id)!,
-      sellerFrom(company),
+      seller,
       buyerFrom(contact, await ansprechpartnerSnapshot(q, invoice.contactPersonId)),
       "VORSCHAU",
       data.corrects?.number ? { number: data.corrects.number, issueDate: data.corrects.issueDate } : null,

@@ -1,5 +1,5 @@
 import { checkedBrandProfileId, defaultBrandProfileId, brandProfile } from "../stammdaten/index.ts";
-import { documentBranding } from "./branding.ts";
+import { documentBranding, documentSeller } from "./branding.ts";
 import { UserError } from "../../errors.ts";
 import {
   addDays,
@@ -462,7 +462,8 @@ export async function quoteIssues(id: string): Promise<string[]> {
   if (!data) return ["Angebot nicht gefunden"];
   const { quote, lines, contact } = data;
   const company = await loadCompany();
-  const issues = sellerIssues(company).map((issue) => `Firmendaten: ${issue}`);
+  const seller = await documentSeller(sellerFrom(company), quote.brandProfileId);
+  const issues = sellerIssues(seller).map((issue) => `Firmendaten: ${issue}`);
   issues.push(...outgoingTaxIssues(quote.taxTreatment, quote.taxDetails, company.kleinunternehmer));
   issues.push(
     ...treatmentIssues(quote.taxTreatment, {

@@ -281,7 +281,10 @@ export function companyIssues(company: Company): string[] {
 }
 
 /** Was auf einer Rechnung als Absender fehlt (§ 14 UStG und Zahlungsangaben). */
-export function sellerIssues(company: Company, requiresIban = true): string[] {
+export function sellerIssues(
+  company: Pick<Company, "name" | "strasse" | "plz" | "ort" | "email"> & Partial<Pick<Company, "steuernummer" | "ustId" | "iban">>,
+  requiresIban = true,
+): string[] {
   const issues: string[] = [];
   if (!company.name) issues.push("Firmenname fehlt");
   if (!company.strasse || !company.plz || !company.ort) issues.push("Anschrift unvollständig");
