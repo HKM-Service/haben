@@ -114,7 +114,7 @@ Unter **Einstellungen › Firma** hinterlegst du die Angaben, die auf Rechnungen
 | Standard-Zahlungsziel in Tagen | Vorgabe für neue Rechnungen (0 bis 120 Tage) |
 | Skonto | Vorgabe für neue Rechnungen, bis zu drei Stufen aus Satz und Frist in Tagen, z. B. 2 % in 10 Tagen; am Kunden und in der Rechnung änderbar (siehe [Skonto](rechnungen-zahlung.md#skonto)) |
 | Standardformat für Rechnungen | ZUGFeRD (PDF mit eingebettetem XML), XRechnung (CII) oder XRechnung (UBL). Vorgabe für neue Rechnungen |
-| Standard-Einleitung für Rechnungen, für Angebote | Steht in neuen Rechnungen bzw. Angeboten als Einleitung über den Positionen, etwa eine Anrede oder „Für die erbrachten Leistungen berechne ich Ihnen:“. Im Beleg änderbar; bestehende Belege ändern sich nicht. Leer = keine Einleitung, höchstens 2000 Zeichen |
+| Standard-Einleitung für Rechnungen, für Angebote | Einleitung für neue Rechnungen bzw. Angebote, etwa eine Anrede oder „Für die erbrachten Leistungen berechne ich Ihnen:“. Eine nicht leere Einleitung der [Standardmarke](#markenprofile) hat Vorrang. Im Beleg änderbar; bestehende Belege ändern sich nicht. Sind beide Vorgaben leer, bleibt die Einleitung leer; höchstens 2000 Zeichen |
 | Versteuerung | Ist oder Soll, siehe unten |
 | Kleinunternehmer nach § 19 UStG | Haken setzen, wenn du die Kleinunternehmerregelung nutzt, siehe unten |
 | Gründungsdatum | Datum der tatsächlichen Aufnahme deiner unternehmerischen Tätigkeit, siehe [Kleinunternehmer](#kleinunternehmer) |
