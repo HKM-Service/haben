@@ -18,6 +18,11 @@ function lint(path: string, code: string): string[] {
   return checkFile(join(server, path), code).map((v) => v.message);
 }
 
+/** Erlaubte Weitergaben eigener Dateien entfernen; andere Anweisungen bleiben als Verstoß stehen. */
+function withoutIndexReexports(text: string): string {
+  return text.replace(/export (?:type )?\{[^}]*\} from "\.\/[^/"]+\.ts";/g, "").trim();
+}
+
 describe("Modulgrenzen", () => {
   it("aus einem anderen Modul nur über index.ts", () => {
     expect(lint("modules/umsatzsteuer/vat.ts", `import { loadCompany } from "../stammdaten/index.ts";`)).toEqual([]);
@@ -164,6 +169,29 @@ describe("Struktur der Module", () => {
     }
   });
 
+  it.each([
+    `export { value } from "./one.ts";`,
+    `export type { Shape } from "./one.ts";`,
+    `export { value, type Shape } from "./one.ts";`,
+    `export type {\n  Shape,\n} from "./one.ts";`,
+  ])("erlaubt benannte Wert- und Typweitergaben in index.ts: %s", (text) => {
+    expect(withoutIndexReexports(text)).toBe("");
+  });
+
+  it.each([
+    `export type { Shape } from "../other/index.ts";`,
+    `export type { Shape } from "./nested/one.ts";`,
+    `export { value } from "@haben/core";`,
+    `export type { Shape } from "./one.ts"; const value = 1;`,
+    `import "./one.ts"; export type { Shape } from "./one.ts";`,
+    `export type Shape = string;`,
+    `export const value = 1;`,
+    `export * from "./one.ts";`,
+    `export type * from "./one.ts";`,
+  ])("weist fremde Pfade und andere Anweisungen in index.ts zurück: %s", (text) => {
+    expect(withoutIndexReexports(text)).not.toBe("");
+  });
+
   it("index.ts gibt nur Dateien des eigenen Moduls weiter und enthält keine Logik", () => {
     for (const name of names) {
       const lines = readFileSync(join(modules, name, "index.ts"), "utf8")
@@ -171,8 +199,8 @@ describe("Struktur der Module", () => {
         .filter((line) => line.trim() && !line.trim().startsWith("//") && !line.trim().startsWith("*") && !line.trim().startsWith("/*"));
       const text = lines.join("\n");
       for (const [, from] of text.matchAll(/from "([^"]+)"/g)) expect(from, `${name}: ${from}`).toMatch(/^\.\/[^/]+\.ts$/);
-      // Nur export { … } from "./…", auch über mehrere Zeilen
-      expect(text.replace(/export \{[^}]*\} from "\.\/[^"]+";/g, "").trim(), name).toBe("");
+      // Nur benannte Weitergaben eigener Dateien, auch reine Typen und über mehrere Zeilen
+      expect(withoutIndexReexports(text), name).toBe("");
     }
   });
 
