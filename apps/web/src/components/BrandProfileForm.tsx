@@ -125,11 +125,11 @@ export function BrandProfileForm({
       </fieldset>
       <NoticeBanner notice={notice} />
       <div className="actions">
-        <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? "Speichert …" : "Marke speichern"}
-        </button>
         <button type="button" className="btn" disabled={busy} onClick={onClose}>
           Abbrechen
+        </button>
+        <button type="submit" className="btn btn-primary" disabled={busy}>
+          {busy ? "Speichert …" : "Marke speichern"}
         </button>
       </div>
     </form>
