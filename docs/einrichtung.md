@@ -145,6 +145,10 @@ zum Beispiel HKMcore. Ein Markenname reicht zunächst. Über **Bearbeiten** erg�
 Logo, Briefpapier, Farbe, Schrift und Kontaktdaten. Logo und Briefpapier werden beim Hochladen
 sofort gespeichert; die übrigen Angaben mit **Marke speichern**.
 
+Unter **Logo, Briefpapier und Gestaltung › Fußzeile** kannst du eigene Fußspalten je Marke
+eingeben. Die Platzhalter werden mit den Firmen- und Markendaten gefüllt; `{firma}` nennt
+weiterhin den rechtlichen Firmennamen. Ohne eigene Spalten entsteht die Fußzeile automatisch.
+
 Im Rechnungs- und Angebotseditor wählst du unter **Marke / Rechnungsprofil** das passende
 Profil. **Gemeinsame Firmengestaltung** verwendet die bisherigen Einstellungen. Ein Profil
 kann als Standard für neue Belege gewählt werden. Seine Einleitung und sein Schlusstext werden

@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { useAction } from "../lib/use-action.ts";
 import { storeBrandProfile } from "../server/functions/brand-profiles.ts";
 import { BrandImageUpload } from "./BrandImageUpload.tsx";
+import { BrandFooterFields } from "./BrandFooterFields.tsx";
 import type { BrandProfileOption, BrandProfilesData } from "./BrandProfilesCard.tsx";
 import { AccentField, DesignOptionFields } from "./DesignPanel.tsx";
 import { Field } from "./Field.tsx";
@@ -118,6 +119,7 @@ export function BrandProfileForm({
                 Briefpapier enthält bereits Fußzeile und alle Pflichtangaben der Firma
               </label>
             </section>
+            <BrandFooterFields columns={design.footerColumns} onChange={(footerColumns) => changeDesign({ footerColumns })} />
           </div>
         </details>
       </fieldset>

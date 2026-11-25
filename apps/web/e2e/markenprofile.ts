@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import { gehe, kundeWaehlen } from "./einrichtung.ts";
+import { markenFusszeilePruefen } from "./marken-fusszeile.ts";
 
 /** Im Rechnungsdurchlauf, mit dessen erfundenen Firmen- und Kundendaten. */
 export async function markenprofilePruefen(page: Page, testInfo: TestInfo) {
@@ -48,6 +49,11 @@ export async function markenprofilePruefen(page: Page, testInfo: TestInfo) {
   await page.reload();
   await expect(choice.locator("option:checked")).toHaveText("Zweite Marke");
   await expect(page.getByLabel("Beschreibung Position 1", { exact: true })).toHaveValue("Markentest");
+
+  const savedInvoice = page.url();
+  await markenFusszeilePruefen(page);
+  await page.goto(savedInvoice);
+  await expect(choice.locator("option:checked")).toHaveText("Zweite Marke");
 
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
