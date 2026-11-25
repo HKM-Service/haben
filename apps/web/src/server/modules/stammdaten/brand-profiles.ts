@@ -128,7 +128,8 @@ export function brandLetterhead(row: BrandProfile): Letterhead {
   };
 }
 
-/** Der Markenname ergänzt die GmbH im PDF; Rechtsform, Anschrift und Steuerdaten werden nicht überschrieben. */
+/** § 14 Abs. 4 Nr. 1 UStG: Der Markenname ergänzt den rechtlichen Aussteller, dessen Name und Anschrift bleiben erhalten.
+ * Quelle: https://www.gesetze-im-internet.de/ustg_1980/__14.html */
 export async function brandSeller(seller: Seller, row: BrandProfile, q: Db | Tx = db): Promise<Seller> {
   const account = await selectedBank(row.bankAccountId, q);
   return {

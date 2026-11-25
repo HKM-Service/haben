@@ -6,7 +6,7 @@ description: >-
 
 # Entscheidung: Markenprofile der HKM Service GmbH
 
-**Status:** fachlich von Boris bestätigt; Umsetzung im Arbeitsbranch begonnen, Migration und Abnahme noch offen.
+**Status:** fachlich von Boris bestätigt.
 
 Die HKM Service GmbH betreibt mehrere Marken. Beim Erstellen einer Rechnung muss die passende
 Marke mit ihrem Briefpapier auswählbar sein. Diese Funktion ist Voraussetzung für die Ablösung
@@ -21,6 +21,9 @@ Alle Marken gehören zur selben GmbH. Rechtlicher Rechnungsaussteller bleibt die
 Rechtsform, Registerangaben, Steuernummer, USt-IdNr., Kontenrahmen und Versteuerungsart kommen aus
 den zentralen Firmendaten. Die Marken verwenden eine gemeinsame Buchhaltung und die bestehende
 Rechnungsnummernvergabe.
+
+Der rechtliche Name und die Anschrift folgen [§ 14 Abs. 4 Nr. 1 UStG](https://www.gesetze-im-internet.de/ustg_1980/__14.html),
+die Geschäftsbriefangaben der GmbH [§ 35a GmbHG](https://www.gesetze-im-internet.de/gmbhg/__35a.html).
 
 ## Inhalt eines Markenprofils
 
@@ -60,7 +63,7 @@ Rechnung nicht. Die Angaben zum Rechnungsaussteller stimmen in PDF und E-Rechnun
 
 Haben 0.11.0 speichert bereits ein Standardprofil für die Beleggestaltung. Logo und Briefpapier
 werden bislang gemeinsam für die Installation geladen. Die Auswahl mehrerer Markenprofile ist
-eine Erweiterung dieser Struktur; sie ist im Pilot noch nicht verfügbar.
+eine Erweiterung dieser Struktur im HKM-Fork.
 
 Der zugehörige Vorschlag im Originalprojekt ist
 [Marken- und Rechnungsprofile, Issue 245](https://github.com/Speicherstadt/haben/issues/245).
