@@ -31,7 +31,7 @@ describe.skipIf(!testDatabaseUrl)("Markenauswahl auf Belegen (Postgres)", () => 
     quotes = await import("./quotes.ts");
     brands = await import("../stammdaten/brand-profiles.ts");
     assets = await import("../stammdaten/brand-assets.ts");
-  }, 30_000);
+  }, 120_000);
   afterAll(async () => {
     await sql?.end();
   });

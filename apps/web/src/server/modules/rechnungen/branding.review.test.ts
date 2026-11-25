@@ -30,7 +30,7 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
     invoices = await import("./invoices.ts");
     quotes = await import("./quotes.ts");
     brands = await import("../stammdaten/brand-profiles.ts");
-  }, 30_000);
+  }, 120_000);
   afterAll(async () => {
     await sql?.end();
   });

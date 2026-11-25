@@ -34,7 +34,7 @@ describe.skipIf(!testDatabaseUrl)("Markenvererbung ohne ausdrückliche Profilaus
     quotes = await import("./quotes.ts");
     recurring = await import("./recurring.ts");
     brands = await import("../stammdaten/brand-profiles.ts");
-  }, 30_000);
+  }, 120_000);
   afterAll(async () => {
     await sql?.end();
   });

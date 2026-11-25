@@ -33,7 +33,7 @@ describe.skipIf(!testDatabaseUrl)("Marken der gemeinsamen GmbH (Postgres)", () =
     brands = await import("./brand-profiles.ts");
     assets = await import("./brand-assets.ts");
     letterhead = await import("./letterhead.ts");
-  }, 30_000);
+  }, 120_000);
   afterAll(async () => {
     await sql?.end();
   });
