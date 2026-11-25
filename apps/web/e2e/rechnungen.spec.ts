@@ -1,4 +1,5 @@
 import { markenprofilePruefen } from "./markenprofile.ts";
+import { markenbildNachAbbrechenPruefen } from "./markenbilder.review.ts";
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
@@ -2977,6 +2978,15 @@ test("Markenprofile wählen, Bilder zuordnen und Entwürfe behalten", async ({ r
   expect((await request.get("/api/logo?profile=ungueltig")).status()).toBe(401);
   await markenprofilePruefen(page, testInfo);
 });
+
+for (const kind of ["Logo", "Briefpapier"] as const) {
+  test(`Markenbilder nach Abbrechen: ${kind} hochladen und erneut bearbeiten`, async () => {
+    await markenbildNachAbbrechenPruefen(page, kind, false);
+  });
+  test(`Markenbilder nach Abbrechen: ${kind} entfernen und erneut bearbeiten`, async () => {
+    await markenbildNachAbbrechenPruefen(page, kind, true);
+  });
+}
 
 test("Keine Fehler im Browser", async () => {
   expect(pageErrors).toEqual([]);
