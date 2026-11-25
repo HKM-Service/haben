@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import { gehe, kundeWaehlen } from "./einrichtung.ts";
 import { markenFusszeilePruefen } from "./marken-fusszeile.ts";
-import { markenAnsichtenPruefen } from "./marken-ansichten.ts";
+import { markenAnsichtenPruefen, markenVorschauPruefen } from "./marken-ansichten.ts";
 
 /** Im Rechnungsdurchlauf, mit dessen erfundenen Firmen- und Kundendaten. */
 export async function markenprofilePruefen(page: Page, testInfo: TestInfo) {
@@ -43,11 +43,9 @@ export async function markenprofilePruefen(page: Page, testInfo: TestInfo) {
   await page.getByLabel("Menge Position 1", { exact: true }).fill("2");
   await page.getByLabel(/Einzelpreis Position 1/).fill("75");
   const preview = page.getByLabel("Vorschau der Rechnung");
-  await expect(preview).toContainText("HKMcore");
-  await expect(preview).toContainText("core@example.invalid");
+  await markenVorschauPruefen(page, ["HKMcore", "core@example.invalid", "Markentest"]);
   await choice.selectOption({ label: "Zweite Marke" });
-  await expect(preview).toContainText("Zweite Marke");
-  await expect(preview).toContainText("rechnung@mustermann.example");
+  await markenVorschauPruefen(page, ["Zweite Marke", "rechnung@mustermann.example", "Markentest"]);
   await expect(preview).not.toContainText("core@example.invalid");
   await expect(page.getByLabel("Beschreibung Position 1", { exact: true })).toHaveValue("Markentest");
   await expect(page.getByLabel("Menge Position 1", { exact: true })).toHaveValue("2");
@@ -61,8 +59,7 @@ export async function markenprofilePruefen(page: Page, testInfo: TestInfo) {
   await markenFusszeilePruefen(page);
   await page.goto(savedInvoice);
   await expect(choice.locator("option:checked")).toHaveText("Zweite Marke");
-  await expect(preview).toContainText("Zweite Marke");
-  await expect(preview).toContainText("Markentest");
+  await markenVorschauPruefen(page, ["Zweite Marke", "Markentest"]);
 
   await markenAnsichtenPruefen(page, testInfo);
 }

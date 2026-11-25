@@ -1,5 +1,22 @@
 import { expect, type Page, type TestInfo } from "@playwright/test";
 
+/** Langsame Rechner setzen das Blatt laut vorschau-render.ts auf Knopfdruck; ein Renderfehler bleibt ein Fehler. */
+export async function markenVorschauPruefen(page: Page, texts: readonly string[]) {
+  const preview = page.getByLabel("Vorschau der Rechnung");
+  const refresh = preview.getByRole("button", { name: "Aktualisieren", exact: true });
+  const failure = preview.getByRole("alert");
+  await expect
+    .poll(async () => {
+      const content = (await preview.textContent()) ?? "";
+      return texts.every((text) => content.includes(text)) || (await refresh.isVisible()) || (await failure.count()) > 0;
+    })
+    .toBe(true);
+  await expect(failure).toHaveCount(0);
+  if (await refresh.isVisible()) await refresh.click();
+  for (const text of texts) await expect(preview).toContainText(text);
+  await expect(failure).toHaveCount(0);
+}
+
 async function bilder(page: Page, testInfo: TestInfo, width: number) {
   const choice = page.getByLabel("Marke / Rechnungsprofil", { exact: true });
   await expect(choice.locator("option:checked")).toHaveText("Zweite Marke");
@@ -11,7 +28,7 @@ async function bilder(page: Page, testInfo: TestInfo, width: number) {
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     if (width === 1440) {
       const preview = page.getByLabel("Vorschau der Rechnung");
-      await expect(preview).toContainText("Markentest");
+      await markenVorschauPruefen(page, ["Zweite Marke", "Markentest"]);
       const image = preview.getByRole("img").first();
       await expect(image).toBeVisible();
       await expect.poll(() => image.evaluate((element) => (element as HTMLImageElement).complete && (element as HTMLImageElement).naturalWidth > 0)).toBe(true);
