@@ -44,6 +44,7 @@ export {
   type CompanyInput,
 } from "./company.ts";
 export { editorContext } from "./editor-context.ts";
+export { sellerFrom, sellerLegalInfo } from "./seller.ts";
 export { brandImage, saveBrandImage } from "./brand-assets.ts";
 export {
   brandProfile,

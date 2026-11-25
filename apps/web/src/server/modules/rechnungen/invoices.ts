@@ -1,5 +1,5 @@
-import { checkedBrandProfileId, defaultBrandProfileId, brandProfile } from "../stammdaten/index.ts";
-import { documentBranding, documentSeller } from "./branding.ts";
+import { sellerFrom, sellerLegalInfo, checkedBrandProfileId, defaultBrandProfileId, brandProfile } from "../stammdaten/index.ts";
+import { documentBranding, documentIssuer } from "./branding.ts";
 import {
   computeInvoice,
   CURRENCY_CODE,
@@ -30,7 +30,6 @@ import {
   invoiceListStatus,
   invoiceOpen,
   type InvoiceListStatus,
-  legalInfo,
   leistungsdatum,
   skontoProblem,
   sortSkonto,
@@ -899,30 +898,7 @@ export async function withListStatus(rows: Awaited<ReturnType<typeof invoiceList
   });
 }
 
-export function sellerFrom(company: Company): Seller {
-  return {
-    name: company.name,
-    strasse: company.strasse,
-    plz: company.plz,
-    ort: company.ort,
-    land: "DE",
-    email: company.email,
-    ...(company.telefon ? { telefon: company.telefon } : {}),
-    ...(company.steuernummer ? { steuernummer: company.steuernummer } : {}),
-    ...(company.ustId ? { ustId: company.ustId } : {}),
-    ...(company.iban ? { iban: company.iban } : {}),
-    ...(company.bic ? { bic: company.bic } : {}),
-    ...(company.bank ? { bank: company.bank } : {}),
-    ...(company.kontoinhaber ? { kontoinhaber: company.kontoinhaber } : {}),
-    ...sellerLegalInfo(company),
-  };
-}
-
-/** GmbH und UG: Pflichtangaben für Geschäftsbriefe (§ 35a Abs. 1 GmbHG) aus den Firmendaten */
-function sellerLegalInfo(company: Company): Pick<Seller, "legalInfo"> {
-  const info = legalInfo(company);
-  return info ? { legalInfo: info } : {};
-}
+export { sellerFrom };
 
 /**
  * Absender eines festgeschriebenen Belegs mit den Pflichtangaben von heute: Mahnung, Auftragsbestätigung und
@@ -1054,8 +1030,7 @@ export async function finalizeIssues(id: string, q: Db | Tx = db): Promise<strin
   const data = await getInvoice(id, q);
   if (!data) return ["Rechnung nicht gefunden"];
   const { invoice, lines, contact } = data;
-  const company = await loadCompany(q);
-  const seller = await documentSeller(sellerFrom(company), invoice.brandProfileId, q);
+  const { company, seller } = await documentIssuer(invoice.brandProfileId, q);
   const issues = sellerIssues(seller, invoice.kind === "rechnung" && invoice.paymentMethod !== "bereits_bezahlt").map((issue) => `Firmendaten: ${issue}`);
   // Storno und Korrektur übernehmen die Behandlung des Originals, auch nach einem Wechsel der Einstellung
   if (invoice.kind === "rechnung") issues.push(...outgoingTaxIssues(invoice.taxTreatment, invoice.taxDetails, company.kleinunternehmer));
