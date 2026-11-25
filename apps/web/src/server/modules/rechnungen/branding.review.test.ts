@@ -10,6 +10,7 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
   let sql: postgres.Sql;
   let contactId: string;
   let brandProfileId: string;
+  let accountId: string;
   const actor = "test-user";
   const email = "marke@example.invalid";
   const iban = "DE12500105170648489890";
@@ -44,8 +45,14 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
       values ('Beispielkunde', 'Hafenstraße 5', '20457', 'Hamburg', 'kunde@example.invalid', '10001') returning id`;
     contactId = contact!.id;
     const [account] = await sql`insert into bank_accounts (name, iban) values ('Firmenkonto der Marke', ${iban}) returning id`;
-    brandProfileId = (await brands.saveBrandProfile(actor, null, brandProfileInputSchema.parse({ name: "HKMcore", email, bankAccountId: account!.id }))).id;
+    accountId = account!.id;
+    brandProfileId = (await brands.saveBrandProfile(actor, null, brandProfileInputSchema.parse({ name: "HKMcore", email, bankAccountId: accountId }))).id;
   });
+
+  async function makeAccountUnavailable(state: "privat" | "ausgeschlossen") {
+    if (state === "privat") await sql`update bank_accounts set purpose = 'privat' where id = ${accountId}`;
+    else await sql`update bank_accounts set excluded_at = now() where id = ${accountId}`;
+  }
 
   it.each(["email", "iban"] as const)("schreibt eine Rechnung mit Markenangaben trotz leerem Firmenfeld %s fest", async (field) => {
     await sql`update company set ${sql(field)} = '' where id = 1`;
@@ -68,4 +75,27 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
     expect(finalized).toMatchObject({ status: "final", seller: { name: "Beispielfirma GmbH", brand: "HKMcore", email, iban } });
     expect(finalized.pdf?.length).toBeGreaterThan(0);
   });
+
+  // Die Detail-Loader brauchen die Problemliste, um den bestehenden Entwurf weiter zur Bearbeitung anzuzeigen.
+  it.each(["privat", "ausgeschlossen"] as const)(
+    "meldet ein inzwischen %s gesetztes Markenkonto am Rechnungsentwurf als Problem statt zu werfen",
+    async (state) => {
+      const created = await invoices.createDraft(actor, draft());
+      await makeAccountUnavailable(state);
+
+      const issues = await invoices.finalizeIssues(created.id);
+      expect(issues).toEqual(expect.arrayContaining([expect.stringMatching(/Bankkonto/i)]));
+    },
+  );
+
+  it.each(["privat", "ausgeschlossen"] as const)(
+    "meldet ein inzwischen %s gesetztes Markenkonto am Angebotsentwurf als Problem statt zu werfen",
+    async (state) => {
+      const created = await quotes.createQuoteDraft(actor, { ...draft(), validUntil: "2026-10-31" });
+      await makeAccountUnavailable(state);
+
+      const issues = await quotes.quoteIssues(created.id);
+      expect(issues).toEqual(expect.arrayContaining([expect.stringMatching(/Bankkonto/i)]));
+    },
+  );
 });
