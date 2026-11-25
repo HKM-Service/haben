@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import { gehe, kundeWaehlen } from "./einrichtung.ts";
 import { markenFusszeilePruefen } from "./marken-fusszeile.ts";
+import { markenAnsichtenPruefen } from "./marken-ansichten.ts";
 
 /** Im Rechnungsdurchlauf, mit dessen erfundenen Firmen- und Kundendaten. */
 export async function markenprofilePruefen(page: Page, testInfo: TestInfo) {
@@ -63,21 +64,5 @@ export async function markenprofilePruefen(page: Page, testInfo: TestInfo) {
   await expect(preview).toContainText("Zweite Marke");
   await expect(preview).toContainText("Markentest");
 
-  for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: 1000 });
-    for (const mode of ["light", "dark"]) {
-      await page.evaluate((value) => {
-        document.documentElement.dataset.mode = value;
-      }, mode);
-      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-      await page.screenshot({ path: testInfo.outputPath(`rechnung-${mode}-${width}-nachher.png`), animations: "disabled" });
-      const sizes = await choice.evaluate((element) => ({ width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height }));
-      if (width === 390) expect(sizes.height).toBeGreaterThanOrEqual(44);
-      expect(sizes.width).toBeLessThanOrEqual(width);
-    }
-  }
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.evaluate(() => {
-    document.documentElement.dataset.mode = "light";
-  });
+  await markenAnsichtenPruefen(page, testInfo);
 }
