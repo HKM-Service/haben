@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, like, sql } from "drizzle-orm";
+import { and, eq, isNull, like, sql } from "drizzle-orm";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { withActor } from "./db/actor.ts";
 import { schema, type Tx } from "./db/index.ts";
@@ -42,21 +42,19 @@ export async function issueFirstPasskeyCode() {
 export async function claimFirstPasskeyCode(tx: Tx, code: string) {
   if (ssoOnly()) return null;
   const identifier = firstPasskeyCodeIdentifier(code);
-  const [proof] = await tx
-    .select()
-    .from(schema.verification)
-    .where(and(eq(schema.verification.identifier, identifier), gt(schema.verification.expiresAt, sql`clock_timestamp()`)))
-    .limit(1);
+  const [proof] = await tx.select().from(schema.verification).where(eq(schema.verification.identifier, identifier)).limit(1);
   if (!proof) return null;
-  const [owner] = await tx
-    .select()
-    .from(schema.user)
-    .where(and(eq(schema.user.id, proof.value), eq(schema.user.role, "inhaber"), isNull(schema.user.lockedAt)))
-    .for("update");
-  if (!owner || (await hasPasskey(tx, owner.id))) return null;
+  const [owner] = await tx.select().from(schema.user).where(eq(schema.user.id, proof.value)).for("update");
   const [claimed] = await tx
     .delete(schema.verification)
-    .where(and(eq(schema.verification.id, proof.id), eq(schema.verification.identifier, identifier), gt(schema.verification.expiresAt, sql`clock_timestamp()`)))
-    .returning({ id: schema.verification.id });
-  return claimed ? owner : null;
+    .where(and(eq(schema.verification.id, proof.id), eq(schema.verification.identifier, identifier)))
+    .returning({ valid: sql<boolean>`${schema.verification.expiresAt} > clock_timestamp()` });
+  // Auch eine endgültige Ablehnung verbraucht den passenden Nachweis; der Aufrufer committed vor seiner Fehlerantwort.
+  if (!claimed?.valid || !owner || owner.role !== "inhaber" || owner.lockedAt || (await hasPasskey(tx, owner.id))) return null;
+  return owner;
+}
+
+/** Unter derselben Kontosperre wie Ausgabe und Verbrauch, zusammen mit der Passkey-Registrierung. */
+export async function revokeFirstPasskeyCodes(tx: Tx, userId: string) {
+  await tx.delete(schema.verification).where(and(eq(schema.verification.value, userId), like(schema.verification.identifier, `${PREFIX}%`)));
 }

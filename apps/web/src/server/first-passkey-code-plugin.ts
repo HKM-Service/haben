@@ -2,10 +2,11 @@ import { APIError } from "better-auth";
 import { createAuthEndpoint, formCsrfMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import { z } from "zod";
-import { runCodeSignIn } from "./auth-transaction.ts";
+import { runLocalAuth } from "./auth-transaction.ts";
 import { withActor } from "./db/actor.ts";
 import { env } from "./env.ts";
 import { claimFirstPasskeyCode } from "./first-passkey-code.ts";
+import { markFirstPasskeySession } from "./first-passkey-session.ts";
 
 /** Bestehende Better-Auth-Sitzungshooks prüfen Sperre/Rolle und schreiben den Anmeldenachweis. */
 export const firstPasskeyCodePlugin = () => ({
@@ -32,14 +33,16 @@ export const firstPasskeyCodePlugin = () => ({
           throw new APIError("FORBIDDEN", { message: "Die Anmeldung ist nur über diese Haben-Adresse möglich." });
         }
         const authenticated = await withActor("system:passkey-einmalcode", (tx) =>
-          runCodeSignIn(tx, async () => {
+          runLocalAuth(tx, async () => {
             const user = await claimFirstPasskeyCode(tx, ctx.body.code);
-            if (!user) throw new APIError("BAD_REQUEST", { message: "Der Einmalcode ist ungültig, abgelaufen oder bereits verwendet." });
+            if (!user) return null;
             const session = await ctx.context.internalAdapter.createSession(user.id);
             if (!session) throw new APIError("INTERNAL_SERVER_ERROR", { message: "Die Anmeldung ist vorübergehend nicht verfügbar." });
+            await markFirstPasskeySession(tx, session);
             return { user, session };
           }),
         );
+        if (!authenticated) throw new APIError("BAD_REQUEST", { message: "Der Einmalcode ist ungültig, abgelaufen oder bereits verwendet." });
         // Erst nach erfolgreichem Commit darf ein Sitzungscookie den Browser erreichen.
         await setSessionCookie(ctx, authenticated);
         ctx.setHeader("cache-control", "no-store");

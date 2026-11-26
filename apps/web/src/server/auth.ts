@@ -10,6 +10,7 @@ import { changePasswordRequest } from "./change-password.ts";
 import { schema } from "./db/index.ts";
 import { env } from "./env.ts";
 import { firstPasskeyCodePlugin } from "./first-passkey-code-plugin.ts";
+import { firstPasskeyRegistrationRequest } from "./first-passkey-registration.ts";
 import { oidcProvider, withoutProviderTokens } from "./oidc.ts";
 import { checkSetupCode } from "./setup-code.ts";
 import { confirmSsoSession, requireGrantedProof, revokeRejectedIdentity } from "./sso-callback.ts";
@@ -198,6 +199,9 @@ async function handleAuthRequest(request: Request): Promise<Response> {
   }
   if (!ssoOnly() && request.method === "POST" && path.replace(/\/+$/, "") === "/api/auth/change-password") {
     return changePasswordRequest(current, request);
+  }
+  if (!ssoOnly() && request.method === "POST" && path.replace(/\/+$/, "") === "/api/auth/passkey/verify-registration") {
+    return firstPasskeyRegistrationRequest(current, request);
   }
   return current.handler(request);
 }

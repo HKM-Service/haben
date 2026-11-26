@@ -22,7 +22,7 @@ export function FirstPasskeyCodeForm({ onCancel }: { onCancel: () => void }) {
       if (result.error || !result.data?.success) throw new Error(result.error?.message ?? "Die Anmeldung ist fehlgeschlagen.");
       setCode("");
       // Voll laden, damit die Passkey-Einrichtung bereits die neue Sitzung liest. Kein Code in der Adresse.
-      window.location.assign("/setup?einmalcode=1");
+      window.location.assign("/setup");
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -31,7 +31,7 @@ export function FirstPasskeyCodeForm({ onCancel }: { onCancel: () => void }) {
   }
 
   return (
-    <form className="stack" ref={check.form} noValidate onSubmit={submit}>
+    <form method="post" className="stack" ref={check.form} noValidate onSubmit={submit}>
       <p className="muted" style={{ margin: 0 }}>
         Mit dem Einmalcode meldest du dich einmalig an. Anschließend speicherst du deinen ersten Passkey auf deinem Gerät oder in deinem Schlüsselbund.
       </p>

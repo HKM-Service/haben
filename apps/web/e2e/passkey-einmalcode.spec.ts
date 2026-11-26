@@ -86,7 +86,7 @@ test("Abmelden beendet eine abgebrochene Passkey-Einrichtung", async ({ page, ba
   await page.getByRole("button", { name: "Einmalcode verwenden" }).click();
   await page.getByLabel("Einmalcode", { exact: true }).fill(code);
   await page.getByRole("button", { name: "Code einlösen" }).click();
-  await page.waitForURL("**/setup?einmalcode=1");
+  await page.waitForURL("**/setup");
   await page.goto("/setup");
   await expect(page.getByRole("heading", { name: "Passkey einrichten", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Später", exact: true })).toHaveCount(0);
@@ -106,7 +106,8 @@ test("Ein eingerichteter Passkey entwertet offene Codes auch nach seiner Löschu
     ).status(),
   ).toBe(200);
   const pendingCode = await issueCode(baseURL!);
-  await page.goto("/setup");
+  await page.goto("/setup?einmalcode=1");
+  await expect(page.getByRole("button", { name: "Später", exact: true })).toBeVisible();
   const cdp = await context.newCDPSession(page);
   await cdp.send("WebAuthn.enable");
   await cdp.send("WebAuthn.addVirtualAuthenticator", {
@@ -140,7 +141,7 @@ test("Einmalcode führt zum ersten echten WebAuthn-Passkey und dessen späterer 
   await expect(page.getByRole("alert")).toContainText("Einmalcode ist ungültig");
   await page.getByLabel("Einmalcode", { exact: true }).fill(code);
   await page.getByRole("button", { name: "Code einlösen" }).click();
-  await page.waitForURL("**/setup?einmalcode=1");
+  await page.waitForURL("**/setup");
   expect(page.url().includes(code)).toBe(false);
   expect(await page.evaluate((secret) => Object.values(localStorage).some((value) => value.includes(secret)), code)).toBe(false);
 

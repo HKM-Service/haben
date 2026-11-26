@@ -196,6 +196,61 @@ describe.skipIf(!testDatabaseUrl)("Erster Passkey mit Einmalcode (Postgres)", ()
     expect(await sessions()).toHaveLength(0);
   });
 
+  it("bindet die Einrichtung an die Codesitzung und nicht an eine andere Passwortsitzung", async () => {
+    const { isFirstPasskeySession } = await import("./first-passkey-session.ts");
+    const issued = await issueCode();
+    const response = await redeem(issued.code);
+    const current = await (await request("/get-session", undefined, { cookie: cookieOf(response.headers) })).json();
+    expect(await isFirstPasskeySession(current.session)).toBe(true);
+    const password = await request("/sign-in/email", { email: "inhaber@example.invalid", password: "synthetisches-langes-testpasswort" });
+    expect(password.status).toBe(200);
+    const other = await (await request("/get-session", undefined, { cookie: cookieOf(password.headers) })).json();
+    expect(await isFirstPasskeySession(other.session)).toBe(false);
+  });
+
+  it("weist die Passkey-Registrierung für eine inzwischen gesperrte Sitzung weiter mit 401 ab", async () => {
+    const response = await redeem((await issueCode()).code);
+    await database`update "user" set locked_at = now() where id = ${ownerId}`;
+    const rejected = await request("/passkey/verify-registration", {}, { cookie: cookieOf(response.headers) });
+    expect(rejected.status).toBe(401);
+    expect(await sessions()).toHaveLength(0);
+    expect(await database`select id from passkey`).toHaveLength(0);
+  });
+
+  it.each([true, false])("schreibt Passkey und Codewiderruf gemeinsam fest (Erfolg: %s)", async (success) => {
+    const { firstPasskeyRegistrationRequest } = await import("./first-passkey-registration.ts");
+    const { authDatabase } = await import("./auth-transaction.ts");
+    const { schema } = await import("./db/index.ts");
+    const { isFirstPasskeySession } = await import("./first-passkey-session.ts");
+    const issued = await issueCode();
+    const response = await redeem(issued.code);
+    const current = await (await request("/get-session", undefined, { cookie: cookieOf(response.headers) })).json();
+    await issueCode();
+    const authentication = {
+      api: { getSession: async () => current },
+      handler: async () => {
+        await authDatabase().insert(schema.passkey).values({
+          id: "atomic-passkey",
+          userId: ownerId,
+          publicKey: "synthetischer-oeffentlicher-schluessel",
+          credentialID: "atomic-credential",
+          counter: 0,
+          deviceType: "singleDevice",
+          backedUp: false,
+        });
+        return Response.json({}, { status: success ? 200 : 400 });
+      },
+    } as unknown as ReturnType<typeof import("./auth.ts").auth>;
+    const result = await firstPasskeyRegistrationRequest(
+      authentication,
+      new Request("http://localhost:3000/api/auth/passkey/verify-registration", { method: "POST" }),
+    );
+    expect(result.status).toBe(success ? 200 : 400);
+    expect(await pending()).toHaveLength(success ? 0 : 1);
+    expect(await database`select id from passkey`).toHaveLength(success ? 1 : 0);
+    expect(await isFirstPasskeySession(current.session)).toBe(!success);
+  });
+
   it("verhindert einen Erstlogin mit fremdem Origin auch ohne bestehendes Cookie", async () => {
     const issued = await issueCode();
     const response = await redeem(issued.code, { origin: "https://fremd.example.invalid", "sec-fetch-site": "cross-site" });
@@ -281,6 +336,7 @@ describe.skipIf(!testDatabaseUrl)("Erster Passkey mit Einmalcode (Postgres)", ()
       expect(response.headers.getSetCookie()).toEqual([]);
       expect(await sessions()).toHaveLength(0);
       expect(await pending()).toHaveLength(1);
+      expect(await database`select id from verification where identifier like 'first-passkey-session:%'`).toHaveLength(0);
       expect(await database`select id from user_logins where method = 'einmalcode'`).toHaveLength(0);
       expect(logs.mock.calls.flat().join(" ").includes(issued.code)).toBe(false);
       expect((await response.text()).includes(issued.code)).toBe(false);

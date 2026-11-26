@@ -6,17 +6,18 @@ import { errorMessage } from "../lib/format.ts";
 import { getAuthState } from "../server/functions/setup.ts";
 import { Field } from "../components/Field.tsx";
 import { SetupPasskeyStep } from "../components/SetupPasskeyStep.tsx";
+import { getFirstPasskeySetup } from "../server/functions/first-passkey.ts";
 
 // Die Anleitung nennt, wo der Einrichtungscode steht (Log des Servers)
 const CODE_DOCS = "https://haben.app/einrichtung.html#konto-anlegen";
 
 export const Route = createFileRoute("/setup")({
-  beforeLoad: async ({ location }) => {
-    const state = await getAuthState();
+  beforeLoad: async () => {
+    const [state, fromCode] = await Promise.all([getAuthState(), getFirstPasskeySetup()]);
     // SSO-Modus: Passkeys gibt es nicht, nach der Einrichtung geht es nur über die Anmeldeseite hinein
     if (state.oidc.only && state.user) throw redirect({ to: "/" });
     if (state.initialized && !state.user) throw redirect({ to: "/login" });
-    return { state, fromCode: new URLSearchParams(location.searchStr).get("einmalcode") === "1" };
+    return { state, fromCode };
   },
   head: () => ({ meta: [{ title: "Einrichtung · Haben" }] }),
   component: SetupPage,
