@@ -144,6 +144,28 @@ describe.skipIf(!testDatabaseUrl)("Erster Passkey mit Einmalcode (Postgres)", ()
     await expect(issueCode()).rejects.toThrow("keinen ungesperrten lokalen Inhaber");
   });
 
+  it("hält einen wegen Kontosperre abgewiesenen Code auch nach dem Entsperren ungültig", async () => {
+    const issued = await issueCode();
+    await database`update "user" set locked_at = now() where id = ${ownerId}`;
+    expect((await redeem(issued.code)).status).toBe(400);
+    await database`update "user" set locked_at = null where id = ${ownerId}`;
+    const retry = await redeem(issued.code);
+    expect(retry.status).toBe(400);
+    expect(retry.headers.getSetCookie()).toEqual([]);
+    expect(await sessions()).toHaveLength(0);
+  });
+
+  it("hält einen wegen Passkey abgewiesenen Code auch nach dessen Löschung ungültig", async () => {
+    const issued = await issueCode();
+    await addExistingPasskey();
+    expect((await redeem(issued.code)).status).toBe(400);
+    await database`delete from passkey`;
+    const retry = await redeem(issued.code);
+    expect(retry.status).toBe(400);
+    expect(retry.headers.getSetCookie()).toEqual([]);
+    expect(await sessions()).toHaveLength(0);
+  });
+
   it("weist auch einen falsch zugeordneten Nachweis für eine fremde Rolle ab", async () => {
     const issued = await issueCode();
     await database`insert into "user" (id, name, email, role) values ('fremde-rolle', 'Steuerberatung', 'kanzlei@example.invalid', 'steuerberatung')`;

@@ -65,6 +65,7 @@ test("Anmeldung und Codeformular in beiden Modi auf Desktop und Handy", async ({
         await expect(page.getByLabel("Einmalcode", { exact: true })).toBeFocused();
         await expect(page.getByLabel("Einmalcode", { exact: true })).toHaveAttribute("type", "password");
         await expect(page.getByLabel("Einmalcode", { exact: true })).toHaveAttribute("autocomplete", "one-time-code");
+        await expect(page.locator("form")).toHaveAttribute("method", "post");
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
         await page.screenshot({ path: testInfo.outputPath(`einmalcode-${mode}-${width}-nachher.png`), fullPage: true, animations: "disabled" });
         await page.getByRole("button", { name: "Code einlösen" }).click();
@@ -86,11 +87,47 @@ test("Abmelden beendet eine abgebrochene Passkey-Einrichtung", async ({ page, ba
   await page.getByLabel("Einmalcode", { exact: true }).fill(code);
   await page.getByRole("button", { name: "Code einlösen" }).click();
   await page.waitForURL("**/setup?einmalcode=1");
+  await page.goto("/setup");
   await expect(page.getByRole("heading", { name: "Passkey einrichten", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Später", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Abmelden", exact: true }).click();
   await page.waitForURL("**/login");
   expect(await (await page.request.get("/api/auth/get-session")).json()).toBeNull();
+});
+
+test("Ein eingerichteter Passkey entwertet offene Codes auch nach seiner Löschung", async ({ page, context, baseURL }) => {
+  await page.setExtraHTTPHeaders({ "x-forwarded-for": "203.0.113.93" });
+  expect(
+    (
+      await page.request.post("/api/auth/sign-in/email", {
+        headers: { origin: baseURL! },
+        data: { email: EMAIL, password: "synthetisches-langes-testpasswort" },
+      })
+    ).status(),
+  ).toBe(200);
+  const pendingCode = await issueCode(baseURL!);
+  await page.goto("/setup");
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("WebAuthn.enable");
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+  const registered = page.waitForResponse((response) => response.url().endsWith("/passkey/verify-registration"));
+  await page.getByRole("button", { name: "Passkey hinzufügen", exact: true }).click();
+  expect((await registered).status()).toBe(200);
+  const [key] = await (await page.request.get("/api/auth/passkey/list-user-passkeys")).json();
+  expect((await page.request.post("/api/auth/passkey/delete-passkey", { headers: { origin: baseURL! }, data: { id: key.id } })).status()).toBe(200);
+  const retry = await page.request.post("/api/auth/sign-in/first-passkey-code", { headers: { origin: baseURL! }, data: { code: pendingCode } });
+  expect(retry.status()).toBe(400);
+  expect((await page.request.post("/api/auth/sign-out", { headers: { origin: baseURL! }, data: {} })).status()).toBe(200);
+  await cdp.detach();
 });
 
 test("Einmalcode führt zum ersten echten WebAuthn-Passkey und dessen späterer Anmeldung", async ({ page, context, baseURL }) => {
