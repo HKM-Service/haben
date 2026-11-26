@@ -28,6 +28,7 @@ interface OpenTransaction {
 interface AuthScope {
   transaction?: OpenTransaction;
   passwordChange?: Tx;
+  codeSignIn?: Tx;
   proof?: SsoProof;
   rejection?: CallbackRejection;
   /** Fehlercode aus dem Redirect von Better Auth oder vom Anbieter, etwa invalid_scope; nur fürs Log */
@@ -37,11 +38,13 @@ interface AuthScope {
 const scope = new AsyncLocalStorage<AuthScope>();
 
 /** Adapter und Hooks nutzen beim SSO-Callback und Passwortwechsel dieselbe Transaktion. */
-export const authTransaction = () => scope.getStore()?.transaction?.tx ?? scope.getStore()?.passwordChange;
+export const authTransaction = () => scope.getStore()?.transaction?.tx ?? scope.getStore()?.passwordChange ?? scope.getStore()?.codeSignIn;
 export const authDatabase = () => authTransaction() ?? db;
 
 export const passwordChangeTransaction = () => scope.getStore()?.passwordChange;
 export const runPasswordChange = (tx: Tx, work: () => Promise<Response>) => scope.run({ passwordChange: tx }, work);
+
+export const runCodeSignIn = <T>(tx: Tx, work: () => Promise<T>) => scope.run({ codeSignIn: tx }, work);
 
 /** Nachweis des laufenden Callbacks; nur innerhalb von atomicAuthCallback gesetzt, nie aus Browserdaten */
 export const callbackProof = () => scope.getStore()?.proof;

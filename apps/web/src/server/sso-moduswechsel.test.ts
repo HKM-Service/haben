@@ -13,6 +13,7 @@ describe.skipIf(!testDatabaseUrl)("Moduswechsel und SSO-Übernahme (Postgres)", 
   const owner: TestIdentity = { sub: "owner-sub", email: "owner@example.de", groups: ["haben-inhaber"] };
   let ownerId = "";
   let localCookie = "";
+  let codeBeforeSso = "";
   let ssoCookie = "";
   let pendingSso: { url: URL; cookie: string } | undefined;
 
@@ -65,6 +66,7 @@ describe.skipIf(!testDatabaseUrl)("Moduswechsel und SSO-Übernahme (Postgres)", 
     });
     localCookie = cookieOf(result.headers);
     ownerId = result.response.user.id;
+    codeBeforeSso = (await (await import("./first-passkey-code.ts")).issueFirstPasskeyCode()).code;
     // Zwei RSA-Schlüssel und eine Datenbank aus der Vorlage brauchen unter Volllast länger als die Vorgabe
   }, 60_000);
   afterAll(async () => {
@@ -88,6 +90,12 @@ describe.skipIf(!testDatabaseUrl)("Moduswechsel und SSO-Übernahme (Postgres)", 
     expect(await database`select id from session where user_id = ${ownerId}`).toHaveLength(0);
     expect(await app.sessionUser(new Headers({ cookie: localCookie }))).toBeNull();
     expect(await database`select id from account where user_id = ${ownerId} and provider_id = 'credential'`).toHaveLength(1);
+    const codeLogin = await request("/sign-in/first-passkey-code", { code: codeBeforeSso });
+    // Im SSO-Modus wird das lokale Plugin nicht geladen: Der Endpunkt existiert dort nicht.
+    expect(codeLogin.status).toBe(404);
+    expect(codeLogin.headers.getSetCookie()).toEqual([]);
+    expect(await database`select id from session where user_id = ${ownerId}`).toHaveLength(0);
+    await expect((await import("./first-passkey-code.ts")).issueFirstPasskeyCode()).rejects.toThrow("SSO-Modus");
   });
 
   it("verweigert dem unverknüpften lokalen Inhaber den Zugang und verweist auf die Übernahme", async () => {

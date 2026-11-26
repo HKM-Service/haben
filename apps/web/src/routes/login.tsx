@@ -2,6 +2,7 @@ import { PASSKEY_ERROR_CODES } from "@better-auth/passkey/client";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { SsoSignIn } from "../components/SsoSignIn.tsx";
+import { FirstPasskeyCodeForm } from "../components/FirstPasskeyCodeForm.tsx";
 import { authClient } from "../lib/auth-client.ts";
 import { errorMessage } from "../lib/format.ts";
 import { getAuthState } from "../server/functions/setup.ts";
@@ -26,6 +27,7 @@ function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showCode, setShowCode] = useState(false);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: Autofill nur einmal beim Öffnen des Formulars anbieten
   useEffect(() => {
@@ -86,7 +88,7 @@ function LoginPage() {
         <div className="brand" style={{ color: "var(--ink)", padding: 0 }}>
           <span className="brand-mark">H</span>Haben
         </div>
-        <h1 style={{ fontSize: 24 }}>Anmelden</h1>
+        <h1 style={{ fontSize: 24 }}>{showCode ? "Ersten Passkey einrichten" : "Anmelden"}</h1>
         {oidc.only ? (
           <>
             <p className="muted" style={{ margin: 0 }}>
@@ -94,6 +96,8 @@ function LoginPage() {
             </p>
             <SsoSignIn name={oidc.name} weiter autoStart />
           </>
+        ) : showCode ? (
+          <FirstPasskeyCodeForm onCancel={() => setShowCode(false)} />
         ) : (
           <>
             <button type="button" className="btn btn-primary" onClick={withPasskey} disabled={busy}>
@@ -114,6 +118,18 @@ function LoginPage() {
                 Passwort verwenden
               </button>
             )}
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                setShowPassword(false);
+                setError(null);
+                setShowCode(true);
+              }}
+            >
+              Einmalcode verwenden
+            </button>
           </>
         )}
         {error && (

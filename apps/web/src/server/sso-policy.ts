@@ -16,6 +16,7 @@ export const ssoOnly = () => env().OIDC_ONLY;
 /** Better-Auth-Endpunkte der lokalen Anmeldung und Kontenpflege; im SSO-Modus gesperrt */
 export const LOCAL_AUTH_PATHS = [
   "/sign-in/email",
+  "/sign-in/first-passkey-code",
   "/sign-up/email",
   "/change-password",
   "/set-password",

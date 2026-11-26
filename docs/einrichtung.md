@@ -44,6 +44,12 @@ Passkeys verwaltest du unter **Einstellungen › Sicherheit › Passkeys**: weit
 
 Unter **Einstellungen › Sicherheit › Passwort ändern** gibst du dein bisheriges Passwort ein und bestätigst das neue Passwort mit mindestens 12 Zeichen durch erneute Eingabe. Alle Sitzungen enden, auch die im aktuellen Browser und die per Passkey eröffneten. Danach kannst du dich mit dem neuen Passwort oder einem vorhandenen Passkey anmelden. Im Änderungsprotokoll steht der Wechsel ohne Passwort oder Hash.
 
+### Ersten Passkey mit Einmalcode einrichten
+
+Für ein bereits angelegtes Inhaberkonto ohne Passkey kann die Person, die Haben betreibt, einen [Einmalcode bereitstellen](installation-konfiguration.md#einmalcode-für-den-ersten-passkey). Auf der Anmeldeseite wählst du **Einmalcode verwenden**, fügst den Code ein und klickst **Code einlösen**. Danach öffnet **Passkey hinzufügen** die Abfrage deines Geräts oder Schlüsselbunds, auf dem Mac etwa mit Touch ID. Für künftige Anmeldungen wählst du **Mit Passkey anmelden**.
+
+Der Code gilt 15 Minuten und nur einmal. Eine Neuausgabe entwertet den vorherigen Code. Sobald ein Passkey vorhanden ist, lässt sich dieser Weg nicht mehr verwenden; weitere Passkeys fügst du nach der Anmeldung in den Einstellungen hinzu. Konto und Passwort bleiben erhalten. Mit **Abmelden** brichst du die Einrichtung ab; für einen neuen Versuch brauchst du einen neuen Code. Im SSO-Modus gibt es diesen Weg nicht.
+
 ## Fragen zur Einrichtung
 
 Nach dem ersten Konto stellt Haben ein paar Fragen in drei Schritten:
