@@ -13,7 +13,7 @@ import { ANONYMOUS, chunks, currentYear, fakeEigeneSeite, firstLink, SESSION, US
 test.use({ storageState: SESSION });
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
 /** Jede Farbe hell und dunkel, als „Farbe“ oder „Farbe:dunkel“ (withTheme) */
-const THEMES = ["wald", "ozean", "pflaume", "graphit", "wald:dunkel", "ozean:dunkel", "pflaume:dunkel", "graphit:dunkel"];
+const THEMES = ["hkm", "wald", "ozean", "pflaume", "graphit", "hkm:dunkel", "wald:dunkel", "ozean:dunkel", "pflaume:dunkel", "graphit:dunkel"];
 
 const YEAR = currentYear();
 

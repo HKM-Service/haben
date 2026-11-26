@@ -15,7 +15,7 @@ type Art = "standard" | "farbe" | "logo";
 const FARBE_VORSCHLAG = "#1D4ED8";
 
 /**
- * Zeichen der Firma in der Navigation (#504), getrennt von der Beleggestaltung: „H“ des Themes, „H“ in eigener Farbe
+ * Zeichen der Firma in der Navigation (#504), getrennt von der Beleggestaltung: Logo „HKM finanz“ (ab Werk), „H“ in eigener Farbe
  * oder das Logo der Belege, Letzteres nur auf ausdrückliche Wahl
  */
 export function NavMarkCard({ color, logo, logoSha256 }: { color: string | null; logo: boolean; logoSha256: string | null }) {
@@ -67,7 +67,7 @@ export function NavMarkCard({ color, logo, logoSha256 }: { color: string | null;
           <legend className="small muted" style={{ marginBottom: 4 }}>
             Zeichen
           </legend>
-          {option("standard", "„H“ in der Farbe des Themes")}
+          {option("standard", "Logo „HKM finanz“")}
           {option("farbe", "„H“ in eigener Farbe")}
           {art === "farbe" && (
             <div style={{ display: "flex", gap: 12, alignItems: "end", flexWrap: "wrap", marginLeft: 35 }}>
@@ -102,14 +102,14 @@ export function NavMarkCard({ color, logo, logoSha256 }: { color: string | null;
             {option("logo", "Logo aus der Beleggestaltung", { disabled: !logoSha256, describedBy: "nav-mark-logo-hint" })}
             <span id="nav-mark-logo-hint" className="field-hint">
               {logoSha256
-                ? "Steht in einem Quadrat: Am besten wirkt ein quadratisches Bildzeichen, breite Schriftzüge werden klein. Ändert sich mit dem Logo der Belege, fehlt es später, gilt wieder das „H“."
+                ? "Steht in einem Quadrat: Am besten wirkt ein quadratisches Bildzeichen, breite Schriftzüge werden klein. Ändert sich mit dem Logo der Belege, fehlt es später, gilt wieder die eigene Farbe oder das Logo „HKM finanz“."
                 : "Erst möglich, wenn unter Beleggestaltung ein Logo hochgeladen ist."}
             </span>
           </div>
         </fieldset>
         <div className="nav-mark-preview" aria-hidden="true">
           <NavMarkSymbol mark={vorschau} />
-          Haben
+          {vorschau && "Haben"}
         </div>
       </div>
       <div className="actions">

@@ -7,6 +7,7 @@ import { getAuthState } from "../server/functions/setup.ts";
 import { Field } from "../components/Field.tsx";
 import { SetupPasskeyStep } from "../components/SetupPasskeyStep.tsx";
 import { getFirstPasskeySetup } from "../server/functions/first-passkey.ts";
+import { HkmLogo } from "../components/HkmLogo.tsx";
 
 // Die Anleitung nennt, wo der Einrichtungscode steht (Log des Servers)
 const CODE_DOCS = "https://haben.app/einrichtung.html#konto-anlegen";
@@ -53,8 +54,9 @@ function SetupPage() {
   return (
     <main className="auth-page">
       <div className="card auth-card">
-        <div className="brand" style={{ color: "var(--ink)", padding: 0 }}>
-          <span className="brand-mark">H</span>Haben
+        <div className="auth-logo">
+          <HkmLogo className="brand-hkm-voll" />
+          <span className="visually-hidden">HKM finanz</span>
         </div>
         {state.oidc.only ? (
           <>

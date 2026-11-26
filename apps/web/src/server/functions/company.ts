@@ -38,7 +38,7 @@ export const saveCompany = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** Zeichen der Firma in der Navigation (#504): „H“ des Themes, eigene Farbe oder Logo der Belege; die Regeln prüft saveNavMark */
+/** Zeichen der Firma in der Navigation (#504): Logo „HKM finanz“ ab Werk, eigene Farbe oder Logo der Belege; die Regeln prüft saveNavMark */
 export const saveNavMarkSetting = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(navMarkSchema)

@@ -3,6 +3,8 @@
  * Jede Farbe gibt es hell und dunkel; `<html>` trägt die Farbe in data-theme und den Modus in data-mode (light, dark).
  */
 export const THEMES = [
+  // HKM finanz: die Farben von HKM, ab Werk
+  { id: "hkm", label: "HKM" },
   { id: "wald", label: "Wald" },
   { id: "ozean", label: "Ozean" },
   { id: "pflaume", label: "Pflaume" },
@@ -20,7 +22,7 @@ export type ModeId = (typeof MODES)[number]["id"];
 
 export const THEME_KEY = "haben-theme";
 export const MODE_KEY = "haben-modus";
-export const DEFAULT_THEME: ThemeId = "wald";
+export const DEFAULT_THEME: ThemeId = "hkm";
 export const DEFAULT_MODE: ModeId = "hell";
 
 /** Frühere Werte von THEME_KEY, als Farbe und Modus; gilt, solange kein Modus gespeichert ist */

@@ -110,3 +110,28 @@ test("/ öffnet die Schnellsuche, außer der Fokus steht in einem Eingabefeld", 
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
 });
+
+// Der Knopf in der ausgeklappten Navigation ist 200 Pixel breit: Lupe, „Schnellsuche“ und das Hauptkürzel passen hinein,
+// ein zweites Kürzel daneben ragte über den Rand. „/“ steht deshalb nicht sichtbar im Knopf, öffnet die Suche aber weiter
+test("Im Knopf der Navigation ragt nichts über den Rand, sichtbar ist nur das Hauptkürzel", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/", { waitUntil: "networkidle" });
+  const knopf = page.getByRole("navigation", { name: "Hauptnavigation" }).getByRole("button", { name: /Schnellsuche/ });
+  await expect(knopf).toBeVisible();
+  const gemessen = await knopf.evaluate((el) => {
+    const rand = el.getBoundingClientRect();
+    const sichtbar = [...el.querySelectorAll<HTMLElement>(".nav-search-label, .nav-kbd")].filter((kind) => kind.getBoundingClientRect().width > 1);
+    return {
+      kuerzel: sichtbar.filter((kind) => kind.classList.contains("nav-kbd")).map((kind) => (kind.textContent ?? "").replace(/\s+/g, "")),
+      innerhalb: sichtbar.every((kind) => kind.getBoundingClientRect().right <= rand.right - 1 && kind.getBoundingClientRect().left >= rand.left + 1),
+      ueberlauf: el.scrollWidth - el.clientWidth,
+      kurzbefehle: el.getAttribute("aria-keyshortcuts"),
+    };
+  });
+  expect(gemessen.kuerzel).toHaveLength(1);
+  expect(gemessen.kuerzel[0]).toMatch(/K$/);
+  expect(gemessen.innerhalb).toBe(true);
+  expect(gemessen.ueberlauf).toBe(0);
+  // Beide Kürzel bleiben für Hilfstechnik angegeben
+  expect(gemessen.kurzbefehle).toMatch(/K \//);
+});

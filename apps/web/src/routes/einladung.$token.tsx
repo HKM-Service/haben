@@ -5,6 +5,7 @@ import { errorMessage, formatDateTime } from "../lib/format.ts";
 import { getAuthState } from "../server/functions/setup.ts";
 import { checkInvitation } from "../server/functions/zugang.ts";
 import { Field } from "../components/Field.tsx";
+import { HkmLogo } from "../components/HkmLogo.tsx";
 
 /** Einladung der Steuerberatung einlösen: Konto mit Passwort anlegen, danach Passkey hinzufügen */
 export const Route = createFileRoute("/einladung/$token")({
@@ -62,8 +63,9 @@ function InvitationPage() {
   return (
     <main className="auth-page">
       <div className="card auth-card">
-        <div className="brand" style={{ color: "var(--ink)", padding: 0 }}>
-          <span className="brand-mark">H</span>Haben
+        <div className="auth-logo">
+          <HkmLogo className="brand-hkm-voll" />
+          <span className="visually-hidden">HKM finanz</span>
         </div>
         {accepted ? (
           <>

@@ -40,7 +40,7 @@ const auswahl = (seite = page) => nav(seite).getByRole("group", { name: "Firma w
 test("Inhaber klappt die Zeile auf und sieht nur die anderen Firmen", async () => {
   await einrichten(page);
   await gehe(page, "/");
-  await expect(nav().getByRole("link", { name: `Haben ${FIRMA}` })).toBeVisible();
+  await expect(nav().getByRole("link", { name: `HKM finanz ${FIRMA}` })).toBeVisible();
   await expect(knopf()).toHaveAttribute("aria-expanded", "false");
   await expect(auswahl()).toHaveCount(0);
   // Das Gebäude steht vor dem Text, der Text bündig mit „Übersicht“ und den Menüpunkten (#1006)

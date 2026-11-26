@@ -8,6 +8,7 @@ import { errorMessage } from "../lib/format.ts";
 import { getAuthState } from "../server/functions/setup.ts";
 import { Field } from "../components/Field.tsx";
 import { weiterNachAnmeldung } from "../lib/weiter.ts";
+import { HkmLogo } from "../components/HkmLogo.tsx";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: async ({ location }) => {
@@ -85,8 +86,9 @@ function LoginPage() {
   return (
     <main className="auth-page">
       <div className="card auth-card">
-        <div className="brand" style={{ color: "var(--ink)", padding: 0 }}>
-          <span className="brand-mark">H</span>Haben
+        <div className="auth-logo">
+          <HkmLogo className="brand-hkm-voll" />
+          <span className="visually-hidden">HKM finanz</span>
         </div>
         <h1 style={{ fontSize: 24 }}>{showCode ? "Ersten Passkey einrichten" : "Anmelden"}</h1>
         {oidc.only ? (

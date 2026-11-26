@@ -42,10 +42,10 @@ export function contrast(a: string, b: string): number {
 }
 
 /**
- * Hintergrund der Navigation in den vier Farben (Wald, Ozean, Pflaume, Graphit) im hellen Modus und im dunklen Modus,
+ * Hintergrund der Navigation in den fünf Farben (HKM, Wald, Ozean, Pflaume, Graphit) im hellen Modus und im dunklen Modus,
  * der für alle Farben gleich ist. Muss mit `--nav` in apps/web/src/styles.css übereinstimmen; navigation.test.ts prüft das.
  */
-export const NAV_BACKGROUNDS = ["#16211C", "#131C2B", "#1F1624", "#15191D", "#111113"] as const;
+export const NAV_BACKGROUNDS = ["#000000", "#16211C", "#131C2B", "#1F1624", "#15191D", "#111113"] as const;
 
 /** WCAG 2.2, 1.4.11: 3 : 1 für Grafik, die man erkennen muss */
 const MIN_GRAPHIC_CONTRAST = 3;

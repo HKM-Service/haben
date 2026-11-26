@@ -113,11 +113,11 @@ test("Einrichtung: Konto, Firmendaten und Rechnungsnummer", async () => {
   await akzent.getByRole("button", { name: "Übernehmen" }).click();
   await expect(akzent.getByRole("status")).toContainText("Akzentfarbe gespeichert.");
   await expect(akzent.getByLabel("Hex-Wert")).toHaveValue("#1D4ED8");
-  // Das Zeichen in der Navigation hängt nicht an der Beleggestaltung (#504): das „H“ bleibt in der Farbe des Themes
+  // Das Zeichen in der Navigation hängt nicht an der Beleggestaltung (#504): Ab Werk bleibt das Logo „HKM finanz“, ohne „H“
   const marke = nav.locator(".brand-mark");
-  await expect(marke).toHaveCSS("background-color", "rgb(63, 162, 132)");
-  // Das „H“ des Themes hebt sich ohnehin ab und hat keine Innenkante
-  await expect(marke).toHaveCSS("box-shadow", "none");
+  const hkmLogo = nav.locator(".brand-hkm");
+  await expect(hkmLogo).toBeVisible();
+  await expect(marke).toHaveCount(0);
   // Die Vorschau im Editor übernimmt Akzentfarbe und Grautöne (#222): Text #191F27 statt des grünlichen #16211C
   await go("/rechnungen/neu");
   const vorschau = page.getByLabel("Vorschau der Rechnung");
@@ -189,10 +189,11 @@ test("Einrichtung: Konto, Firmendaten und Rechnungsnummer", async () => {
   await expect(logoZeichen).toHaveAttribute("src", logoVorher!);
   await vorschauDialog.getByRole("button", { name: "Schließen" }).click();
   await go("/einstellungen");
-  // Zurück zum „H“ des Themes; die eigene Farbe bleibt für später gespeichert, die übrigen Tests rechnen mit dem Standard
-  await zeichen.getByLabel("„H“ in der Farbe des Themes").check();
+  // Zurück zum Logo „HKM finanz“; die eigene Farbe bleibt für später gespeichert, die übrigen Tests rechnen mit dem Standard
+  await zeichen.getByLabel("Logo „HKM finanz“").check();
   await zeichenSpeichern();
-  await expect(marke).toHaveCSS("background-color", "rgb(63, 162, 132)");
+  await expect(hkmLogo).toBeVisible();
+  await expect(marke).toHaveCount(0);
   await expect(logoZeichen).toHaveCount(0);
 });
 
