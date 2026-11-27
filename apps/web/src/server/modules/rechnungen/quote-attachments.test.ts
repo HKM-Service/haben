@@ -168,7 +168,7 @@ describe.skipIf(!testDatabaseUrl)("Zusätzliche Anhänge an Angeboten (Postgres,
   });
 
   it("die Datei eines Rechnungsanhangs bleibt liegen, wenn derselbe Angebotsanhang entfernt wird", async () => {
-    const invoices = await import("./invoices.ts");
+    const invoices = await import("./index.ts");
     const invoiceAttachments = await import("./attachments.ts");
     const bytes = pdf("AGB gemeinsam");
     const invoice = await invoices.createDraft(actor, {
@@ -192,10 +192,12 @@ describe.skipIf(!testDatabaseUrl)("Zusätzliche Anhänge an Angeboten (Postgres,
     expect(new TextDecoder().decode(await storage.loadFile(storage.sha256Of(bytes)))).toContain("AGB gemeinsam");
   });
 
-  it("Kopieren nimmt die Anhänge in den neuen Entwurf mit", async () => {
+  it("Kopieren nimmt die Anhänge in den neuen Entwurf mit, auch aus einem Entwurf (#1881)", async () => {
     const { id } = await draft();
     await attachments.addQuoteAttachment(actor, id, { bytes: pdf("AGB"), filename: "agb.pdf" });
     await attachments.addQuoteAttachment(actor, id, { bytes: pdf("Vereinbarung"), filename: "vereinbarung.pdf" });
+    const ausEntwurf = await quotes.copyQuote(actor, id, "2026-11-02");
+    expect((await attachments.listQuoteAttachments(ausEntwurf.id)).map((a) => a.filename)).toEqual(["agb.pdf", "vereinbarung.pdf"]);
     await quotes.finalizeQuote(actor, id);
     const copy = await quotes.copyQuote(actor, id, "2026-11-02");
     expect((await attachments.listQuoteAttachments(copy.id)).map((a) => a.filename)).toEqual(["agb.pdf", "vereinbarung.pdf"]);

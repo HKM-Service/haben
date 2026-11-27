@@ -118,24 +118,27 @@ export async function setBrandProfileArchived(actor: string, id: string, archive
 
 /** Alle Bild- und Gestaltungsdaten stammen aus derselben Profilzeile. */
 export function brandLetterhead(row: BrandProfile): Letterhead {
-  const { accent, layouts, ...options } = designWithDefaults(row.settings);
+  const { accent, layouts, layoutOptions, ...options } = designWithDefaults(row.settings);
   return {
     accent,
     options,
     layoutAssignments: layouts,
+    layoutOptions,
     ...(row.logo && row.logoFormat ? { logo: { data: new Uint8Array(row.logo), format: row.logoFormat } } : {}),
     ...(row.background && row.backgroundFormat ? { background: { data: new Uint8Array(row.background), format: row.backgroundFormat } } : {}),
   };
 }
 
 /** § 14 Abs. 4 Nr. 1 UStG: Der Markenname ergänzt den rechtlichen Aussteller, dessen Name und Anschrift bleiben erhalten.
- * Quelle: https://www.gesetze-im-internet.de/ustg_1980/__14.html */
+ * Quelle: https://www.gesetze-im-internet.de/ustg_1980/__14.html
+ * Mit `keepBank` legt der Beleg sein Zahlungskonto selbst fest; dann gilt das Konto der Marke nicht. */
 export async function brandSeller(
   seller: Seller,
   row: Pick<BrandProfile, "name" | "email" | "phone" | "website" | "bankAccountId">,
   q: Db | Tx = db,
+  keepBank = false,
 ): Promise<Seller> {
-  const account = await selectedBank(row.bankAccountId, q);
+  const account = keepBank ? null : await selectedBank(row.bankAccountId, q);
   return {
     ...seller,
     brand: row.name,

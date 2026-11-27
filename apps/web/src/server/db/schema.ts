@@ -11,19 +11,21 @@ import {
   jsonb,
   numeric,
   pgEnum,
+  pgSequence,
   pgTable,
   primaryKey,
   smallint,
   text,
   timestamp,
   index,
+  unique,
   uniqueIndex,
   uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 import type { Buyer, Seller } from "@haben/einvoice";
-import type { BankCsvMapping } from "@haben/import";
+import type { BankCsvMapping, ImportMovement, ParsedTransaction, WebOmittedCounts } from "@haben/import";
 import type { LetterheadDesign, OutgoingTaxDetails } from "@haben/core";
 import {
   ASSET_KIND_KEYS,
@@ -67,6 +69,8 @@ import {
   type KirchensteuerSatz,
   type Millis,
   type Prozent,
+  PAYMENT_PROVIDER_KEYS,
+  RECURRENCE_KEYS,
 } from "@haben/core";
 import type { LstbWerte } from "@haben/core";
 
@@ -143,9 +147,6 @@ export const company = pgTable(
     /** Vorgabe für das Skonto neuer Rechnungen, je Stufe Frist in Tagen und Satz in Basispunkten; leer = kein Skonto */
     skonto: jsonb("skonto").$type<SkontoStufe[]>().notNull().default([]),
     defaultFormat: invoiceFormatEnum("default_format").notNull().default("zugferd"),
-    /** Vorgabe für die Einleitung über den Positionen neuer Rechnungen bzw. Angebote; im Beleg änderbar */
-    invoiceIntro: text("invoice_intro").notNull().default(""),
-    quoteIntro: text("quote_intro").notNull().default(""),
     /** Vorlagen für den Zahlungsplan im Angebot, z. B. „30/40/30“ und „50/50“ */
     paymentPlanTemplates: jsonb("payment_plan_templates").$type<PlanTemplate[]>().notNull().default(DEFAULT_PLAN_TEMPLATES),
     /** Kleinunternehmer nach § 19 UStG: Rechnungen ohne Umsatzsteuer, keine Voranmeldung, kein Vorsteuerabzug */
@@ -162,6 +163,9 @@ export const company = pgTable(
     /** Zähler je Kreis: false = beginnt jedes Jahr bei 1, true = läuft über den Jahreswechsel weiter (#328) */
     invoiceCounterRunning: boolean("invoice_counter_running").notNull().default(false),
     quoteCounterRunning: boolean("quote_counter_running").notNull().default(false),
+    /** Zähler je Kunde: eigener Nummernkreis pro Kontakt statt gemeinsamem Kreis; {KUNDENNR} wird im Format Pflicht (#1426) */
+    invoiceCounterPerCustomer: boolean("invoice_counter_per_customer").notNull().default(false),
+    quoteCounterPerCustomer: boolean("quote_counter_per_customer").notNull().default(false),
     /** Kundennummern automatisch, z. B. "K-{NNNN}"; leer = von Hand. Der Zähler läuft durch, ohne Jahr */
     customerNumberFormat: text("customer_number_format").notNull().default(""),
     customerNumberNext: integer("customer_number_next").notNull().default(1),
@@ -221,13 +225,50 @@ export const company = pgTable(
     navLogo: boolean("nav_logo").notNull().default(false),
     /** Archiv aus dem Umzug in der Schnellsuche mitdurchsuchen (#617); Vorgabe an */
     archiveSearch: boolean("archive_search").notNull().default(true),
+    /**
+     * KI-Auslesung (#1735): Warteschlange angehalten, und die Grenzen des Dienstes; null = keine Grenze. Haben schickt die
+     * nächste Anfrage erst, wenn sie alle gesetzten Grenzen einhält.
+     */
+    extractionPaused: boolean("extraction_paused").notNull().default(false),
+    extractionMaxTokensPerRequest: integer("extraction_max_tokens_per_request"),
+    extractionRequestsPerMinute: integer("extraction_requests_per_minute"),
+    extractionTokensPerMinute: integer("extraction_tokens_per_minute"),
+    /** Höchstens so viele Belege liest Haben gleichzeitig aus */
+    extractionMaxParallel: smallint("extraction_max_parallel").notNull().default(4),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     check("company_single_row", sql`${t.id} = 1`),
     check("company_rechtsform", sql`${t.rechtsform} in ('einzelunternehmen', 'gmbh', 'ug')`),
     check("company_nav_color", sql`${t.navColor} ~ '^#[0-9A-F]{6}$'`),
+    check("company_extraction_max_parallel", sql`${t.extractionMaxParallel} between 1 and 20`),
+    check(
+      "company_extraction_limits",
+      sql`coalesce(${t.extractionMaxTokensPerRequest}, 1) > 0 and coalesce(${t.extractionRequestsPerMinute}, 1) > 0 and coalesce(${t.extractionTokensPerMinute}, 1) > 0`,
+    ),
   ],
+);
+
+/**
+ * Weitere Zahlungskonten für Rechnungen und Angebote (#1887); das Standardkonto bleibt in `company`. Wählbar je Entwurf
+ * und als Vorgabe am Kontakt. Festgeschriebene Belege tragen eine Kopie im Verkäufer (seller) und keinen Verweis, darum
+ * lässt sich jedes löschen; Entwürfe und Kontakte fallen dann auf den Standard zurück.
+ */
+export const bankverbindungen = pgTable(
+  "bankverbindungen",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Kurzbezeichnung für die Auswahl, z. B. „Objekt Nord“; steht nicht auf dem Beleg */
+    bezeichnung: text("bezeichnung").notNull(),
+    /** Ohne Leerzeichen, in Großbuchstaben */
+    iban: text("iban").notNull(),
+    bic: text("bic").notNull().default(""),
+    bank: text("bank").notNull().default(""),
+    /** Inhaber des Kontos, wenn nicht der Firmenname; leer = Firmenname (GiroCode, BT-85) */
+    kontoinhaber: text("kontoinhaber").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("bankverbindungen_iban").on(t.iban)],
 );
 
 /**
@@ -297,6 +338,8 @@ export const vatReturns = pgTable(
     kz61: integer("kz61").$type<Cents>().notNull().default(0),
     /** Entstandene Einfuhrumsatzsteuer (§ 15 Abs. 1 Satz 1 Nr. 2 UStG) */
     kz62: integer("kz62").$type<Cents>().notNull().default(0),
+    /** Minderung der Bemessungsgrundlage bei Uneinbringlichkeit (§ 17 Abs. 2 Nr. 1 UStG), in Kz 81/86 schon enthalten */
+    kz50: integer("kz50").$type<Cents>().notNull().default(0),
     /** Abzug der Sondervorauszahlung (Dauerfristverlängerung) in der letzten Voranmeldung des Jahres */
     kz39: integer("kz39").$type<Cents>().notNull().default(0),
     kz83: integer("kz83").$type<Cents>().notNull().default(0),
@@ -308,6 +351,14 @@ export const vatReturns = pgTable(
       .notNull()
       .default("manuell"),
     overrideReason: text("override_reason"),
+    /**
+     * „leistung“: Die berechneten Kennzahlen (die Anmeldung selbst bei „berechnet“, sonst `computed`) enthalten in Kz 48
+     * die Umsätze als Kleinunternehmer im Zeitraum der Leistung (#1268). Gesetzt beim Speichern des Entwurfs, bei einer
+     * Berichtigung von der berichtigten Anmeldung übernommen. Leer heißt gerechnet vor #1811, ob mit diesen Umsätzen (ab
+     * 0.13) oder ohne (bis 0.12), ist unbekannt: Nur dann gilt im Abgleich gesendeter Anmeldungen auch Kz 48 ohne sie als
+     * unverändert.
+     */
+    smallBusinessRule: text("small_business_rule", { enum: ["leistung"] }),
     /** Berechnete Werte zum Zeitpunkt des Speicherns, zum Nachvollziehen einer Überschreibung */
     computed: jsonb("computed").$type<{
       kz81: Cents;
@@ -327,6 +378,7 @@ export const vatReturns = pgTable(
       kz93?: Cents;
       kz61?: Cents;
       kz62?: Cents;
+      kz50?: Cents;
       kz39?: Cents;
       kz83: Cents;
     }>(),
@@ -340,6 +392,7 @@ export const vatReturns = pgTable(
   (t) => [
     // Zeitraum wie im ELSTER-Feld Zeitraum: 1–12 Monate, 41–44 Kalendervierteljahre
     check("vat_returns_month", sql`${t.month} between 1 and 12 or ${t.month} between 41 and 44`),
+    check("vat_returns_small_business_rule", sql`${t.smallBusinessRule} is null or ${t.smallBusinessRule} = 'leistung'`),
     foreignKey({ name: "vat_returns_corrects_fk", columns: [t.correctsId], foreignColumns: [t.id] }),
     // höchstens ein Entwurf je Zeitraum
     uniqueIndex("vat_returns_one_draft_per_period").on(t.year, t.month).where(sql`${t.status} = 'draft'`),
@@ -547,8 +600,9 @@ export const annualSubmissionFigures = pgTable(
 );
 
 /**
- * Nachrichten an das Finanzamt über ELSTER (Sonstige Nachricht), etwa der Antrag auf Herabsetzung der
- * Vorauszahlungen; jede Prüfung und Übermittlung mit XML, nur anhängen.
+ * Nachrichten an das Finanzamt über ELSTER: Sonstige Nachricht, Antrag auf Anpassung der Vorauszahlungen
+ * (Betreff dort von Haben: Zeitraum des Antrags, Text = Begründung) und Änderung der Bankverbindung; jede Prüfung und
+ * Übermittlung mit XML, nur anhängen.
  */
 export const elsterMessages = pgTable("elster_messages", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -597,6 +651,8 @@ export const residualTerms = pgTable("residual_terms", {
 export interface AusschuettungEmpfaenger {
   name: string;
   anteil: BasisPoints;
+  /** Beteiligung in Euro (Nennbetrag), nach der verteilt wird (§ 29 Abs. 3 Satz 1 GmbHG, #1286); fehlt bei Ausschüttungen vor #1812 */
+  beteiligung?: Cents;
   brutto: Cents;
   ausEinlagekonto: Cents;
   ertrag: Cents;
@@ -699,6 +755,24 @@ export const postfachDocuments = pgTable(
     index("postfach_documents_dateibezeichnung_trgm_idx").using("gin", sql`haben_unaccent(${t.dateibezeichnung}) gin_trgm_ops`),
     index("postfach_documents_zeitraum_trgm_idx").using("gin", sql`haben_unaccent(${t.veranlagungszeitraum}) gin_trgm_ops`),
   ],
+);
+
+/**
+ * Erledigt-Vermerke zu Bescheiden aus dem Postfach (#1819). Wer einen Bescheid geprüft hat, soll nicht bis zum Ablauf der
+ * Einspruchsfrist auf die Aufgabe warten. `postfach_documents` ist append-only, deshalb steht der Vermerk als eigenes
+ * Ereignis daneben; „wieder offen" ist ein zweites Ereignis, kein Löschen. Wer wann abgehakt hat, steht im Audit-Log.
+ */
+export const postfachErledigt = pgTable(
+  "postfach_erledigt",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => postfachDocuments.id, { onDelete: "restrict" }),
+    art: text("art", { enum: ["geprueft", "wieder_offen"] }).notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("postfach_erledigt_document").on(t.documentId, t.at), check("postfach_erledigt_art", sql`${t.art} in ('geprueft', 'wieder_offen')`)],
 );
 
 /** Belegabrufe für die vorausgefüllte Steuererklärung (VaSt): Anfrage der Liste und Abholung der Belege */
@@ -858,6 +932,12 @@ export const inboxSettings = pgTable(
     outboundFolder: text("outbound_folder"),
     /** Freigegebene Absender (Adresse oder Domain); leer: jeder Absender */
     allowedSenders: text("allowed_senders").array().notNull().default(sql`'{}'::text[]`),
+    /** Was mit einer abgelegten Mail im Postfach geschieht: gelesen markieren, in archive_folder verschieben oder löschen */
+    afterFetch: text("after_fetch", { enum: ["seen", "move", "delete"] })
+      .notNull()
+      .default("seen"),
+    /** Zielordner bei after_fetch = move */
+    archiveFolder: text("archive_folder"),
     enabled: boolean("enabled").notNull().default(true),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     /** Mails nicht freigegebener Absender beim letzten Abruf (nur die Zahl, ohne Absender und Betreff) */
@@ -865,7 +945,7 @@ export const inboxSettings = pgTable(
     lastError: text("last_error"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [check("inbox_settings_single_row", sql`${t.id} = 1`)],
+  (t) => [check("inbox_settings_single_row", sql`${t.id} = 1`), check("inbox_settings_after_fetch", sql`${t.afterFetch} in ('seen', 'move', 'delete')`)],
 );
 
 /** Abgerufene Mails mit den daraus angelegten Belegen; je Message-ID genau einmal */
@@ -1092,6 +1172,8 @@ export const contacts = pgTable(
      */
     debitorNr: integer("debitor_nr").unique(),
     kreditorNr: integer("kreditor_nr").unique(),
+    /** Bevorzugtes Zahlungskonto für Rechnungen und Angebote an diesen Kunden (#1887); null = Standard aus den Firmendaten */
+    bankverbindungId: uuid("bankverbindung_id").references(() => bankverbindungen.id, { onDelete: "set null" }),
     /** Stundensatz für Leistungseinträge (#417); null = keiner hinterlegt */
     hourlyRateCents: integer("hourly_rate_cents").$type<Cents>(),
     version: integer("version").notNull().default(1),
@@ -1309,6 +1391,55 @@ export const sepaMandateRevocations = pgTable(
   (t) => [uniqueIndex("sepa_mandate_revocations_mandate").on(t.mandateId)],
 );
 
+/**
+ * Bestätigungen ausländischer USt-IdNrn. beim BZSt (§ 18e UStG, #1385), nur anhängen: je Antwort des BZSt, die etwas über
+ * die Nummer sagt, eine Zeile mit den gesendeten Angaben und dem empfangenen Datensatz unverändert als Nachweis
+ * der qualifizierten Abfrage (UStAE 18e.1 Abs. 2 Sätze 3 bis 5, FAQ des BZSt). Fehler des Dienstes stehen nicht hier.
+ */
+export const ustidBestaetigungen = pgTable(
+  "ustid_bestaetigungen",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id),
+    art: text("art", { enum: ["einfach", "qualifiziert"] }).notNull(),
+    /** Gesendet: eigene und angefragte USt-IdNr., bei qualifizierter Abfrage Name und Anschrift (Straße und PLZ optional) */
+    anfragendeUstid: text("anfragende_ustid").notNull(),
+    angefragteUstid: text("angefragte_ustid").notNull(),
+    firmenname: text("firmenname"),
+    strasse: text("strasse"),
+    plz: text("plz"),
+    ort: text("ort"),
+    /** Empfangen: Status (evatr-…), Zeitpunkt der Anfrage beim BZSt, Gültigkeit und Vergleich A bis D je Angabe */
+    status: text("status").notNull(),
+    anfrageZeitpunkt: timestamp("anfrage_zeitpunkt", { withTimezone: true }).notNull(),
+    gueltigAb: text("gueltig_ab"),
+    gueltigBis: text("gueltig_bis"),
+    ergFirmenname: text("erg_firmenname"),
+    ergStrasse: text("erg_strasse"),
+    ergPlz: text("erg_plz"),
+    ergOrt: text("erg_ort"),
+    /** Technische ID der Antwort */
+    bzstId: text("bzst_id"),
+    /** Der empfangene Datensatz, wie er kam */
+    antwort: text("antwort").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ustid_bestaetigungen_contact").on(t.contactId, t.createdAt),
+    check("ustid_bestaetigungen_art", sql`${t.art} in ('einfach', 'qualifiziert')`),
+    check("ustid_bestaetigungen_status", sql`${t.status} ~ '^evatr-[0-9]{4}$'`),
+    check(
+      "ustid_bestaetigungen_vergleich",
+      sql`coalesce(${t.ergFirmenname}, 'A') in ('A', 'B', 'C', 'D') and coalesce(${t.ergStrasse}, 'A') in ('A', 'B', 'C', 'D') and coalesce(${t.ergPlz}, 'A') in ('A', 'B', 'C', 'D') and coalesce(${t.ergOrt}, 'A') in ('A', 'B', 'C', 'D')`,
+    ),
+    // Qualifiziert heißt: mit Name und Ort (OpenAPI-Beschreibung der eVatR-API)
+    check("ustid_bestaetigungen_qualifiziert", sql`${t.art} = 'einfach' or (${t.firmenname} is not null and ${t.ort} is not null)`),
+  ],
+);
+
 export const invoiceKindEnum = pgEnum("invoice_kind", ["rechnung", "storno", "korrektur"]);
 export const invoiceStatusEnum = pgEnum("invoice_status", ["draft", "final"]);
 
@@ -1324,6 +1455,8 @@ export const invoices = pgTable(
     /** Kreis des Zählers: Jahr des Belegdatums, 0 = durchlaufender Zähler (counterCircle) */
     numberYear: smallint("number_year"),
     numberCounter: integer("number_counter"),
+    /** Kontakt des Kundenkreises, in dem die Nummer vergeben wurde; NULL = gemeinsamer Kreis (#1426) */
+    numberContactId: uuid("number_contact_id").references(() => contacts.id, { onDelete: "restrict" }),
     contactId: uuid("contact_id").references(() => contacts.id),
     contactVersion: integer("contact_version"),
     issueDate: date("issue_date", { mode: "string" }).notNull(),
@@ -1346,6 +1479,12 @@ export const invoices = pgTable(
     intro: text("intro").notNull().default(""),
     /** Hinweis unter den Summen (Fußtext) */
     note: text("note").notNull().default(""),
+    /**
+     * Einleitung und Hinweis mit Platzhaltern, wie sie im Entwurf standen (#1334): beim Festschreiben gesetzt, wenn
+     * Platzhalter eingesetzt wurden (intro/note tragen dann die Werte), sonst leer. Kopieren nimmt sie statt der Werte.
+     */
+    introVorlage: text("intro_vorlage").notNull().default(""),
+    noteVorlage: text("note_vorlage").notNull().default(""),
     /** Aufbewahrungshinweis für Grundstücksleistungen (§ 14 Abs. 4 Satz 1 Nr. 9 UStG), getrennt vom freien Fußtext */
     propertyRetention: boolean("property_retention").notNull().default(false),
     /**
@@ -1381,6 +1520,18 @@ export const invoices = pgTable(
     advanceAccounting: text("advance_accounting", { enum: ["deferred"] }),
     /** Ersatz einer stornierten Schlussrechnung; deren bereits realisierte Leistung bleibt bestehen (#750). */
     replacesInvoiceId: uuid("replaces_invoice_id"),
+    /**
+     * Storno und Korrektur: „rueckgewaehr“ heißt, bereits vereinnahmte Umsatzsteuer mindert sich erst mit der Rückzahlung
+     * an den Kunden (§ 17 UStG, UStAE 17.1 Abs. 2 Satz 3, BFH V R 34/09). Gesetzt beim Festschreiben (Trigger
+     * invoices_reduction_rule); leer heißt bisheriges Verfahren, das vor #853 festgeschriebene Korrekturen behalten.
+     */
+    reductionRule: text("reduction_rule", { enum: ["rueckgewaehr"] }),
+    /**
+     * Rechnung über § 4 UStG oder Ausfuhr: „leistung“ heißt, Kz 48 bzw. 43 der Voranmeldung zählen sie auch bei Ist im
+     * Zeitraum der Leistung, Anzahlungen darauf nicht (#1312, Anleitung zur UStVA 2026). Gesetzt beim Festschreiben (Trigger
+     * invoices_exempt_rule); leer heißt bisherige Zuordnung wie Kz 81, die vorher festgeschriebene Ketten behalten.
+     */
+    exemptRule: text("exempt_rule", { enum: ["leistung"] }),
     /** Angebot, aus dem bzw. zu dem die Rechnung entstanden ist; die Schlussrechnung zieht dessen Abschläge ab */
     quoteId: uuid("quote_id").references((): AnyPgColumn => quotes.id),
     /** Abschlagsrechnung zu einer Zeile des Zahlungsplans im Angebot (Index ab 0) */
@@ -1411,6 +1562,11 @@ export const invoices = pgTable(
     sepaMandateId: uuid("sepa_mandate_id").references(() => sepaMandates.id),
     /** Gewählter Ansprechpartner des Kunden (#424); der festgeschriebene Stand steht im Käufer */
     contactPersonId: uuid("contact_person_id").references(() => contactPersons.id),
+    /**
+     * Zahlungskonto des Entwurfs (#1887); null = Standard aus den Firmendaten. Bei Lastschrift gilt immer der Standard,
+     * auf ihn lautet das Gläubigerkonto. Beim Festschreiben geleert: Dann gilt die Kopie im Verkäufer (seller).
+     */
+    bankverbindungId: uuid("bankverbindung_id").references(() => bankverbindungen.id, { onDelete: "set null" }),
     recurringId: uuid("recurring_id"),
     recurringDate: date("recurring_date", { mode: "string" }),
     /** Offene Rechnung aus Lexoffice übernommen: Original-PDF, Eröffnungsbuchung statt Erlösbuchung */
@@ -1428,6 +1584,9 @@ export const invoices = pgTable(
   },
   (t) => [
     check("invoices_payment_method", sql`${t.paymentMethod} in ('ueberweisung', 'lastschrift', 'bereits_bezahlt')`),
+    // Zahlungskonto nur im Entwurf (#1887): festgeschrieben gilt die Kopie im Verkäufer. So berührt ON DELETE SET NULL nie
+    // eine gesperrte, versiegelte Zeile, und versiegelt ist hier immer NULL
+    check("invoices_bankverbindung_entwurf", sql`${t.status} = 'draft' or ${t.bankverbindungId} is null`),
     check(
       "invoices_paid_payment",
       sql`case when ${t.paymentMethod} = 'bereits_bezahlt'
@@ -1443,9 +1602,15 @@ export const invoices = pgTable(
     check("invoices_variant_kind", sql`${t.variant} is null or ${t.kind} = 'rechnung'`),
     check("invoices_advance_type", sql`${t.advanceType} is null or (${t.variant} = 'abschlag' and ${t.advanceType} in ('anzahlung', 'teilleistung'))`),
     check("invoices_advance_accounting", sql`${t.advanceAccounting} is null or ${t.advanceAccounting} = 'deferred'`),
+    check("invoices_reduction_rule", sql`${t.reductionRule} is null or (${t.reductionRule} = 'rueckgewaehr' and ${t.kind} <> 'rechnung')`),
     check(
-      "invoices_replaces_schluss",
-      sql`${t.replacesInvoiceId} is null or (${t.replacesInvoiceId} <> ${t.id} and ${t.kind} = 'rechnung' and ${t.variant} is not distinct from 'schluss' and ${t.advanceAccounting} is not distinct from 'deferred' and ${t.correctsId} is null)`,
+      "invoices_exempt_rule",
+      sql`${t.exemptRule} is null or (${t.exemptRule} = 'leistung' and ${t.kind} = 'rechnung' and ${t.taxTreatment} in ('steuerfrei', 'ausfuhr'))`,
+    ),
+    check(
+      "invoices_replaces_invoice",
+      sql`${t.replacesInvoiceId} is null or (${t.replacesInvoiceId} <> ${t.id} and ${t.kind} = 'rechnung' and ${t.correctsId} is null and
+        (${t.variant} is null or (${t.variant} is not distinct from 'schluss' and ${t.advanceAccounting} is not distinct from 'deferred')))`,
     ),
     check("invoices_quote_kind", sql`${t.quoteId} is null or ${t.kind} = 'rechnung'`),
     check("invoices_plan_row", sql`${t.paymentPlanRow} is null or (${t.variant} = 'abschlag' and ${t.quoteId} is not null and ${t.paymentPlanRow} >= 0)`),
@@ -1453,7 +1618,9 @@ export const invoices = pgTable(
     check("invoices_discount_percent", sql`${t.discountPercent} is null or ${t.discountPercent} between 1 and 10000`),
     // Storno und Korrektur verweisen immer auf das Original
     check("invoices_corrects_original", sql`${t.kind} = 'rechnung' or ${t.correctsId} is not null`),
-    uniqueIndex("invoices_number_counter").on(t.numberYear, t.numberCounter),
+    // Gleiche laufende Nummer in zwei Kreisen erlaubt, im selben Kreis nicht; Entwürfe tragen noch keinen Kreis.
+    // NULLS NOT DISTINCT am Index ergänzt die Migration von Hand — drizzle kennt es an Indexen nicht (#1426).
+    uniqueIndex("invoices_number_counter").on(t.numberYear, t.numberContactId, t.numberCounter).where(sql`${t.numberYear} is not null`),
     uniqueIndex("invoices_recurring_date").on(t.recurringId, t.recurringDate),
     index("invoices_number_trgm_idx").using("gin", sql`haben_unaccent(${t.number}) gin_trgm_ops`),
     index("invoices_buyer_order_reference_trgm_idx").using("gin", sql`haben_unaccent(${t.buyerOrderReference}) gin_trgm_ops`),
@@ -1500,6 +1667,8 @@ export const invoiceLines = pgTable(
     /** Positionsrabatt wie eingegeben: Prozent oder fester Betrag im Preismodus; net ist nach Rabatt */
     discountPercent: integer("discount_percent").$type<BasisPoints>(),
     discountAmount: integer("discount_amount").$type<Cents>(),
+    /** Arbeits-, Maschinen- und Fahrtkosten (§ 35a EStG, BMF vom 09.11.2016 Rz. 39); ihr Anteil steht unter den Summen (#712) */
+    arbeitskosten: boolean("arbeitskosten").notNull().default(false),
   },
   (t) => [
     index("invoice_lines_invoice").on(t.invoiceId),
@@ -1554,11 +1723,21 @@ export const invoiceAttachments = pgTable(
   ],
 );
 
-/** Letzte vergebene laufende Nummer je Jahr (0 = durchlaufender Zähler); lückenlos, weil nur beim Festschreiben gezogen */
-export const invoiceNumberCounters = pgTable("invoice_number_counters", {
-  year: smallint("year").primaryKey(),
-  last: integer("last").notNull(),
-});
+/**
+ * Letzte vergebene laufende Nummer je Nummernkreis: Jahr des Belegdatums (0 = durchlaufender Zähler) mal Kreis;
+ * `contact_id` NULL ist der gemeinsame Kreis wie bisher, sonst der Kundenkreis eines Kontakts (#1426). Lückenlos,
+ * weil nur beim Festschreiben gezogen.
+ */
+export const invoiceNumberCounters = pgTable(
+  "invoice_number_counters",
+  {
+    year: smallint("year").notNull(),
+    last: integer("last").notNull(),
+    /** Kreis des Zählers: NULL = gemeinsamer Kreis, sonst der Kontakt des Kundenkreises (#1426) */
+    contactId: uuid("contact_id").references(() => contacts.id, { onDelete: "restrict" }),
+  },
+  (t) => [unique().on(t.year, t.contactId).nullsNotDistinct()],
+);
 
 /**
  * Angebote: Entwurf frei änderbar, beim Festschreiben Nummer (eigener Kreis) und PDF, danach fest.
@@ -1568,15 +1747,24 @@ export const quotes = pgTable(
   "quotes",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    externalSource: text("external_source"),
+    externalId: text("external_id"),
     status: invoiceStatusEnum("status").notNull().default("draft"),
     number: text("number").unique(),
     /** Kreis des Zählers: Jahr des Belegdatums, 0 = durchlaufender Zähler (counterCircle) */
     numberYear: smallint("number_year"),
     numberCounter: integer("number_counter"),
+    /** Kontakt des Kundenkreises, in dem die Nummer vergeben wurde; NULL = gemeinsamer Kreis (#1426) */
+    numberContactId: uuid("number_contact_id").references(() => contacts.id, { onDelete: "restrict" }),
     contactId: uuid("contact_id").references(() => contacts.id),
     contactVersion: integer("contact_version"),
     /** Gewählter Ansprechpartner des Kunden (#424); der festgeschriebene Stand steht im Käufer */
     contactPersonId: uuid("contact_person_id").references(() => contactPersons.id),
+    /**
+     * Zahlungskonto des Entwurfs (#1887); null = Standard aus den Firmendaten. Beim Festschreiben geleert: Dann gilt die
+     * Kopie im Verkäufer (seller).
+     */
+    bankverbindungId: uuid("bankverbindung_id").references(() => bankverbindungen.id, { onDelete: "set null" }),
     issueDate: date("issue_date", { mode: "string" }).notNull(),
     validUntil: date("valid_until", { mode: "string" }).notNull(),
     serviceFrom: date("service_from", { mode: "string" }),
@@ -1584,6 +1772,9 @@ export const quotes = pgTable(
     /** Einleitung über den Positionen (Kopftext) */
     intro: text("intro").notNull().default(""),
     note: text("note").notNull().default(""),
+    /** Einleitung und Hinweis mit Platzhaltern wie bei Rechnungen (#1334); Kopie, Rechnung und Auftragsbestätigung nehmen sie */
+    introVorlage: text("intro_vorlage").notNull().default(""),
+    noteVorlage: text("note_vorlage").notNull().default(""),
     /**
      * Referenzen nach EN 16931 (#389), leer = keine: Bestellnummer des Kunden (BT-13), eigene Auftragsnummer (BT-14) und
      * Lieferschein (BT-16). Gehen in die Rechnung aus dem Angebot über.
@@ -1626,6 +1817,10 @@ export const quotes = pgTable(
   },
   (t) => [
     check("quotes_final_has_number", sql`${t.status} = 'draft' or (${t.number} is not null and ${t.lockedAt} is not null)`),
+    // Zahlungskonto nur im Entwurf (#1887), wie bei Rechnungen
+    check("quotes_bankverbindung_entwurf", sql`${t.status} = 'draft' or ${t.bankverbindungId} is null`),
+    check("quotes_external_ref_pair", sql`(${t.externalSource} is null) = (${t.externalId} is null)`),
+    uniqueIndex("quotes_external_ref").on(t.externalSource, t.externalId),
     check("quotes_decision_final", sql`${t.decision} is null or ${t.status} = 'final'`),
     check("quotes_discount", sql`${t.discountPercent} is null or ${t.discountAmount} is null`),
     check("quotes_discount_percent", sql`${t.discountPercent} is null or ${t.discountPercent} between 1 and 10000`),
@@ -1633,7 +1828,8 @@ export const quotes = pgTable(
     index("quotes_buyer_name_trgm_idx").using("gin", sql`haben_unaccent(${t.buyer} ->> 'name') gin_trgm_ops`),
     index("quotes_gross_search_idx").on(t.gross),
     index("quotes_contactId_search_idx").on(t.contactId),
-    uniqueIndex("quotes_number_counter").on(t.numberYear, t.numberCounter),
+    // Kreise wie bei `invoices_number_counter` (#1426)
+    uniqueIndex("quotes_number_counter").on(t.numberYear, t.numberContactId, t.numberCounter).where(sql`${t.numberYear} is not null`),
   ],
 );
 
@@ -1662,6 +1858,8 @@ export const quoteLines = pgTable(
     discountAmount: integer("discount_amount").$type<Cents>(),
     /** Optionale Position oder Alternative zur Hauptposition davor; beide zählen nicht zur Angebotssumme. null = normal */
     kind: text("kind", { enum: QUOTE_LINE_KINDS }),
+    /** Arbeits-, Maschinen- und Fahrtkosten wie bei der Rechnung; geht in die Rechnung aus dem Angebot über (#712) */
+    arbeitskosten: boolean("arbeitskosten").notNull().default(false),
   },
   (t) => [
     check("quote_lines_discount", sql`${t.discountPercent} is null or ${t.discountAmount} is null`),
@@ -1857,6 +2055,8 @@ export const articles = pgTable(
     taxRate: smallint("tax_rate").$type<BasisPoints>().notNull(),
     /** Preis enthält die Umsatzsteuer; passt das nicht zur Rechnung, wird beim Einfügen umgerechnet */
     priceIncludesTax: boolean("price_includes_tax").notNull().default(false),
+    /** Vorgabe für die Position: Arbeits-, Maschinen- und Fahrtkosten nach § 35a EStG (#712) */
+    arbeitskosten: boolean("arbeitskosten").notNull().default(false),
     /** Interne Notiz, erscheint nicht auf Belegen */
     note: text("note").notNull().default(""),
     /** Herkunft aus dem sevDesk-Abruf (GET /Part); ein neuer Abruf legt den Artikel nicht noch einmal an */
@@ -1873,6 +2073,9 @@ export const articles = pgTable(
 
 export const textBlockKinds = ["kopf", "fuss"] as const;
 export type TextBlockKind = (typeof textBlockKinds)[number];
+/** Belegarten, für die ein Textbaustein Standard sein kann (#1494), die Mahnung je Stufe (#1678, mahnstufeStandard) */
+export const textBlockStandards = ["rechnung", "angebot", "auftragsbestaetigung", "lieferschein", "mahnstufe_1", "mahnstufe_2", "mahnstufe_3"] as const;
+export type TextBlockStandard = (typeof textBlockStandards)[number];
 
 /**
  * Textbausteine zum Einfügen in Rechnungen, Angebote und wiederkehrende Rechnungen: Kopftext (Einleitung über den
@@ -1889,6 +2092,11 @@ export const textBlocks = pgTable(
     text: text("text").notNull(),
     /** Optional einem Kunden zugeordnet: steht bei dessen Belegen oben in der Auswahl */
     contactId: uuid("contact_id").references(() => contacts.id),
+    /**
+     * Standard für diese Belegart (#1494), bei der Mahnung für eine Stufe (#1678): füllt neue Belege vor, Kopftext die
+     * Einleitung, Fußtext den Hinweis bzw. Schlusstext. Höchstens ein aktiver Baustein je Belegart und Art; null = kein Standard
+     */
+    standardFuer: text("standard_fuer", { enum: textBlockStandards }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1896,16 +2104,32 @@ export const textBlocks = pgTable(
   (t) => [
     index("text_blocks_contact").on(t.contactId),
     check("text_blocks_kind", sql`${t.kind} in ('kopf', 'fuss')`),
+    check(
+      "text_blocks_standard_fuer",
+      sql`${t.standardFuer} is null or ${t.standardFuer} in ('rechnung', 'angebot', 'auftragsbestaetigung', 'lieferschein', 'mahnstufe_1', 'mahnstufe_2', 'mahnstufe_3')`,
+    ),
+    // Der Lieferschein hat nur einen Hinweis; ein Standard gilt für alle Kunden
+    check(
+      "text_blocks_standard_passt",
+      sql`${t.standardFuer} is null or (${t.contactId} is null and not (${t.standardFuer} = 'lieferschein' and ${t.kind} = 'kopf'))`,
+    ),
+    uniqueIndex("text_blocks_standard").on(t.standardFuer, t.kind).where(sql`${t.standardFuer} is not null and ${t.archivedAt} is null`),
     index("text_blocks_name_trgm_idx").using("gin", sql`haben_unaccent(${t.name}) gin_trgm_ops`),
     index("text_blocks_text_trgm_idx").using("gin", sql`haben_unaccent(${t.text}) gin_trgm_ops`),
   ],
 );
 
-/** Letzte Angebotsnummer je Jahr (0 = durchlaufender Zähler) */
-export const quoteNumberCounters = pgTable("quote_number_counters", {
-  year: smallint("year").primaryKey(),
-  last: integer("last").notNull(),
-});
+/** Letzte Angebotsnummer je Nummernkreis (Kreise wie bei `invoiceNumberCounters`) */
+export const quoteNumberCounters = pgTable(
+  "quote_number_counters",
+  {
+    year: smallint("year").notNull(),
+    last: integer("last").notNull(),
+    /** Kreis des Zählers: NULL = gemeinsamer Kreis, sonst der Kontakt des Kundenkreises (#1426) */
+    contactId: uuid("contact_id").references(() => contacts.id, { onDelete: "restrict" }),
+  },
+  (t) => [unique().on(t.year, t.contactId).nullsNotDistinct()],
+);
 
 /** Buchungen. Festgeschrieben ab Entstehung; Korrektur nur per Gegenbuchung. */
 export const journalEntries = pgTable(
@@ -2017,10 +2241,15 @@ export const recurringDocuments = pgTable(
     amounts: jsonb("amounts").$type<{ taxRate: BasisPoints; net: Cents; tax: Cents }[]>().notNull(),
     /** Das Dokument weist die Umsatzsteuer gesondert aus (Dauerrechnung, Vertrag mit Steuerbetrag); sonst keine Vorsteuer */
     taxShown: boolean("tax_shown").notNull().default(false),
+    /**
+     * Das Dokument nennt nur Endbetrag und Steuersatz, höchstens 250 € je Termin: Kleinbetragsrechnung nach § 33 UStDV,
+     * Vorsteuer aus der Aufteilung (§ 35 Abs. 1 UStDV, #1101). Nie zusammen mit `taxShown`.
+     */
+    kleinbetrag: boolean("kleinbetrag").notNull().default(false),
     note: text("note").notNull().default(""),
-    /** Monate zwischen zwei Belegen: 1, 3, 6 oder 12 */
-    intervalMonths: smallint("interval_months").notNull(),
-    /** Tag im Monat, auf den die Termine fallen (31 = Monatsende) */
+    /** Abstand zweier Belege als Dauer nach ISO 8601 wie bei wiederkehrenden Rechnungen: P1W … P1Y (#1691) */
+    recurrence: text("recurrence", { enum: RECURRENCE_KEYS }).notNull(),
+    /** Tag im Monat, auf den die Termine fallen (31 = Monatsende); bei Wochen ohne Wirkung */
     anchorDay: smallint("anchor_day").notNull(),
     /** Erster Termin beim Anlegen, nur zur Anzeige */
     startDate: date("start_date", { mode: "string" }).notNull(),
@@ -2046,7 +2275,7 @@ export const recurringDocuments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    check("recurring_documents_interval", sql`${t.intervalMonths} in (1, 3, 6, 12)`),
+    check("recurring_documents_recurrence", sql`${t.recurrence} in ('P1W', 'P2W', 'P4W', 'P1M', 'P2M', 'P3M', 'P6M', 'P1Y')`),
     check("recurring_documents_anchor_day", sql`${t.anchorDay} between 1 and 31`),
     check("recurring_documents_private_share", sql`${t.privateShare} between 0 and 100`),
     check("recurring_documents_due_days", sql`${t.dueDays} between 0 and 120`),
@@ -2055,6 +2284,7 @@ export const recurringDocuments = pgTable(
       sql`(${t.sha256} is null) = (${t.filename} is null) and (${t.sha256} is null) = (${t.mimeType} is null) and (${t.sha256} is null) = (${t.size} is null)`,
     ),
     check("recurring_documents_active_file", sql`${t.status} <> 'aktiv' or ${t.sha256} is not null`),
+    check("recurring_documents_kleinbetrag", sql`not (${t.taxShown} and ${t.kleinbetrag})`),
     index("recurring_documents_sha256").on(t.sha256),
     index("recurring_documents_name_trgm_idx").using("gin", sql`haben_unaccent(${t.name}) gin_trgm_ops`),
     index("recurring_documents_supplier_name_trgm_idx").using("gin", sql`haben_unaccent(${t.supplierName}) gin_trgm_ops`),
@@ -2062,7 +2292,11 @@ export const recurringDocuments = pgTable(
 );
 
 export const documentStatusEnum = pgEnum("document_status", ["neu", "gebucht"]);
-export const extractionStatusEnum = pgEnum("extraction_status", ["keine", "laeuft", "fertig", "fehler"]);
+/** wartet: in der Warteschlange der KI-Auslesung (#1735) */
+export const extractionStatusEnum = pgEnum("extraction_status", ["keine", "laeuft", "fertig", "fehler", "wartet"]);
+
+/** Reihenfolge der Warteschlange der KI-Auslesung (#1735); ein vorgezogener Beleg bekommt den negativen Wert */
+export const documentsExtractionQueueSeq = pgSequence("documents_extraction_queue_seq");
 
 /**
  * Belege (Eingangsrechnungen, Quittungen). Die Datei liegt im Dateisystem unter ihrem SHA-256;
@@ -2082,6 +2316,8 @@ export const documents = pgTable(
     extractedBy: text("extracted_by", { enum: ["zugferd", "xrechnung", "ki", "manuell"] }),
     extractionStatus: extractionStatusEnum("extraction_status").notNull().default("keine"),
     extractionError: text("extraction_error"),
+    /** Platz in der Warteschlange der KI-Auslesung (#1735), kleiner kommt zuerst; null, solange der Beleg nicht wartet oder ausgelesen wird */
+    extractionQueuePosition: bigint("extraction_queue_position", { mode: "number" }),
     /** Rohdaten der Auslesung zum Nachvollziehen */
     extraction: jsonb("extraction").$type<Record<string, unknown>>(),
     supplierName: text("supplier_name").notNull().default(""),
@@ -2149,7 +2385,7 @@ export const documents = pgTable(
      */
     replacesDocumentId: uuid("replaces_document_id"),
     /**
-     * Aus einem Dauerbeleg angelegt: die Vorlage und die Periode (Monatserster des Termins). Je Vorlage und Periode
+     * Aus einem Dauerbeleg angelegt: die Vorlage und die Periode (Monatserster des Termins, bei Wochen der Termin). Je Vorlage und Periode
      * höchstens ein Beleg, auch bei gleichzeitigen Läufen. Die Datei ist der Vertrag der Vorlage, also dieselbe für
      * alle Belege der Vorlage. Nur beim Anlegen gesetzt, ab dem Buchen mit dem Beleg gesperrt und versiegelt.
      */
@@ -2165,6 +2401,7 @@ export const documents = pgTable(
     index("documents_invoice_number_trgm_idx").using("gin", sql`haben_unaccent(${t.invoiceNumber}) gin_trgm_ops`),
     index("documents_filename_trgm_idx").using("gin", sql`haben_unaccent(${t.filename}) gin_trgm_ops`),
     index("documents_gross_search_idx").on(t.gross),
+    index("documents_extraction_queue_idx").on(t.extractionQueuePosition).where(sql`${t.extractionQueuePosition} is not null`),
     check("documents_private_share_range", sql`${t.privateShare} between 0 and 100`),
     check("documents_vorsteuer_anteil_range", sql`${t.vorsteuerAnteil} between 0 and 10000`),
     foreignKey({ name: "documents_lexoffice_voucher_fk", columns: [t.lexofficeVoucherId], foreignColumns: [lexofficeVouchers.id] }),
@@ -2267,7 +2504,9 @@ export const bankAccounts = pgTable(
       .notNull()
       .default("geschaeft"),
     /** Nur Zahlungsdienstleister: Anbieter (PAYMENT_PROVIDERS) und Nummer des Verrechnungskontos (1361 … bzw. 1461 …) */
-    provider: text("provider", { enum: ["paypal", "stripe", "shopify", "etsy", "ebay", "sumup", "googleplay", "appstore", "sonstige"] }),
+    provider: text("provider", { enum: PAYMENT_PROVIDER_KEYS }),
+    /** Nur Amazon: Marktplatz der Abrechnung (marketplace-name, z. B. „Amazon.de“); Pflicht beim Anlegen, nur solange das Konto keine Umsätze hat änderbar */
+    marketplace: text("marketplace"),
     ledgerIndex: smallint("ledger_index").unique(),
     /** Gehört nicht zu dieser Firma (#462): ausgeblendet, kein Abruf, kein Import; nur solange kein Umsatz zugeordnet oder verrechnet ist */
     excludedAt: timestamp("excluded_at", { withTimezone: true }),
@@ -2436,6 +2675,20 @@ export const importSources = pgTable(
   (t) => [uniqueIndex("import_sources_identity").on(t.provider, t.externalAccountId), check("import_sources_kind", sql`${t.accountKind} in ('bank', 'psp')`)],
 );
 
+/** Die in einem Abruf schon vorhandenen Umsätze; neue verbindet bereits bank_transactions.import_id. */
+export const bankImportTransactions = pgTable(
+  "bank_import_transactions",
+  {
+    bankImportId: uuid("bank_import_id")
+      .notNull()
+      .references(() => bankImports.id),
+    transactionId: uuid("transaction_id")
+      .notNull()
+      .references(() => bankTransactions.id),
+  },
+  (t) => [primaryKey({ columns: [t.bankImportId, t.transactionId] }), index("bank_import_transactions_transaction").on(t.transactionId, t.bankImportId)],
+);
+
 /** Jede angenommene Lieferung des Importvertrags mit ihrem Prüfwert und dem Stand danach; nur anhängen */
 export const importBatches = pgTable(
   "import_batches",
@@ -2455,6 +2708,8 @@ export const importBatches = pgTable(
     openFrom: date("open_from", { mode: "string" }),
     /** `batchFingerprint`: Dieselbe Lieferung noch einmal liefert das bisherige Ergebnis, mit anderem Inhalt ist sie ein Konflikt */
     fingerprint: text("fingerprint").notNull(),
+    /** Nachweis mehrfach vergebener Enable-Banking-Referenzen in dieser Lieferung. */
+    ambiguousEntryReferences: text("ambiguous_entry_references").array(),
     bankImportId: uuid("bank_import_id")
       .notNull()
       .references(() => bankImports.id),
@@ -2464,6 +2719,62 @@ export const importBatches = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("import_batches_key").on(t.sourceId, t.idempotencyKey), index("import_batches_source_created").on(t.sourceId, t.createdAt)],
+);
+
+/** Verdacht zwischen zwei gespeicherten Umsätzen. Der Import legt nur offene Vermerke an. */
+export const bankDuplicateReviews = pgTable(
+  "bank_duplicate_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    transactionId: uuid("transaction_id")
+      .notNull()
+      .references(() => bankTransactions.id),
+    originalTransactionId: uuid("original_transaction_id")
+      .notNull()
+      .references(() => bankTransactions.id),
+    decision: text("decision", { enum: ["pending", "duplicate", "distinct"] })
+      .notNull()
+      .default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("bank_duplicate_reviews_pair").on(
+      sql`least(${t.transactionId}, ${t.originalTransactionId})`,
+      sql`greatest(${t.transactionId}, ${t.originalTransactionId})`,
+    ),
+    index("bank_duplicate_reviews_transaction").on(t.transactionId),
+    check("bank_duplicate_reviews_distinct_rows", sql`${t.transactionId} <> ${t.originalTransactionId}`),
+    check("bank_duplicate_reviews_decision", sql`${t.decision} in ('pending', 'duplicate', 'distinct')`),
+  ],
+);
+
+/** Entscheidung oder Gegenzeile zu einem Verdacht. Die Umsätze bleiben gesperrt. */
+export const bankDuplicateDecisions = pgTable(
+  "bank_duplicate_decisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reviewId: uuid("review_id")
+      .notNull()
+      .references(() => bankDuplicateReviews.id),
+    decision: text("decision", { enum: ["pending", "duplicate", "distinct"] }).notNull(),
+    reversesId: uuid("reverses_id").references((): AnyPgColumn => bankDuplicateDecisions.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("bank_duplicate_decisions_review").on(t.reviewId),
+    uniqueIndex("bank_duplicate_decisions_reversal").on(t.reversesId),
+    check(
+      "bank_duplicate_decisions_kind",
+      sql`(${t.decision} in ('duplicate', 'distinct') and ${t.reversesId} is null) or (${t.decision} = 'pending' and ${t.reversesId} is not null)`,
+    ),
+  ],
+);
+
+/** Abschluss der einmaligen Bestandsprüfung, auch wenn kein Verdacht gefunden wurde. */
+export const bankDuplicateCheck = pgTable(
+  "bank_duplicate_check",
+  { id: integer("id").primaryKey(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow() },
+  (t) => [check("bank_duplicate_check_single", sql`${t.id} = 1`)],
 );
 
 /**
@@ -2488,6 +2799,11 @@ export const importMovements = pgTable(
     currency: text("currency").notNull(),
     /** Prüfwert aller Angaben der ersten Lieferung (`knownMovement`) */
     details: text("details").notNull(),
+    /**
+     * Referenzen der ersten Lieferung (Anbieterreferenz, Ereigniscode, EndToEndId, Bezug bei Erstattung und Rückbelastung,
+     * Auszahlung, Bestellung), wie geliefert (#306). Leer bei Bewegungen, die vor dieser Spalte übernommen wurden.
+     */
+    refs: jsonb("refs").$type<ImportMovement["references"]>(),
     transactionId: uuid("transaction_id")
       .notNull()
       .references(() => bankTransactions.id),
@@ -2497,6 +2813,61 @@ export const importMovements = pgTable(
     uniqueIndex("import_movements_identity").on(t.sourceId, t.sourceEventId, t.component),
     uniqueIndex("import_movements_transaction").on(t.transactionId),
     check("import_movements_component", sql`${t.component} in ('main', 'fee')`),
+  ],
+);
+
+/**
+ * Konflikt des Importvertrags (#306, 3b): Die Bank liefert eine schon übernommene Bewegung mit anderem Kern (Betrag,
+ * Währung, Buchungstag oder Art). Haben hält den gelieferten Kern und den Umsatz fest, den der Abruf daraus angelegt
+ * hätte, bis der Nutzer ihn klärt (`import_resolutions`). Je Bewegung und geliefertem Kern ein Eintrag; nur anhängen.
+ */
+export const importConflicts = pgTable(
+  "import_conflicts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Die zuerst übernommene Bewegung; sie nennt Quelle, Ereignis, Komponente und den bisherigen Umsatz */
+    movementId: uuid("movement_id")
+      .notNull()
+      .references(() => importMovements.id),
+    kind: text("kind").notNull(),
+    bookingDate: date("booking_date", { mode: "string" }).notNull(),
+    amount: integer("amount").$type<Cents>().notNull(),
+    currency: text("currency").notNull(),
+    /** Prüfwert aller gelieferten Angaben (`knownMovement`) */
+    details: text("details").notNull(),
+    /** Der Umsatz, wie ihn der Abruf angelegt hätte; „Als weiteren Umsatz übernehmen“ legt genau diesen an */
+    transaction: jsonb("transaction").$type<ParsedTransaction>().notNull(),
+    /** Der abgelehnte Abruf im Importprotokoll, der den Konflikt zuerst gemeldet hat */
+    bankImportId: uuid("bank_import_id")
+      .notNull()
+      .references(() => bankImports.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("import_conflicts_core").on(t.movementId, t.kind, t.bookingDate, t.amount, t.currency)],
+);
+
+/**
+ * Entscheidung zu einem Konflikt (#306, 3b), genau eine je Konflikt; nur anhängen. „keep“: Der gelieferte Kern gilt
+ * künftig als bekannt, der bisherige Umsatz bleibt allein. „add“: Haben hat den gelieferten Umsatz zusätzlich angelegt
+ * (`transaction_id`); der bisherige bleibt mit seinen Zuordnungen stehen und zeigt einen Hinweis auf den neuen.
+ */
+export const importResolutions = pgTable(
+  "import_resolutions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conflictId: uuid("conflict_id")
+      .notNull()
+      .references(() => importConflicts.id),
+    decision: text("decision", { enum: ["keep", "add"] }).notNull(),
+    transactionId: uuid("transaction_id").references(() => bankTransactions.id),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("import_resolutions_conflict").on(t.conflictId),
+    uniqueIndex("import_resolutions_transaction").on(t.transactionId),
+    check("import_resolutions_decision", sql`${t.decision} in ('keep', 'add')`),
+    check("import_resolutions_transaction", sql`(${t.decision} = 'add') = (${t.transactionId} is not null)`),
   ],
 );
 
@@ -2664,6 +3035,8 @@ export const allocationKindEnum = pgEnum("allocation_kind", [
   "kategorie",
   // Private Spende vom Geschäftskonto auf das Privatkonto „Zuwendungen, Spenden“ (Einzelunternehmen)
   "spende",
+  // Aufladung eines Guthabens: Ausgabe ohne Vorsteuer auf eine Pflicht-Kostenkategorie (#1356)
+  "aufladung",
 ]);
 
 /**
@@ -2700,9 +3073,8 @@ export const allocations = pgTable(
       .references(() => bankTransactions.id),
     kind: allocationKindEnum("kind").notNull(),
     /**
-     * Tag, an dem die Zuordnung wirkt; leer heißt Buchungsdatum des Umsatzes. Gesetzt ist er bei der Gegenzeile einer
-     * Aufhebung (#782): Die wirkt am Tag der Aufhebung, auch wenn der Umsatz Monate älter ist. Ohne diese Spalte lägen
-     * Journal (Tag der Aufhebung) und Nebenbücher (Tag des Umsatzes) für den Zeitraum dazwischen auseinander.
+     * Wirktag der Aufhebung oder Wiederzuordnung; leer heißt Buchungsdatum des Umsatzes. Journal und Nebenbücher
+     * buchen beide an diesem Tag, auch wenn der Umsatz Monate älter ist (#782, #1454).
      */
     date: date("date", { mode: "string" }),
     invoiceId: uuid("invoice_id").references(() => invoices.id),
@@ -2712,6 +3084,8 @@ export const allocations = pgTable(
     /** Teile einer Aufteilung (Splitbuchung) tragen dieselbe ID und werden nur zusammen aufgehoben */
     splitId: uuid("split_id"),
     reversesId: uuid("reverses_id"),
+    /** Ursprüngliche Zuordnung. Die Wiederzuordnung übernimmt den Tag ihrer Aufhebung. */
+    reassignsId: uuid("reassigns_id"),
     /**
      * Rechnung: Netto und Steuer je Satz, wie gebucht (settlementTaxShares). Voranmeldung und EÜR lesen diese Werte, damit
      * alle Zahlungen zusammen genau die Steuer der Rechnung ergeben. Ältere Zuordnungen ohne: aus dem Betrag gerechnet.
@@ -2758,9 +3132,10 @@ export const allocations = pgTable(
       sql`case when ${t.kind}::text = 'steuer' then ${t.taxType} is not null and ${t.taxYear} is not null and ${t.taxItem} is not null else ${t.taxType} is null and ${t.taxYear} is null and ${t.taxItem} is null end`,
     ),
     check("allocations_vat_return_kind", sql`${t.vatReturnId} is null or ${t.kind} = 'ustVorauszahlung'`),
+    // Eine Aufladung trägt wie die Direktbuchung auf eine Kategorie ihre Pflicht-Kostenkategorie (#1356)
     check(
       "allocations_kategorie",
-      sql`case when ${t.kind}::text = 'kategorie' then ${t.category} is not null and ${t.taxRate} is not null else ${t.category} is null and ${t.taxRate} is null end`,
+      sql`case when ${t.kind}::text in ('kategorie', 'aufladung') then ${t.category} is not null and ${t.taxRate} is not null else ${t.category} is null and ${t.taxRate} is null end`,
     ),
     check(
       "allocations_loan",
@@ -2772,6 +3147,9 @@ export const allocations = pgTable(
     index("allocations_invoice").on(t.invoiceId),
     index("allocations_document").on(t.documentId),
     index("allocations_split").on(t.splitId),
+    index("allocations_reassigns").on(t.reassignsId),
+    check("allocations_reassignment", sql`${t.reassignsId} is null or (${t.reversesId} is null and ${t.date} is not null and ${t.reassignsId} <> ${t.id})`),
+    foreignKey({ name: "allocations_reassigns_fk", columns: [t.reassignsId], foreignColumns: [t.id] }),
     foreignKey({ name: "allocations_reverses_fk", columns: [t.reversesId], foreignColumns: [t.id] }),
   ],
 );
@@ -3085,7 +3463,7 @@ export const storeReports = pgTable(
      * Berichtsregion (Z1)
      */
     part: text("part").notNull(),
-    /** Berichtsmonat YYYY-MM; bei Apple der Fiskalmonat */
+    /** Berichtsmonat YYYY-MM; bei Apple die Fiskalperiode (Fiskaljahr-Periode, 2026-01 ist der Oktober 2025) */
     period: text("period").notNull(),
     sha256: text("sha256").notNull(),
     archiveFileId: uuid("archive_file_id")
@@ -3180,7 +3558,7 @@ export const fastbillConnection = pgTable(
 export const fastbillReceipts = pgTable("fastbill_receipts", {
   /** Wie jede Tabelle mit Dateiverweis eine id, über die die Vollprüfung der Dateien den Datensatz nennt */
   id: uuid("id").primaryKey().defaultRandom(),
-  /** INVOICE_ID der Ausgabe in FastBill */
+  /** INVOICE_ID der Ausgabe in FastBill; bei einer Einnahme mit „einnahme-“ davor (fastbillReceiptKey, #1938) */
   expenseId: text("expense_id").notNull().unique(),
   status: text("status", { enum: ["wartet", "datei", "ohne_beleg"] }).notNull(),
   number: text("number").notNull().default(""),
@@ -3266,6 +3644,16 @@ export type LexofficeImportProgress = {
   skipped: number;
   files: number;
   failed: { lexofficeId: string; number: string; message: string }[];
+  /**
+   * Entwürfe, die gar nicht erst in die Belegliste kommen (#1504), weil sie keine Belege sind. Vorgänge ohne Belegart
+   * zählt Haben nicht: die API liefert sie ohnehin nicht, und die Sicherung aus der Web-Oberfläche lässt sie schon beim
+   * Packen draußen (#183).
+   */
+  ignored?: { drafts: number };
+  /** Im Sicherungsskript für Lexware Office ausgelassene Vorgänge, je Sicherung statt je ZIP-Teil (#1640). */
+  webOmitted?: WebOmittedCounts;
+  /** Belege aus früheren Läufen, deren fehlende Datei in diesem Lauf doch noch ankam (#1504) */
+  nachgeladen?: number;
   /** sevDesk: Vorlagen wiederkehrender Belege, in diesem Lauf als Dauerbelege übernommen */
   recurring?: number;
   /** BuchhaltungsButler: Archivdateien mit dem DATEV-Stapel des Exports, auch wenn sie schon vorher im Archiv lagen */
@@ -3286,6 +3674,10 @@ export type LexofficeImportProgress = {
   vatReports?: number;
   /** sevDesk: Vorlagen wiederkehrender Rechnungen, pausiert übernommen, und ihre Platzhalter (#472) */
   sevdeskRecurring?: { imported: number; known: number; placeholders: string[] };
+  /** Umzug aus FastBill: übernommene und schon bekannte Vorlagen wiederkehrender Rechnungen */
+  fastbillRecurring?: { imported: number; known: number };
+  /** Umzug aus FastBill: archivierte, schon vorhandene und Angebote ohne PDF */
+  fastbillEstimates?: { imported: number; known: number; withoutPdf: number; pdfNachgeholt?: number };
   /** sevDesk: Artikel aus GET /Part, in diesem Lauf neu angelegt, mit vorhandenen verknüpft und schon früher übernommen */
   sevdeskArticles?: { imported: number; linked: number; known: number };
   /** sevDesk: Dateistand der Belege dieses Laufs nach den Zuständen in legacy_file_states (#345) */
@@ -3366,7 +3758,7 @@ export const legacyOrderFiles = pgTable(
     mimeType: text("mime_type").notNull(),
     sha256: text("sha256").notNull(),
     size: integer("size").notNull(),
-    origin: text("origin", { enum: ["sevdesk", "manuell", "import"] }).notNull(),
+    origin: text("origin", { enum: ["sevdesk", "fastbill", "manuell", "import"] }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("legacy_order_files_unique").on(t.orderId, t.sha256)],
@@ -3508,6 +3900,7 @@ export const legacyOrderPdfAttempts = pgTable(
 /**
  * Rechnungen, Gutschriften und Belege aus Lexoffice, sevDesk, FastBill, BuchhaltungsButler und den anderen Umzugsquellen mit unveränderten Quelldaten. Nur anhängen.
  * Beträge in Cent, Gutschriften negativ. Bei sevDesk steht in lexoffice_id "<art>/<id>", z. B. "invoice/123".
+ * Der historische Tabellenname bleibt für Audit und Exporte erhalten.
  */
 export const lexofficeVouchers = pgTable(
   "lexoffice_vouchers",
@@ -3720,6 +4113,7 @@ export const assets = pgTable(
     openingDate: date("opening_date", { mode: "string" }),
     openingBookValue: integer("opening_book_value").$type<Cents>(),
     openingEntryId: uuid("opening_entry_id"),
+    specialDepreciation: jsonb("special_depreciation").$type<{ year: number; amount: Cents }[]>().notNull().default([]),
     disposalDate: date("disposal_date", { mode: "string" }),
     /** Firmenwagen: private Nutzung nach der Listenpreismethode */
     privateUse: jsonb("private_use").$type<CarPrivateUse>(),
@@ -3795,11 +4189,23 @@ export const recurringInvoices = pgTable(
     priceMode: text("price_mode", { enum: PRICE_MODES }).notNull().default("netto"),
     /** detail: Beschreibung unter der Bezeichnung; fehlt bei Vorlagen von vor dem Feld */
     lines: jsonb("lines")
-      .$type<{ description: string; detail?: string; itemNumber?: string; quantity: Millis; unit: string; unitPrice: Cents; taxRate: BasisPoints }[]>()
+      .$type<
+        {
+          description: string;
+          detail?: string;
+          itemNumber?: string;
+          quantity: Millis;
+          unit: string;
+          unitPrice: Cents;
+          taxRate: BasisPoints;
+          /** § 35a EStG (#712); fehlt bei Vorlagen von vor dem Feld */
+          arbeitskosten?: boolean;
+        }[]
+      >()
       .notNull(),
-    /** Monate zwischen zwei Rechnungen: 1, 3, 6 oder 12 */
-    intervalMonths: smallint("interval_months").notNull(),
-    /** Tag im Monat, auf den die Termine fallen (31 = Monatsende) */
+    /** Abstand zweier Rechnungen als Dauer nach ISO 8601: P1W, P2W, P4W, P1M, P2M, P3M, P6M oder P1Y (#1691) */
+    recurrence: text("recurrence", { enum: RECURRENCE_KEYS }).notNull(),
+    /** Tag im Monat, auf den die Termine fallen (31 = Monatsende); bei Wochen ohne Wirkung */
     anchorDay: smallint("anchor_day").notNull(),
     nextDate: date("next_date", { mode: "string" }).notNull(),
     endDate: date("end_date", { mode: "string" }),
@@ -3820,7 +4226,7 @@ export const recurringInvoices = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    check("recurring_interval", sql`${t.intervalMonths} in (1, 3, 6, 12)`),
+    check("recurring_recurrence", sql`${t.recurrence} in ('P1W', 'P2W', 'P4W', 'P1M', 'P2M', 'P3M', 'P6M', 'P1Y')`),
     check("recurring_anchor_day", sql`${t.anchorDay} between 1 and 31`),
     index("recurring_invoices_name_trgm_idx").using("gin", sql`haben_unaccent(${t.name}) gin_trgm_ops`),
   ],
@@ -3846,6 +4252,24 @@ export const sevdeskRecurringTemplates = pgTable("sevdesk_recurring_templates", 
   billingEvidence: integer("billing_evidence").notNull().default(0),
   /** Platzhalter von sevDesk wie [%KONTAKTPERSON%], als Text übernommen */
   placeholders: jsonb("placeholders").$type<string[]>().notNull(),
+  hints: jsonb("hints").$type<string[]>().notNull(),
+  raw: jsonb("raw").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Aus FastBill übernommene Vorlagen wiederkehrender Rechnungen (recurring.get): Antwort der API ohne Bankdaten, Hinweise
+ * zum Prüfen und die Vorlage in Haben. Je FastBill-Vorlage eine Zeile, ein neuer Abruf überspringt sie; wird die Vorlage
+ * in Haben gelöscht, bleibt der Nachweis ohne Verweis.
+ */
+export const fastbillRecurringTemplates = pgTable("fastbill_recurring_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** INVOICE_ID der Vorlage in FastBill */
+  fastbillId: text("fastbill_id").notNull().unique(),
+  importId: uuid("import_id")
+    .notNull()
+    .references(() => lexofficeImports.id),
+  recurringId: uuid("recurring_id").references(() => recurringInvoices.id, { onDelete: "set null" }),
   hints: jsonb("hints").$type<string[]>().notNull(),
   raw: jsonb("raw").$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -4469,6 +4893,53 @@ export const etsyConnections = pgTable(
   (t) => [
     check("etsy_connections_id", sql`${t.id} = 'etsy'`),
     check("etsy_connections_rhythmus", sql`${t.rhythmus} in ('stuendlich', 'taeglich', 'woechentlich', 'monatlich')`),
+  ],
+);
+
+/**
+ * Zugänge zu Zahlungsdienstleistern über ihre API (Einstellungen › Bank, #1729), eine Zeile je Verbindung. Gemeinsam für
+ * alle Anbieter mit Adapter (modules/zahlungsdienstleister/anbieter.ts); welcher es ist, sagt `provider`. Mehrere Verbindungen
+ * beim selben Anbieter gehen, jede schreibt in ihr eigenes Konto. Der Zugang (Schlüssel, Client-ID und Secret, Tokens) liegt
+ * als JSON-Objekt AES-256-GCM-verschlüsselt in ciphertext; `account_id` ist die Kennung des Kontos beim Anbieter, beim Speichern
+ * über die API ermittelt und Kennung der Quellenbindung. Eigenheiten des Anbieters (PayPal: Sandbox, Zeitzone) stehen in
+ * `config`, geprüft vom Adapter. Wird eine Verbindung entfernt, verschwindet die Zeile mit dem Abrufstand.
+ */
+export const pspConnections = pgTable(
+  "psp_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Anbieter, Schlüssel eines Adapters (stripe, paypal …); eine Liste in der Datenbank gibt es bewusst nicht */
+    provider: text("provider").notNull(),
+    /** Frei gewählter Name, etwa „Shop DE“ */
+    name: text("name").notNull(),
+    /** Konto des Zahlungsdienstleisters in Haben; leer: das älteste noch freie Konto des Anbieters, beim ersten Abruf gesetzt */
+    bankAccountId: uuid("bank_account_id").references(() => bankAccounts.id, { onDelete: "set null" }),
+    /** Kennung des Kontos beim Anbieter, beim Speichern ermittelt */
+    accountId: text("account_id").notNull(),
+    /** Letzte Zeichen des Schlüssels oder der Client-ID für die Anzeige, ohne sie zu verraten */
+    keyHint: text("key_hint").notNull().default(""),
+    /** Eigenheiten des Anbieters, nicht geheim */
+    config: jsonb("config").$type<Record<string, string | number | boolean | null>>().notNull().default({}),
+    /** Der Zugang als JSON-Objekt: AES-256-GCM */
+    ciphertext: bytea("ciphertext").notNull(),
+    /** Bis wann der Zugang gilt, wenn der Anbieter es sagt (etwa eine Anmeldung, die abläuft); nicht geheim */
+    zugangGueltigBis: timestamp("zugang_gueltig_bis", { withTimezone: true }),
+    /** Erster Tag, den der nächste Abruf holt (Stand des Abrufs, rückt mit jedem Lauf vor) */
+    fetchFrom: date("fetch_from").notNull(),
+    /** Der in den Einstellungen gewählte erste Tag */
+    abrufStart: date("abruf_start").notNull(),
+    /** Wie oft der Zeitplan abruft: stuendlich, taeglich oder woechentlich */
+    rhythmus: text("rhythmus").notNull().default("taeglich"),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("psp_connections_konto_beim_anbieter").on(t.provider, t.accountId),
+    uniqueIndex("psp_connections_konto").on(t.bankAccountId),
+    check("psp_connections_provider", sql`${t.provider} ~ '^[a-z][a-z0-9]*$'`),
+    check("psp_connections_rhythmus", sql`${t.rhythmus} in ('stuendlich', 'taeglich', 'woechentlich')`),
   ],
 );
 

@@ -36,14 +36,17 @@ dem Host:
 
 ```sh
 mkdir -p /opt/haben && cd /opt/haben
-curl -O https://raw.githubusercontent.com/firsttris/haben/main/deploy/compose.yml
-curl -o .env https://raw.githubusercontent.com/firsttris/haben/main/deploy/compose.env.example
+RELEASE=$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/Speicherstadt/haben/releases/latest)
+TAG=${RELEASE##*/}
+RAW=https://raw.githubusercontent.com/Speicherstadt/haben/$TAG/deploy
+curl -fLO "$RAW/compose.yml"
+curl -fLo .env "$RAW/compose.env.example"
 chmod 600 .env
 ```
 
 `.env` füllst du aus wie unter [Docker Compose](installation.md#docker-compose) beschrieben, mit der Subdomain als
 `DOMAIN`. Daneben legst du `compose.override.yml` mit diesem Inhalt an (die Variante am Ende von
-[`deploy/compose.override.example.yml`](https://github.com/firsttris/haben/blob/main/deploy/compose.override.example.yml)):
+`deploy/compose.override.example.yml` aus demselben Release):
 
 ```yaml
 services:
@@ -79,18 +82,19 @@ Bei der Subdomain unter **Einstellungen für Apache & nginx**:
    einmal. Plesk schreibt daraus `client_max_body_size`; die Zeile gehört deshalb nicht unten dazu.
 3. In **Zusätzliche nginx-Anweisungen** eintragen:
 
-   ```nginx
-   proxy_read_timeout 300s;
-   add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-   add_header X-Content-Type-Options nosniff always;
-   add_header Referrer-Policy same-origin always;
-   add_header X-Frame-Options SAMEORIGIN always;
-   ```
+    ```nginx
+    proxy_read_timeout 300s;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy same-origin always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    ```
 
-   Eine Übermittlung an ELSTER wartet in der Anfrage auf ERiC; mit dem Standard von 60 Sekunden bräche sie ab. Was die
-   Header bewirken, steht unter [Eigener Reverse Proxy](installation.md#eigener-reverse-proxy). `proxy_set_header`
-   brauchst du hier nicht: Die Proxy-Regel aus dem nächsten Schritt setzt `Host` und `X-Forwarded-For` selbst, und
-   Zeilen auf dieser Ebene würden nginx in ihrem Block ohnehin nicht übernehmen.
+    Eine Übermittlung an ELSTER wartet in der Anfrage auf ERiC; mit dem Standard von 60 Sekunden bräche sie ab. Was die
+    Header bewirken, steht unter [Eigener Reverse Proxy](installation.md#eigener-reverse-proxy). `proxy_set_header`
+    brauchst du hier nicht: Die Proxy-Regel aus dem nächsten Schritt setzt `Host` und `X-Forwarded-For` selbst, und
+    Zeilen auf dieser Ebene würden nginx in ihrem Block ohnehin nicht übernehmen.
+
 4. **Übernehmen**.
 
 ## Proxy-Regel

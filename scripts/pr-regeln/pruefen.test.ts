@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -17,7 +17,7 @@ const datei = (pfad: string, inhalt: string) => {
 const pruefen = (...args: string[]) => {
   const env = { ...process.env, GITHUB_EVENT_PATH: "", PR_REGELN_ERGEBNIS: "" };
   const lauf = spawnSync("bun", [SKRIPT, ...args], { cwd: repo, encoding: "utf8", env });
-  return { code: lauf.status, ausgabe: lauf.stdout };
+  return { code: lauf.status, ausgabe: lauf.stdout, fehler: lauf.stderr };
 };
 
 beforeAll(() => {
@@ -25,7 +25,7 @@ beforeAll(() => {
   git("init", "-q", "-b", "main");
   git("config", "user.email", "test@example.invalid");
   git("config", "user.name", "Test");
-  datei("scripts/dateigroesse/altdateien.json", "[]\n");
+  datei(".checks/large-files.txt", "");
   git("add", ".");
   git("commit", "-qm", "Basis");
   git("checkout", "-qb", "thema");
@@ -137,5 +137,55 @@ describe("pruefen.ts: lange Funktionen", () => {
     expect(code).toBe(0);
     expect(ausgabe).toMatch(/^Hinweis: scripts\/x\/neu\.ts: Funktion „neu“ ist neu mit 90 Zeilen/m);
     expect(ausgabe).not.toContain("umbenannt.ts");
+  });
+});
+
+describe("pruefen.ts: neue Abhängigkeiten", () => {
+  beforeAll(() => {
+    git("checkout", "-q", "main");
+    datei("apps/web/package.json", `${JSON.stringify({ name: "@haben/web", dependencies: { zod: "^4" } })}\n`);
+    git("add", ".");
+    git("commit", "-qm", "Paket");
+    git("checkout", "-qb", "abhaengigkeiten");
+    datei("apps/web/package.json", `${JSON.stringify({ name: "@haben/web", dependencies: { zod: "^4", "left-pad": "^1" } })}\n`);
+    git("add", ".");
+    git("commit", "-qm", "feat: left-pad");
+  });
+
+  it("warnt und hält den Pull Request ohne Begründung auf", () => {
+    datei("ohne.md", "Umgesetzt #1\n");
+    const { code, ausgabe } = pruefen("--basis", "main", "--titel", "Web: Einrückung (#1)", "--beschreibung", "ohne.md");
+    expect(code).toBe(1);
+    expect(ausgabe).toMatch(/^Hinweis: Neue Abhängigkeit: `left-pad` \(apps\/web\/package\.json, dependencies\)/m);
+    expect(ausgabe).toMatch(/^Fehler: Begründung fehlt für `left-pad`/m);
+  });
+
+  it("verlangt lokal ohne --titel keine Begründung, wie bei Titel und Beschreibung", () => {
+    const { code, ausgabe } = pruefen("--basis", "main");
+    expect(code).toBe(0);
+    expect(ausgabe).toMatch(/^Hinweis: Neue Abhängigkeit: `left-pad`/m);
+    expect(ausgabe).not.toContain("Begründung fehlt");
+  });
+
+  it("lässt ihn mit Begründung durch, die Warnung bleibt", () => {
+    datei("mit.md", "Umgesetzt #1\n\n## Neue Abhängigkeiten\n\n- `left-pad`: weil …\n");
+    const { code, ausgabe } = pruefen("--basis", "main", "--titel", "Web: Einrückung (#1)", "--beschreibung", "mit.md");
+    expect(code).toBe(0);
+    expect(ausgabe).toMatch(/^Hinweis: Neue Abhängigkeit: `left-pad`/m);
+  });
+});
+
+describe("pruefen.ts ohne Liste der alten großen Dateien", () => {
+  it("bricht ab wie früher ohne altdateien.json, statt keine gewachsene Datei zu melden", () => {
+    const liste = join(repo, ".checks/large-files.txt");
+    renameSync(liste, `${liste}.weg`);
+    try {
+      const { code, ausgabe, fehler } = pruefen("--basis", "main");
+      expect(code).toBe(1);
+      expect(fehler).toContain(".checks/large-files.txt not found");
+      expect(ausgabe).not.toContain("PR-Regeln: alles in Ordnung");
+    } finally {
+      renameSync(`${liste}.weg`, liste);
+    }
   });
 });

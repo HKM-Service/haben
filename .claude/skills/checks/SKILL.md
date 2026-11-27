@@ -12,7 +12,7 @@ Welche Prüfungen gelten, steht in `docs/mitwirken.md`; die Befehle im Container
 - `bun --version` gibt die Version aus `packageManager` in `package.json`: Prüfungen direkt mit Bun.
 - Kein Bun oder eine andere Version: **Dev-Container aus `compose.yml`**, keine eigenen Ad-hoc-Container mit `oven/bun` o. Ä.
 - Weder Bun noch Docker/Podman: der Person sagen, was fehlt, und nicht weiter raten.
-- Kein PostgreSQL 18, aber ein anderes installiert: Das geht für die Tests (`initdb` in den Scratchpad, `pg_ctl … -o '-p 5433'`).
+- Kein PostgreSQL 19, aber ein anderes installiert: Das geht für die Tests (`initdb` in den Scratchpad, `pg_ctl … -o '-p 5433'`).
 
 ## 2. Eigene Compose-Instanz
 
@@ -30,7 +30,7 @@ Ports vorher prüfen (`lsof -i :5632` oder `docker ps`). Am Ende `docker compose
 - Einzelne Tests: `bun --bun vitest run <pfad>`.
 - E2E braucht die Browser von Playwright, die der Container nicht hat: dann nur in der CI. Port 3100 ist der E2E-Server.
 - Doku ohne Zensical: der Einzeiler aus „Prüfungen ohne Bun“, er läuft auch im Worktree.
-- Vor dem Push: Nennt `bun run lint` einen Hinweis mit `--aufraeumen`, den genannten Befehl ausführen und die geänderte `altdateien.json` oder `altstellen.json` mitcommitten.
+- Vor dem Push: Nennt `bun run lint` einen Befehl mit `--clean` oder `--aufraeumen`, ihn ausführen (`checks …` als `bunx checks …`) und die geänderte Liste mitcommitten ([Automatische Prüfungen der Regeln](../../../docs/mitwirken.md#automatische-prüfungen-der-regeln)).
 
 ## 4. Übersprungenes melden
 

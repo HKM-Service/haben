@@ -1,5 +1,6 @@
-import { PRIVATANTEIL_FEHLER, parsePrivatanteil } from "../lib/anteil.ts";
+import { PRIVATANTEIL_FEHLER, betrieblicherTeil, parsePrivatanteil } from "../lib/anteil.ts";
 import { Field } from "./Field.tsx";
+import { EinklappAbschnitt } from "./firma/EinklappAbschnitt.tsx";
 
 /*
  * Vorgaben für den Privatanteil je Belegkategorie in den Firmendaten, nur im Einzelunternehmen (#1221). Gelesen wie der
@@ -31,18 +32,34 @@ export function privatanteilWerte(texte: PrivatanteilTexte, gesellschaft: boolea
   return Object.fromEntries(KEYS.map((key) => [key, parsePrivatanteil(texte[key]) ?? 0] as const).filter(([, value]) => value > 0));
 }
 
+/** Gesetzte Vorgaben für die Überschrift: „Telefon 20 % · Internet 50 %“; ohne Vorgabe „keine Vorgabe“ */
+export function privatanteilKurz(texte: PrivatanteilTexte): string {
+  const werte = privatanteilWerte(texte, false);
+  return (
+    KEYS.filter((key) => werte[key])
+      .map((key) => `${KATEGORIEN[key]} ${werte[key]} %`)
+      .join(" · ") || "keine Vorgabe"
+  );
+}
+
 export function PrivatanteilVorgaben({
   texte,
+  abzug,
   onChange,
   error,
+  offen,
+  onOffen,
 }: {
   texte: PrivatanteilTexte;
+  /** Neue Belege haben nach den gespeicherten Firmendaten Vorsteuerabzug (nicht Kleinunternehmer, nicht ohne Abzug) */
+  abzug: boolean;
   onChange: (texte: PrivatanteilTexte) => void;
   error: (name: Feld) => string | undefined;
+  offen: boolean;
+  onOffen: (offen: boolean) => void;
 }) {
   return (
-    <section className="form-section" aria-labelledby="company-private">
-      <h3 id="company-private">Privatanteile</h3>
+    <EinklappAbschnitt id="company-private" titel="Privatanteile" kurz={privatanteilKurz(texte)} offen={offen} onOffen={onOffen}>
       <div className="form-row cols-2">
         {KEYS.map((key) => (
           <Field key={key} label={`Privatanteil ${KATEGORIEN[key]} in %`} describedBy="private-share-hint" error={error(`privateShare-${key}`)}>
@@ -60,9 +77,9 @@ export function PrivatanteilVorgaben({
         ))}
       </div>
       <p id="private-share-hint" className="field-hint">
-        Vorgabe für neue Belege dieser Kategorien: Nur der betriebliche Teil wird Ausgabe und Vorsteuer, der private Teil ist eine Entnahme. Am einzelnen Beleg
-        lässt sich der Anteil ändern.
+        Vorgabe für neue Belege dieser Kategorien: Nur der betriebliche Teil wird {betrieblicherTeil(abzug)}, der private Teil ist eine Entnahme. Am einzelnen
+        Beleg lässt sich der Anteil ändern.
       </p>
-    </section>
+    </EinklappAbschnitt>
   );
 }

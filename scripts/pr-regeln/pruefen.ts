@@ -1,9 +1,24 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { countLines, grownOldFiles } from "../dateigroesse/regel.ts";
+import { readList } from "@firsttris/checks/checks/config.ts";
+import { countLines } from "@firsttris/checks/checks/file-size.ts";
+import { abhaengigkeitHinweise, neueAbhaengigkeiten } from "./abhaengigkeiten.ts";
 import { checksFunctions, functionLengthHints } from "./funktionslaenge.ts";
-import { checkBody, checkTitle, checkTitleIssues, countWords, docPageHints, growthHints, hints, isBot, type Report, reviewHint } from "./regel.ts";
+import {
+  checkBody,
+  checkTitle,
+  checkTitleIssues,
+  countWords,
+  docPageHints,
+  grownOldFiles,
+  growthHints,
+  heikelHint,
+  hints,
+  isBot,
+  type Report,
+  reviewHint,
+} from "./regel.ts";
 
 /*
  * Prüft einen Pull Request nach regel.ts. Läuft in .github/workflows/pr-regeln.yml mit dem Ereignis aus
@@ -56,8 +71,9 @@ const range = `${mergeBase}..${pr.head.sha}`;
 const subjects = git("log", "--format=%s", range).split("\n").filter(Boolean);
 const files = git("diff", "--name-only", range).split("\n").filter(Boolean);
 
-// Zeilen der geänderten alten Dateien vorher und nachher, für den Hinweis auf gewachsene große Dateien
-const oldFiles: string[] = JSON.parse(readFileSync("scripts/dateigroesse/altdateien.json", "utf8"));
+// Zeilen der geänderten alten Dateien vorher und nachher, für den Hinweis auf gewachsene große Dateien (checks file-size)
+// Fehlt die Liste, bricht die Prüfung ab wie früher ohne altdateien.json, statt keine Datei als alt zu kennen
+const oldFiles = readList(".checks/large-files.txt", true);
 const linesAt = (sha: string) =>
   Object.fromEntries(
     files
@@ -100,6 +116,13 @@ const functionChanges = files.filter(checksFunctions).flatMap((file) => {
   return after === null ? [] : [{ file, before: contentAt(mergeBase, renamedFrom[file] ?? file), after }];
 });
 
+// package.json vorher und nachher, für die Meldung neuer Abhängigkeiten
+const neuePakete = neueAbhaengigkeiten(
+  files
+    .filter((file) => /(^|\/)package\.json$/.test(file))
+    .map((file) => ({ file, before: contentAt(mergeBase, renamedFrom[file] ?? file), after: contentAt(pr.head.sha, file) })),
+);
+
 const reports: Report[] = [
   ...(isBot(pr.user) || pr.title === null ? [] : [...checkTitle(pr.title), ...checkTitleIssues(pr.title, pr.body), ...checkBody(pr.body)]),
   ...hints(files, subjects),
@@ -107,6 +130,8 @@ const reports: Report[] = [
   ...docPageHints(docPages),
   ...functionLengthHints(functionChanges),
   ...reviewHint(pr, files),
+  ...heikelHint(files),
+  ...abhaengigkeitHinweise(neuePakete, pr.body, isBot(pr.user) || pr.title === null),
 ];
 
 if (lokal) {

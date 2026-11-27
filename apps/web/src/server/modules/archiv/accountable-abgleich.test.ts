@@ -5,7 +5,7 @@ import { setupTestDb, testDatabaseUrl } from "../../test-db.ts";
 /*
  * Abgleich „Jede Buchung mit Belegnummer findet ihren Beleg“ nach dem Accountable-Umzug (Review #579). Konten ohne Beleg
  * (Privat, Geldtransit) hängen am Kontenrahmen: SKR03 Privat 1800–1899 und Geldtransit 1360, SKR04 Privat 2100–2199
- * und Geldtransit 1460, dort ist 1800 die Bank (Kontenrahmen in packages/core/src/posting.ts).
+ * und Geldtransit 1460, dort ist 1800 die Bank (Kontenrahmen in packages/core/src/kontenplan.ts).
  */
 
 const COLUMNS =
@@ -16,14 +16,14 @@ const header = (skr: "03" | "04", system = "Lexoffice Export") =>
   `"EXTF";700;21;"Buchungsstapel";13;20240102120000000;;"LO";"";"";1001;12345;20230101;4;20230101;20231231;"${system}";"";1;0;0;"EUR";;"";;;"${skr}";;;"";""`;
 
 describe.skipIf(!testDatabaseUrl)("Abgleich der DATEV-Buchungen nach Kontenrahmen (Postgres)", () => {
-  let lexoffice: typeof import("./lexoffice.ts");
+  let lexoffice: typeof import("./lexoffice.ts") & typeof import("./umzug-abgleich.ts");
   let archive: typeof import("./archive.ts");
   let sql: postgres.Sql;
   const actor = "test-user";
 
   beforeAll(async () => {
     sql = await setupTestDb();
-    lexoffice = await import("./lexoffice.ts");
+    lexoffice = { ...(await import("./lexoffice.ts")), ...(await import("./umzug-abgleich.ts")) };
     archive = await import("./archive.ts");
   }, 30_000);
 

@@ -10,7 +10,7 @@ import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
  * Wunsch weggelassen), ein Darlehen ohne Beleglink (ohne Belegbild im Export). Dazu erfundene Zeilen: eine zweite Zeile
  * der Rechnung mit anderer Belegfeld-1-Nummer, ein zweiter Beleg mit derselben Nummer wie die Rechnung und eigener GUID
  * (…09) an einem anderen Tag, die Zahlung der Rechnung (Bank an Debitor, ohne Beleglink) und eine Privatentnahme ohne
- * Belegnummer. Konten je Kontenrahmen: SKR03 Bank 1200, Privat 1800; SKR04 Bank 1800, Privat 2100 (packages/core/src/posting.ts).
+ * Belegnummer. Konten je Kontenrahmen: SKR03 Bank 1200, Privat 1800; SKR04 Bank 1800, Privat 2100 (packages/core/src/kontenplan.ts).
  */
 
 type Kontenrahmen = "SKR03" | "SKR04";
@@ -77,7 +77,7 @@ function exportZip(kontenrahmen: Kontenrahmen, opts: { ohneAusgabebild?: boolean
 describe.skipIf(!testDatabaseUrl)("sevDesk ohne API: Abgleich je Jahr (Postgres)", () => {
   let sev: typeof import("./sevdesk-export.ts");
   let archive: typeof import("./archive.ts");
-  let lex: typeof import("./lexoffice.ts");
+  let lex: typeof import("./umzug-abgleich.ts");
   let sql: postgres.Sql;
   const actor = "test-user";
 
@@ -85,7 +85,7 @@ describe.skipIf(!testDatabaseUrl)("sevDesk ohne API: Abgleich je Jahr (Postgres)
     sql = await setupTestDb();
     sev = await import("./sevdesk-export.ts");
     archive = await import("./archive.ts");
-    lex = await import("./lexoffice.ts");
+    lex = await import("./umzug-abgleich.ts");
   }, 30_000);
 
   afterAll(async () => {

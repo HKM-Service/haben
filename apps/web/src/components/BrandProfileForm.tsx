@@ -7,7 +7,8 @@ import { storeBrandProfile } from "../server/functions/brand-profiles.ts";
 import { BrandImageUpload } from "./BrandImageUpload.tsx";
 import { BrandFooterFields } from "./BrandFooterFields.tsx";
 import type { BrandProfileOption, BrandProfilesData } from "./BrandProfilesCard.tsx";
-import { AccentField, DesignOptionFields } from "./DesignPanel.tsx";
+import { AccentField } from "./AccentField.tsx";
+import { DesignOptionFields } from "./DesignPanel.tsx";
 import { Field } from "./Field.tsx";
 import { NoticeBanner } from "./NoticeBanner.tsx";
 
@@ -101,7 +102,7 @@ export function BrandProfileForm({
               onChange={changeDesign}
               logoUpload={profile ? <BrandImageUpload id={profile.id} kind="logo" hash={profile.logoHash} /> : null}
             />
-            <AccentField accent={design.accent} onChange={(accent) => changeDesign({ accent })} />
+            <AccentField accent={design.accent} fromLayout={design.accentFromLayout} onChange={changeDesign} />
             <section>
               <h3>Briefpapier</h3>
               {profile && <BrandImageUpload id={profile.id} kind="background" hash={profile.backgroundHash} />}

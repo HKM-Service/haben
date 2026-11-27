@@ -12,7 +12,7 @@ import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
  * Warum die Erwartungen in allen vier Kombinationen gleich sind: Bei Eingangsbelegen hängt der Vorsteuerabzug an der
  * Rechnung, nicht an der Zahlung (§ 15 Abs. 1 Satz 1 Nr. 1 UStG); die Ist-Versteuerung betrifft nur die eigenen Umsätze
  * (§ 20 Satz 1 UStG). Die Versteuerung darf hier also nichts ändern. Die Konten dagegen unterscheiden sich je
- * Kontenrahmen (DATEV SKR03/SKR04 2026, Konten in packages/core/src/posting.ts, ACCOUNTS); der erste Fall prüft sie, damit ein
+ * Kontenrahmen (DATEV SKR03/SKR04 2026, Konten in packages/core/src/kontenplan.ts, ACCOUNTS); der erste Fall prüft sie, damit ein
  * Fehler im Kontenrahmen nicht von den gleichen Beträgen verdeckt wird. In der EÜR zählt die Verrechnung wie eine
  * Zahlung am Tag der Aufrechnung: Die Aufrechnung mit einer fälligen Gegenforderung ist eine Leistung im Sinne des
  * § 11 Abs. 2 EStG (H 11 EStH „Aufrechnung“, BFH vom 19.04.1977, BStBl II S. 601; docs/belege-bezahlen.md).
@@ -255,5 +255,43 @@ describe.skipIf(!testDatabaseUrl)("Verrechnung in beiden Kontenrahmen und Verste
         expect(zeilen.vorsteuer ?? 0).toBe(0);
       }, 60_000);
     });
+  }
+
+  // Monat der Verrechnung (#1728): Die EÜR nach Monaten (euer-quelle.ts) zeigt eine Verrechnung im Monat der Aufrechnung,
+  // wie eine Zahlung an diesem Tag; die Restzahlung im Monat ihrer Zahlung. Die Versteuerung ändert hier nichts (oben).
+  for (const kr of ["SKR03", "SKR04"] as const) {
+    it(`${kr}: zählt die Verrechnung in den Monaten der EÜR im Monat der Aufrechnung`, async () => {
+      await firma({ kr, versteuerung: "ist" });
+      const rechnung = await beleg("2026-02-10", 10_000, 1_900, "software"); // 119,00 EUR
+      const gutschrift = await beleg("2026-02-20", -3_000, -570, "telefon"); // -35,70 EUR
+      await verrechnung.settleDocuments(actor, {
+        documentId: rechnung,
+        counterDocumentId: gutschrift,
+        amount: 3_570,
+        date: "2026-03-12",
+        note: "Gutschrift",
+      });
+      await zahlung(rechnung, -8_330, "2026-06-15"); // Rest 83,30 EUR
+
+      const { summe, monate } = await euerJournal.euerAusJournal(2026);
+      const ohneNull = (w: typeof summe) => Object.fromEntries(Object.entries(w.zeilen).filter(([, v]) => v !== 0));
+      const leer = {};
+      // März: beide Seiten der Verrechnung, die Vorsteuer aus Rechnung und Gutschrift hebt sich auf; Juni: der Rest der Rechnung
+      expect(monate.map(ohneNull)).toEqual([
+        leer,
+        leer,
+        { "ausgabe:software": 3_000, "ausgabe:telefon": -3_000 },
+        leer,
+        leer,
+        { "ausgabe:software": 7_000, vorsteuer: 1_330 },
+        leer,
+        leer,
+        leer,
+        leer,
+        leer,
+        leer,
+      ]);
+      expect(ohneNull(summe)).toEqual({ "ausgabe:software": 10_000, "ausgabe:telefon": -3_000, vorsteuer: 1_330 });
+    }, 60_000);
   }
 });

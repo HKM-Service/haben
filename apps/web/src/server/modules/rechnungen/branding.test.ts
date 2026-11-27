@@ -1,10 +1,11 @@
 import { brandProfileInputSchema } from "@haben/core";
 import type postgres from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { kleinunternehmerStand } from "../auswertungen/test-umsatz-stand.ts";
 import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
 
 describe.skipIf(!testDatabaseUrl)("Markenauswahl auf Belegen (Postgres)", () => {
-  let invoices: typeof import("./invoices.ts");
+  let invoices: typeof import("./index.ts");
   let quotes: typeof import("./quotes.ts");
   let brands: typeof import("../stammdaten/brand-profiles.ts");
   let assets: typeof import("../stammdaten/brand-assets.ts");
@@ -27,7 +28,7 @@ describe.skipIf(!testDatabaseUrl)("Markenauswahl auf Belegen (Postgres)", () => 
 
   beforeAll(async () => {
     sql = await setupTestDb();
-    invoices = await import("./invoices.ts");
+    invoices = await import("./index.ts");
     quotes = await import("./quotes.ts");
     brands = await import("../stammdaten/brand-profiles.ts");
     assets = await import("../stammdaten/brand-assets.ts");
@@ -68,7 +69,7 @@ describe.skipIf(!testDatabaseUrl)("Markenauswahl auf Belegen (Postgres)", () => 
 
   it("bewahrt PDF, XML und Verkäufer einer festgeschriebenen Rechnung bei späteren Profiländerungen", async () => {
     const created = await invoices.createDraft(actor, { ...draft(), brandProfileId: second });
-    const original = await invoices.finalizeInvoice(actor, created.id);
+    const original = await invoices.finalizeInvoice(actor, created.id, kleinunternehmerStand);
     expect(original.seller).toMatchObject({ name: "Beispielfirma GmbH", brand: "Zweite Marke", ustId: "DE123456789", email: "marke@example.invalid" });
     expect(original.xml).toContain("Beispielfirma GmbH");
     expect(original.xml).toContain("marke@example.invalid");
@@ -97,7 +98,7 @@ describe.skipIf(!testDatabaseUrl)("Markenauswahl auf Belegen (Postgres)", () => 
     await brands.setBrandProfileArchived(actor, second, true);
     const invoice = await quotes.quoteToInvoice(actor, quote.id, "2026-10-02");
     expect(invoice.brandProfileId).toBe(second);
-    await invoices.finalizeInvoice(actor, invoice.id);
+    await invoices.finalizeInvoice(actor, invoice.id, kleinunternehmerStand);
     const correction = await invoices.createCorrection(actor, invoice.id, "2026-10-03");
     expect(correction.brandProfileId).toBe(second);
     await invoices.deleteDraft(actor, correction.id);

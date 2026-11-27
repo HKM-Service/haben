@@ -3,6 +3,7 @@ import { unzipSync } from "fflate";
 import type postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
+import { kleinunternehmerStand } from "../auswertungen/test-umsatz-stand.ts";
 
 /**
  * Bareinnahme auf eine Ausgangsrechnung im Kassenbuch: gebucht wie die Zuordnung eines Bankumsatzes (Kasse statt Bank),
@@ -10,7 +11,7 @@ import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
  */
 describe.skipIf(!testDatabaseUrl)("Bareinnahme auf eine Rechnung (Postgres)", () => {
   let cash: typeof import("./index.ts");
-  let invoices: typeof import("../rechnungen/invoices.ts");
+  let invoices: typeof import("../rechnungen/index.ts");
   let contacts: typeof import("../stammdaten/contacts.ts");
   let vat: typeof import("../umsatzsteuer/index.ts");
   let auswertungen: typeof import("../auswertungen/index.ts");
@@ -23,7 +24,7 @@ describe.skipIf(!testDatabaseUrl)("Bareinnahme auf eine Rechnung (Postgres)", ()
   beforeAll(async () => {
     sql = await setupTestDb();
     cash = await import("./index.ts");
-    invoices = await import("../rechnungen/invoices.ts");
+    invoices = await import("../rechnungen/index.ts");
     contacts = await import("../stammdaten/contacts.ts");
     vat = await import("../umsatzsteuer/index.ts");
     auswertungen = await import("../auswertungen/index.ts");
@@ -65,7 +66,7 @@ describe.skipIf(!testDatabaseUrl)("Bareinnahme auf eine Rechnung (Postgres)", ()
       contactId,
       lines: [{ description: "Leistungen September", quantity: 1000, unit: "Psch.", unitPrice: 400_000, taxRate: 1900 }],
     });
-    return invoices.finalizeInvoice(actor, draft.id);
+    return invoices.finalizeInvoice(actor, draft.id, kleinunternehmerStand);
   }
 
   async function balances() {
@@ -153,9 +154,10 @@ describe.skipIf(!testDatabaseUrl)("Bareinnahme auf eine Rechnung (Postgres)", ()
         ]);
         // Netto je Monat: 1.000,00 € brutto im September, 3.760,00 € im Oktober
         expect(euer.monthly.einnahmen.slice(8, 10)).toEqual([84_034, 315_966]);
-        expect((await cash.invoicePaymentList(invoice.id)).map((p) => [p.via, p.date, p.amount, p.cashNumber, p.reversed])).toEqual([
-          ["bar", "2026-09-28", 100_000, 1, false],
-          ["bar", "2026-10-02", 376_000, 2, false],
+        // Eine Barzahlung hat keinen Umsatz und bekommt an der Rechnung keinen Link auf die Bank (#1855)
+        expect((await cash.invoicePaymentList(invoice.id)).map((p) => [p.via, p.date, p.amount, p.cashNumber, p.reversed, p.transactionId])).toEqual([
+          ["bar", "2026-09-28", 100_000, 1, false, null],
+          ["bar", "2026-10-02", 376_000, 2, false, null],
         ]);
 
         // Storno der Restzahlung: Gegenzeile mit neuer Nummer und heutigem Datum, Rechnung wieder offen

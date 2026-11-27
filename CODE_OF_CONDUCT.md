@@ -36,8 +36,8 @@ wiederkommen.
 
 ## Wo der Kodex gilt
 
-Überall, wo an Haben gearbeitet oder darüber gesprochen wird: im Repository `firsttris/haben` auf GitHub (Issues, Pull
-Requests, Reviews, Diskussionen, Commits), im Project „Roadmap“, auf dem Discord-Server und überall, wo jemand öffentlich für Haben spricht.
+Überall, wo an Haben gearbeitet oder darüber gesprochen wird: im Repository `Speicherstadt/haben` auf GitHub (Issues, Pull
+Requests, Reviews, Diskussionen, Commits), im Project „Roadmap Haben“, auf dem Discord-Server und überall, wo jemand öffentlich für Haben spricht.
 
 ## Melden
 

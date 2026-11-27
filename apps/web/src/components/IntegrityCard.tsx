@@ -2,7 +2,8 @@ import { formatEuro } from "@haben/core";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, type FormEvent } from "react";
 import { formatDateTime } from "../lib/format.ts";
-import { integrityNotice, weitereText } from "../lib/pruefbericht.ts";
+import { integrityNotice, pruefwertNotice, weitereText } from "../lib/pruefbericht.ts";
+import { releaseNotesUrl } from "../lib/release-notes.ts";
 import { useAction } from "../lib/use-action.ts";
 import { NoticeBanner } from "./NoticeBanner.tsx";
 import { comparePruefwert, runFileAndIntegrityCheck, runIntegrityCheck, type getChainHead } from "../server/functions/integrity.ts";
@@ -31,6 +32,24 @@ const TABELLEN: Record<string, string> = {
   pauschalen: "Pauschale",
   asset_depreciations: "AfA",
 };
+
+/** Prüfsumme der Sperren (#1683), zum Vergleich mit der Prüfsumme in den Versionshinweisen auf GitHub */
+function InventoryChecksumResult({ checksum }: { checksum: IntegrityReport["inventoryChecksum"] }) {
+  const link = <a href={releaseNotesUrl(__HABEN_VERSION__)}>Versionshinweisen zu Haben {__HABEN_VERSION__}</a>;
+  return (
+    <div className="small">
+      <div className="muted">Prüfsumme der Sperren</div>
+      <code style={{ overflowWrap: "anywhere" }}>{checksum.own}</code>
+      {checksum.own === checksum.shipped ? (
+        <div className="muted">Gleich der des Sollbestands, den diese Version ausliefert; veröffentlicht in den {link}.</div>
+      ) : (
+        <div className="muted" style={{ overflowWrap: "anywhere" }}>
+          Weicht vom Sollbestand ab, den diese Version ausliefert ({checksum.shipped}, veröffentlicht in den {link}).
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Letzte Vollprüfung der Dateien im Dokumentenspeicher: Zeitpunkt, Anzahl und je Datei mit Befund Art und Name */
 function FileCheckResult({ files }: { files: IntegrityReport["files"] }) {
@@ -82,28 +101,7 @@ export function IntegrityCard({ head }: { head: Head }) {
   function onCompare(event: FormEvent) {
     event.preventDefault();
     void action.run(async () => {
-      const result = await compare({ data: { text } });
-      if (result.status === "ok") {
-        action.setNotice({
-          tone: "ok",
-          text: `Prüfwert Nr. ${result.seq} stimmt und die Kette ist bis dorthin lückenlos: Das Protokoll ist bis zu diesem Eintrag unverändert. Siegel und spätere Einträge prüft „Kette prüfen“.`,
-        });
-      } else if (result.status === "beschaedigt") {
-        action.setNotice({
-          tone: "danger",
-          text: `Prüfwert Nr. ${result.seq} stimmt, aber Eintrag Nr. ${result.first} davor passt nicht mehr zur Kette (${result.befund}). Er wurde nachträglich verändert.`,
-        });
-      } else if (result.status === "abweichend") {
-        action.setNotice({
-          tone: "danger",
-          text: `Prüfwert Nr. ${result.seq} stimmt nicht. Das Protokoll wurde bis zu diesem Eintrag verändert und neu verkettet. Erwartet ${result.expected}, gefunden ${result.actual}.`,
-        });
-      } else {
-        action.setNotice({
-          tone: "danger",
-          text: `Eintrag Nr. ${result.seq} fehlt, das Protokoll endet bei Nr. ${result.head ?? "–"}. Entweder wurde ein älteres Backup eingespielt oder Einträge wurden gelöscht.`,
-        });
-      }
+      action.setNotice(pruefwertNotice(await compare({ data: { text } })));
     });
   }
 
@@ -159,6 +157,7 @@ export function IntegrityCard({ head }: { head: Head }) {
           </ul>
         </div>
       )}
+      {report && <InventoryChecksumResult checksum={report.inventoryChecksum} />}
       {report && <FileCheckResult files={report.files} />}
       {report && (report.abgleich.abweichungen.length > 0 || report.abgleich.hinweise.length > 0) && (
         <div className="small">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IntegrityReport } from "../server/modules/auswertungen/index.ts";
-import { dateiBefund, dateienText, integrityNotice } from "./pruefbericht.ts";
+import { dateiBefund, dateienText, integrityNotice, pruefwertNotice } from "./pruefbericht.ts";
 
 const fehlt = { tabelle: "documents", art: "Beleg", zeile: "1", datei: "hosting.pdf", sha256: "ab".repeat(32), befund: "fehlt" as const, weitere: 0 };
 
@@ -13,6 +13,7 @@ const bericht = (aenderung: Partial<IntegrityReport> = {}): IntegrityReport => (
   abgleich: { abweichungen: [], hinweise: [] },
   accountCollisions: [],
   triggerHints: [],
+  inventoryChecksum: { own: "a".repeat(64), shipped: "a".repeat(64) },
   files: null,
   ...aenderung,
 });
@@ -52,5 +53,44 @@ describe("Prüfbericht", () => {
   it("bleibt grün ohne Befund, auch wenn die Dateien noch nie geprüft wurden", () => {
     expect(integrityNotice(bericht()).tone).toBe("ok");
     expect(integrityNotice(bericht({ files: { at: new Date(), files: 4, problemCount: 0, problems: [] } })).tone).toBe("ok");
+  });
+
+  // Abweichender Sollbestand: Der Prüfwert stimmt, das Nachrechnen der Kette ist aber nicht verlässlich
+  it("bestätigt einen Prüfwert bei abweichendem Sollbestand nicht und nennt Zahl und ersten Befund", () => {
+    const befund = "Funktionen: Funktion public.haben_audit_hash(prev bytea, r public.audit_log) wurde verändert";
+    expect(pruefwertNotice({ status: "unbestaetigt", seq: 46, befunde: [befund] })).toEqual({
+      tone: "danger",
+      text: `Prüfwert Nr. 46 stimmt, die Kette lässt sich aber nicht bestätigen: Die Datenbank weicht vom Sollbestand ab (ein Befund, etwa „${befund}“). Wer Trigger oder Funktionen ändern kann, kann auch das Nachrechnen fälschen. „Kette prüfen“ nennt alle Befunde.`,
+    });
+    expect(
+      pruefwertNotice({ status: "unbestaetigt", seq: 46, befunde: [befund, "vat_returns: Zeilensicherheit auf vat_returns eingeschaltet"] }).text,
+    ).toContain("(2 Befunde, etwa");
+  });
+
+  // Nur das Nachrechnen ist abgebrochen, der Sollbestand stimmt (#1716)
+  it("sagt bei einem Abbruch des Nachrechnens nicht, der Sollbestand weiche ab", () => {
+    const befund = "haben_integrity_problems: Prüfung von Kette und Siegeln abgebrochen: Integritätsprüfung kennt x im Siegel von y nicht";
+    const { text } = pruefwertNotice({ status: "unbestaetigt", seq: 46, befunde: [befund] });
+    expect(text).toContain("Das Nachrechnen der Kette ist abgebrochen (ein Befund, etwa");
+    expect(text).not.toContain("Sollbestand");
+  });
+
+  // Den Namen eines fremden Objekts wählt, wer die Datenbank ändert; er macht aus einer Abweichung keinen Abbruch (#1716)
+  it("nennt den Sollbestand, wenn nur ein Objektname im Befund wie ein Abbruch klingt oder ein Abbruch dazukommt", () => {
+    const fremd = "Datenbank: Zusätzliche Relation Prüfung von Kette und Siegeln abgebrochen im Systemschema pg_catalog";
+    const abbruch = "haben_integrity_problems: Prüfung von Kette und Siegeln abgebrochen: function haben_integrity_problems(integer) does not exist";
+    expect(pruefwertNotice({ status: "unbestaetigt", seq: 46, befunde: [fremd] }).text).toContain("Die Datenbank weicht vom Sollbestand ab (ein Befund");
+    expect(pruefwertNotice({ status: "unbestaetigt", seq: 46, befunde: [fremd, abbruch] }).text).toContain(
+      "Die Datenbank weicht vom Sollbestand ab (2 Befunde",
+    );
+  });
+
+  it("meldet die übrigen Ergebnisse des Prüfwert-Vergleichs wie bisher", () => {
+    expect(pruefwertNotice({ status: "ok", seq: 7 }).tone).toBe("ok");
+    expect(pruefwertNotice({ status: "beschaedigt", seq: 7, first: 2, befund: "Inhalt passt nicht zum Hash" }).text).toBe(
+      "Prüfwert Nr. 7 stimmt, aber Eintrag Nr. 2 davor passt nicht mehr zur Kette (Inhalt passt nicht zum Hash). Er wurde nachträglich verändert.",
+    );
+    expect(pruefwertNotice({ status: "abweichend", seq: 7, expected: "aa", actual: "bb" }).tone).toBe("danger");
+    expect(pruefwertNotice({ status: "fehlt", seq: 9, head: 7 }).text).toContain("Eintrag Nr. 9 fehlt, das Protokoll endet bei Nr. 7.");
   });
 });

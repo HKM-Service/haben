@@ -3,6 +3,7 @@ import type postgres from "postgres";
 import { kennzahlenAusJournal } from "@haben/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
+import { kleinunternehmerStand } from "../auswertungen/test-umsatz-stand.ts";
 
 function dkbCsv(rows: string[][]) {
   const header = `"Girokonto";"DE12 1203 0000 1234 5678 90"\n""\n`;
@@ -18,8 +19,8 @@ const row = (date: string, name: string, purpose: string, amount: string, type =
 describe.skipIf(!testDatabaseUrl)("Voranmeldung aus Buchungen (Postgres)", () => {
   let figures: typeof import("./vat-figures.ts");
   let vat: typeof import("./vat.ts");
-  let bank: typeof import("../bank/bank.ts");
-  let invoices: typeof import("../rechnungen/invoices.ts");
+  let bank: typeof import("../bank/index.ts");
+  let invoices: typeof import("../rechnungen/index.ts");
   let contacts: typeof import("../stammdaten/contacts.ts");
   let documents: typeof import("../belege/documents.ts");
   let sql: postgres.Sql;
@@ -30,8 +31,8 @@ describe.skipIf(!testDatabaseUrl)("Voranmeldung aus Buchungen (Postgres)", () =>
     sql = await setupTestDb();
     figures = await import("./vat-figures.ts");
     vat = await import("./vat.ts");
-    bank = await import("../bank/bank.ts");
-    invoices = await import("../rechnungen/invoices.ts");
+    bank = await import("../bank/index.ts");
+    invoices = await import("../rechnungen/index.ts");
     contacts = await import("../stammdaten/contacts.ts");
     documents = await import("../belege/documents.ts");
   }, 30_000);
@@ -77,7 +78,7 @@ describe.skipIf(!testDatabaseUrl)("Voranmeldung aus Buchungen (Postgres)", () =>
       note: "",
       lines: lines.map((l) => ({ description: "Leistung", quantity: 1000, unit: "Psch." as const, unitPrice: l.net, taxRate: l.rate })),
     });
-    return invoices.finalizeInvoice(actor, draft.id);
+    return invoices.finalizeInvoice(actor, draft.id, kleinunternehmerStand);
   }
 
   async function bookedDocument(date: string, net: number, tax: number) {
@@ -304,10 +305,10 @@ describe.skipIf(!testDatabaseUrl)("Voranmeldung aus Buchungen (Postgres)", () =>
       exemptionReason: taxTreatment === "steuerfrei" ? "Steuerfrei nach § 4 Nr. 21 UStG" : "",
       lines: [{ description: "Beratung", quantity: 1000, unit: "Psch." as const, unitPrice: 500_000, taxRate: 0 }],
     });
-    return invoices.finalizeInvoice(actor, draft.id);
+    return invoices.finalizeInvoice(actor, draft.id, kleinunternehmerStand);
   }
 
-  it("Reverse Charge und Drittland im Rechnungsmonat (auch bei Ist), steuerfrei nach Zahlung", async () => {
+  it("Reverse Charge und Drittland im Rechnungsmonat (auch bei Ist), steuerfrei im Monat der Leistung (#1312)", async () => {
     const rc = await specialInvoice("reverse_charge", "AT", "ATU12345678", "2026-10-15");
     const ch = await specialInvoice("drittland", "CH", "", "2026-10-01");
     await specialInvoice("steuerfrei", "DE", "", "2026-10-01");
@@ -320,9 +321,10 @@ describe.skipIf(!testDatabaseUrl)("Voranmeldung aus Buchungen (Postgres)", () =>
     await bank.allocate(actor, { kind: "invoice", transactionId: tx!.id, invoiceId: ch.id, amount: 500_000 });
 
     const result = await figures.computeVatFigures(october);
-    expect(result).toMatchObject({ kz21: 500_000, kz45: 500_000, kz48: 0, kz81: 0, steuerfrei: 0 });
+    // Die unbezahlte steuerfreie Rechnung zählt auch bei Ist im Monat der Leistung (Anleitung zur UStVA 2026, Kz 48)
+    expect(result).toMatchObject({ kz21: 500_000, kz45: 500_000, kz48: 500_000, kz81: 0, steuerfrei: 0 });
     const draft = await vat.saveDraft(actor, october, { mode: "berechnet" });
-    expect(draft).toMatchObject({ kz21: 500_000, kz45: 500_000, kz83: 0 });
+    expect(draft).toMatchObject({ kz21: 500_000, kz45: 500_000, kz48: 500_000, kz83: 0 });
     let xml = "";
     const spy = {
       validate: async (body: string) => {
@@ -336,6 +338,7 @@ describe.skipIf(!testDatabaseUrl)("Voranmeldung aus Buchungen (Postgres)", () =>
     await vat.submitReturn(actor, draft.id, spy, { kind: "validate" });
     expect(xml).toContain("<Kz21>5000</Kz21>");
     expect(xml).toContain("<Kz45>5000</Kz45>");
+    expect(xml).toContain("<Kz48>5000</Kz48>");
   }, 30_000);
 
   // DATEV weist nicht steuerbare Umsätze ins Drittland auch bei Ist-Versteuerung mit der Rechnung aus, nicht mit der

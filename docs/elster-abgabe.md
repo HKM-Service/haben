@@ -28,9 +28,9 @@ Diese Seite behandelt die vier Formulare der Tabelle. Weitere Verfahren sendet H
 
 - **Du hast eine eigene Hersteller-ID:** direkt aus Haben senden. Die Voranmeldung wird festgeschrieben und die Frist erledigt, und Bescheide, Postfach und Belege von ELSTER gibt es dazu. Ohne Hersteller-ID erledigt bei der Voranmeldung der [Vermerk der Abgabe](#über-mein-elster) dasselbe; die Jahreserklärungen bleiben dann in Haben offen.
 - **Du hast keine Hersteller-ID** (die Beantragung dauert oft Wochen, siehe [Hersteller-ID](einrichtung-elster.md#hersteller-id-wer-ist-hersteller)):
-  - **Voranmeldung:** XML-Import. Eine Datei hochladen, Mein ELSTER füllt das Formular.
-  - **Jahreserklärungen:** die Erweiterung. Sie trägt Seite für Seite ein, was Haben gerechnet hat.
-  - Der **KI-Assistent** ist für das, was beide nicht abdecken, oder wenn du die Erweiterung nicht installieren willst.
+    - **Voranmeldung:** XML-Import. Eine Datei hochladen, Mein ELSTER füllt das Formular.
+    - **Jahreserklärungen:** die Erweiterung. Sie trägt Seite für Seite ein, was Haben gerechnet hat.
+    - Der **KI-Assistent** ist für das, was beide nicht abdecken, oder wenn du die Erweiterung nicht installieren willst.
 
 ## Direkt aus Haben
 
@@ -60,7 +60,7 @@ Ohne Hersteller-ID gibst du im Portal **Mein ELSTER** ab. Für alle Wege dort gi
 - **Du meldest dich selbst an**, mit jeder Anmeldeart, die Mein ELSTER anbietet: Zertifikatsdatei, ELSTER Secure oder Ausweis. Haben verbindet sich nicht mit ELSTER und kennt weder Passwort noch Zertifikat.
 - **Die Werte sind dieselben**, die Haben über ERiC senden würde: ein von Hand überschriebener Entwurf der Voranmeldung, sonst die aus den Buchungen gerechneten Kennzahlen. Arbeite vorher die Hinweise der [Vorprüfung](umsatzsteuer.md#vorprüfung) bzw. der Jahreserklärung ab.
 - **Prüfen und Absenden machst du** in Mein ELSTER. Lade danach das Übermittlungsprotokoll herunter und leg es bei deinen Unterlagen ab.
-- **Die Abgabe vermerkst du in Haben.** Bei der Voranmeldung trägst du unter **Außerhalb von Haben abgegeben** Tag, Transferticket, Kz 83 und das Übermittlungsprotokoll ein; danach ist sie festgeschrieben, die [Frist](fristen.md) erledigt und die Zahllast ein offener Posten im Bankabgleich ([Abgabe vermerken](umsatzsteuer.md#abgabe-außerhalb-von-haben-vermerken)). Für die Jahreserklärungen gibt es den Vermerk noch nicht: Sie bleiben in Haben ein Entwurf, ihre Frist bleibt offen.
+- **Die Abgabe vermerkst du in Haben.** Bei der Voranmeldung trägst du unter **Schon anders abgegeben?** im Bereich **Außerhalb von Haben abgegeben** Tag, Transferticket, Kz 83 und das Übermittlungsprotokoll ein; danach ist sie festgeschrieben, die [Frist](fristen.md) erledigt und die Zahllast ein offener Posten im Bankabgleich ([Abgabe vermerken](umsatzsteuer.md#abgabe-außerhalb-von-haben-vermerken)). Für die Jahreserklärungen gibt es den Vermerk noch nicht: Sie bleiben in Haben ein Entwurf, ihre Frist bleibt offen.
 
 ### XML-Import in Mein ELSTER
 
@@ -72,7 +72,7 @@ Mein ELSTER bietet den Import für das laufende und die drei vorherigen Jahre an
 
 Für **alle vier Formulare**. In Haben auf **Werte für Mein ELSTER kopieren** klicken, die Werte in die Erweiterung einfügen, dann in Mein ELSTER Seite für Seite durchgehen. Die Erweiterung findet jedes Feld über seine amtliche Kennung, trägt den Wert ein und rahmt ihn grün. Sie klickt nie: „Eintrag übernehmen“, Seitenwechsel, Prüfen und Absenden machst du. Was schon anders im Formular stand, etwa aus dem Vorjahr, überschreibt sie nur auf deinen Klick.
 
-Die Erweiterung läuft in Chrome, Edge, Brave und anderen Chromium-Browsern. Du lädst sie als ZIP vom [Release](https://github.com/firsttris/haben/releases/latest) und bindest sie als entpackte Erweiterung ein. Sie schickt nichts an Haben oder sonst wohin. Einrichten und Ablauf: [Mein ELSTER mit Erweiterung](elster-mit-erweiterung.md).
+Die Erweiterung läuft in Chrome, Edge, Brave und anderen Chromium-Browsern. Du lädst sie als ZIP vom [Release](https://github.com/Speicherstadt/haben/releases/latest) und bindest sie als entpackte Erweiterung ein. Sie schickt nichts an Haben oder sonst wohin. Einrichten und Ablauf: [Mein ELSTER mit Erweiterung](elster-mit-erweiterung.md).
 
 ### KI-Assistent
 
@@ -86,4 +86,4 @@ Geht immer: Haben zeigt auf der Seite der Voranmeldung jede Kennzahl und bei Ums
 
 ## Offen
 
-Ob Mein ELSTER das Ausfüllen durch eine Erweiterung oder einen gesteuerten Browser nach seinen Nutzungsbedingungen zulässt, ist nicht geklärt ([#124](https://github.com/firsttris/haben/issues/124)). Die Verantwortung für die Abgabe liegt bei dir, wie beim Abtippen. Der XML-Import ist ein Angebot von Mein ELSTER selbst.
+Ob Mein ELSTER das Ausfüllen durch eine Erweiterung oder einen gesteuerten Browser nach seinen Nutzungsbedingungen zulässt, ist nicht geklärt ([#124](https://github.com/Speicherstadt/haben/issues/124)). Die Verantwortung für die Abgabe liegt bei dir, wie beim Abtippen. Der XML-Import ist ein Angebot von Mein ELSTER selbst.

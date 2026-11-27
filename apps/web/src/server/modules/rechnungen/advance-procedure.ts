@@ -145,11 +145,19 @@ async function sameAmounts(invoice: Invoice, previous: Invoice[], tx: Tx): Promi
  * Verfahrensentscheidung vor dem Festschreiben; Abzugsoriginale sind bereits durch den Aufrufer gesperrt.
  * Die Leistung bleibt bei bloßem Schluss-Storno erbracht. Ein Ersatz übernimmt sie nur mit eindeutigen Bezügen und
  * unveränderten Beträgen; Altbelege und ihre Korrekturketten behalten ihr Verfahren.
- * Quelle: https://github.com/firsttris/haben/issues/750#issuecomment-6837873675
+ * Quelle: https://github.com/Speicherstadt/haben/issues/750#issuecomment-6837873675
  */
 export async function advanceProcedure(invoice: Invoice, lines: readonly Deduction[], company: { rechtsform: Rechtsform }, tx: Tx): Promise<AdvanceProcedure> {
   if (invoice.status === "final") return { advanceAccounting: invoice.advanceAccounting, replacesInvoiceId: invoice.replacesInvoiceId };
   if (invoice.correctsId) return originalProcedure(invoice, tx);
+  // § 13 Abs. 1 Nr. 1 a Satz 4 UStG gilt auch bei Rechnung und Leistung am selben Tag: Eine später zugeordnete
+  // frühere Zahlung bleibt eine Vorauszahlung. Ein dokumentierter Leistungstag oder das Ende eines eindeutigen
+  // Leistungszeitraums trägt den neuen Weg; fehlende Leistungsangaben werden nicht aus dem Rechnungsdatum erraten.
+  // Die gespeicherte Steuerbehandlung zählt, nicht die Rechnungsanschrift: Eine Inlandsleistung kann an einen
+  // ausländischen Kunden gehen (§ 3a Abs. 3 UStG, https://www.gesetze-im-internet.de/ustg_1980/__3a.html).
+  if (invoice.variant === null && invoice.currency === "EUR" && invoice.taxTreatment === "regulaer" && (invoice.serviceFrom || invoice.serviceTo)) {
+    return deferredProcedure;
+  }
   if (!isKapitalgesellschaft(company.rechtsform)) return previousProcedure;
   if (invoice.variant === "abschlag" && invoice.advanceType !== "teilleistung") return deferredProcedure;
   if (invoice.variant !== "schluss") return previousProcedure;

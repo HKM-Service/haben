@@ -1,5 +1,5 @@
 import { notFound } from "@tanstack/react-router";
-import { EXPENSE_CATEGORIES } from "@haben/core";
+import { EXPENSE_CATEGORIES, kategorieMitKonto, type Kontenrahmen } from "@haben/core";
 import { loadInboxSettings } from "../modules/belege/index.ts";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -17,16 +17,20 @@ import {
   documentInputSchema,
   documentNavigation,
   dauerbelegName,
+  duplicateDocument,
   getDocument,
   supplierCategory,
   supplierPayment,
   listDocuments,
   MAX_DOCUMENT_SIZE,
-  runExtraction,
+  queueExtraction,
+  queueOverview,
+  resumeExtractionQueue,
+  loadExtractionLimits,
   updateDocument,
   uploadDocument,
 } from "../modules/belege/index.ts";
-import { extractionAvailable, extractionSettings, supplierSuggestion } from "../modules/belege/index.ts";
+import { belegeMitGleicherNummer, extractionAvailable, extractionSettings, supplierSuggestion } from "../modules/belege/index.ts";
 import {
   listSettlements,
   openAmount,
@@ -38,8 +42,9 @@ import {
 } from "../modules/bank/index.ts";
 import { authMiddleware, readMiddleware } from "../middleware.ts";
 import { ownAccountsOverview } from "../modules/eigene-konten/index.ts";
-import { listContactChoices, loadCompany } from "../modules/stammdaten/index.ts";
+import { extractionLimitsSchema, listContactChoices, loadCompany, saveExtractionLimits, setExtractionPaused } from "../modules/stammdaten/index.ts";
 import { documentBankAllocations, documentIbanCheck, documentSepaTransfers } from "../modules/bank/index.ts";
+import { buchungenZu } from "../modules/buchhaltung/index.ts";
 import { db, schema } from "../db/index.ts";
 import { eq } from "drizzle-orm";
 import { UserError } from "../errors.ts";
@@ -49,7 +54,9 @@ import { detailId } from "./schemas.ts";
 /** KI-Auslesung läuft nach der Antwort weiter; Fehler landen am Beleg. */
 const inBackground = (work: Promise<void>) => void work.catch((error) => console.error("Belegauslesung", error));
 
-const categoryOptions = Object.entries(EXPENSE_CATEGORIES).map(([value, { label }]) => ({ value, label }));
+/** Kategorien zur Auswahl, die Bezeichnung mit der Nummer des Kontos im Kontenrahmen der Firma (#1438) */
+const categoryOptions = (kontenrahmen: Kontenrahmen) =>
+  Object.keys(EXPENSE_CATEGORIES).map((value) => ({ value, label: kategorieMitKonto(kontenrahmen, value) }));
 
 export const getDocuments = createServerFn({ method: "GET" })
   .middleware([readMiddleware])
@@ -59,6 +66,7 @@ export const getDocuments = createServerFn({ method: "GET" })
     return {
       documents: await listDocuments(),
       aiAvailable: extractionAvailable(),
+      queue: await queueOverview(),
       inbox: inbox?.enabled ? { username: inbox.username, folder: inbox.folder, lastRunAt: inbox.lastRunAt, lastError: inbox.lastError } : null,
     };
   });
@@ -78,6 +86,8 @@ export const getDocumentDetail = createServerFn({ method: "GET" })
       document,
       cancellation,
       reentryId,
+      // Buchung des Belegs, Freigabe der Vorsteuer (#693) und Storno im Journal (#1855)
+      buchungen: result.document.lockedAt ? ((await buchungenZu(["document", "freigabe"], [data])).get(data) ?? []) : [],
       // Vermerk: für diesen Beleg erzeugte SEPA-Überweisungen
       sepaTransfers: await documentSepaTransfers(data),
       // IBAN der E-Rechnung gegen die des Kontakts (#410)
@@ -101,11 +111,13 @@ export const getDocumentDetail = createServerFn({ method: "GET" })
       splits: result.splits,
       // Je Hinweis das Feld, an dem er liegt: Die Seite klappt „Weitere Angaben“ dafür auf
       issues: result.document.lockedAt ? [] : bookingIssueList(result.document, result.amounts, today(), result.splits),
+      // Andere Belege desselben Lieferanten mit derselben Rechnungsnummer: Hinweis auf eine mögliche Dublette (#1314)
+      gleicheNummer: await belegeMitGleicherNummer(result.document),
       // Bisherige Kategorie und Bezahlung des Lieferanten als Hinweis am Feld, nur solange der Beleg offen ist (#295)
       categoryHint: result.document.lockedAt ? null : await supplierCategory(result.document),
       paymentHint: result.document.lockedAt ? null : await supplierPayment(result.document),
       aiAvailable: extractionAvailable(),
-      categories: categoryOptions,
+      categories: categoryOptions(company.kontenrahmen),
       // Eigene Sachkonten (#270) zur Wahl bei der Kategorie und je Zeile der Aufteilung
       ownAccounts: (await ownAccountsOverview()).accounts,
       // Vorschlag für „Neuen Lieferanten anlegen“ aus E-Rechnung oder Auslesung; die IBAN nur zum ausdrücklichen Übernehmen (#329)
@@ -118,6 +130,25 @@ export const getDocumentDetail = createServerFn({ method: "GET" })
         : null,
     };
   });
+
+/**
+ * Mögliche Dublette zu den Eingaben im Formular, noch vor dem Speichern (#1314, #1378): Lieferant und Rechnungsnummer
+ * wie gerade getippt oder ausgelesen; der Hinweis und der Buchungsdialog zeigen so nie einen alten Stand.
+ */
+export const checkSameInvoiceNumber = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z.object({
+      id: z.uuid(),
+      supplierName: z.string().max(200),
+      supplierUstId: z.string().max(50),
+      supplierContactId: z.uuid().nullable(),
+      invoiceNumber: z.string().max(100),
+      gross: z.number().int(),
+      recurringDocumentId: z.uuid().nullable(),
+    }),
+  )
+  .handler(({ data }) => belegeMitGleicherNummer(data));
 
 export const uploadDocuments = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -148,6 +179,22 @@ export const uploadDocuments = createServerFn({ method: "POST" })
     return results;
   });
 
+/** Beleg duplizieren (#1295): neue Datei mit den Feldern des Belegs `id`, ohne Auslesung */
+export const duplicateDocumentFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((data: unknown) => {
+    if (!(data instanceof FormData)) throw new UserError("FormData erwartet");
+    const file = data.get("file");
+    if (!(file instanceof File)) throw new UserError("Keine Datei ausgewählt.");
+    return { id: z.uuid().parse(data.get("id")), file };
+  })
+  .handler(async ({ data, context }) => {
+    // Vor dem Einlesen prüfen, wie beim Hochladen
+    if (data.file.size > MAX_DOCUMENT_SIZE) throw new DocumentError(`${data.file.name}: größer als 20 MB.`);
+    const bytes = new Uint8Array(await data.file.arrayBuffer());
+    return duplicateDocument(context.user.id, data.id, { bytes, filename: data.file.name });
+  });
+
 export const saveDocument = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ id: z.uuid(), document: documentInputSchema }))
@@ -175,14 +222,50 @@ export const deleteDocumentFn = createServerFn({ method: "POST" })
 /** Einstellungen › KI-Assistenten und API: welcher Anbieter Belege ausliest; ohne Schlüssel */
 export const getExtractionSettings = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .handler(() => extractionSettings());
+  .handler(async () => ({ ...extractionSettings(), limits: await loadExtractionLimits() }));
 
+/** Grenzen des KI-Dienstes (#1735): Tokens je Anfrage, Anfragen und Tokens pro Minute; leer = keine Grenze */
+export const saveExtractionLimitsFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(extractionLimitsSchema)
+  .handler(async ({ data, context }) => {
+    await saveExtractionLimits(context.user.id, data);
+    // Mehr Arbeiter erlaubt: Sie fangen gleich an
+    inBackground(resumeExtractionQueue());
+    return { ok: true };
+  });
+
+const extractionMissing = () => new UserError("Die KI-Auslesung ist nicht eingerichtet (ANTHROPIC_API_KEY oder EXTRACTION_BASE_URL).");
+
+/** „Mit KI neu auslesen“ an einem Beleg: vor allen Wartenden, denn wer auf den Beleg schaut, wartet darauf */
 export const reextractDocument = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.uuid())
   .handler(async ({ data, context }) => {
-    if (!extractionAvailable()) throw new UserError("Die KI-Auslesung ist nicht eingerichtet (ANTHROPIC_API_KEY oder EXTRACTION_BASE_URL).");
-    inBackground(runExtraction(context.user.id, data));
+    if (!extractionAvailable()) throw extractionMissing();
+    const { work } = await queueExtraction(context.user.id, [data], { first: true });
+    inBackground(work);
+    return { ok: true };
+  });
+
+/** „Neu auslesen“ und „Fehlgeschlagene neu auslesen“ in der Belegliste: in der Reihenfolge der Liste beim Klick */
+export const reextractDocuments = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.array(z.uuid()).min(1).max(10_000))
+  .handler(async ({ data, context }) => {
+    if (!extractionAvailable()) throw extractionMissing();
+    const { queued, work } = await queueExtraction(context.user.id, data);
+    inBackground(work);
+    return { queued };
+  });
+
+/** Warteschlange der KI-Auslesung anhalten oder fortsetzen; ein laufender Beleg wird noch fertig */
+export const pauseExtraction = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.boolean())
+  .handler(async ({ data, context }) => {
+    await setExtractionPaused(context.user.id, data);
+    if (!data) inBackground(resumeExtractionQueue());
     return { ok: true };
   });
 

@@ -1,4 +1,4 @@
-import type { FileProblem, IntegrityReport } from "../server/modules/auswertungen/index.ts";
+import type { FileProblem, IntegrityReport, PruefwertResult } from "../server/modules/auswertungen/index.ts";
 import type { Notice } from "./use-action.ts";
 
 /** Texte zur Prüfung von Kette, Siegeln, Sperren und Dateien, gleich in „Änderungsprotokoll prüfen“ und der Wochenmail */
@@ -10,6 +10,9 @@ export const weitereText = (weitere: number) => (weitere === 0 ? "" : ` (und ${w
 
 /** Ein Befund als Zeile: „Beleg hosting.pdf: fehlt“ */
 export const dateiBefund = (p: FileProblem) => `${p.art} ${p.datei}: ${p.befund}${weitereText(p.weitere)}`;
+
+/** Anfang des Befunds, wenn haben_integrity_problems abbricht (auswertungen/integrity.ts, #1604, #1716) */
+export const PRUEFUNG_ABGEBROCHEN = "Prüfung von Kette und Siegeln abgebrochen";
 
 /** Meldung nach „Kette prüfen“ oder „Dateien prüfen“: Befunde zuerst, Abweichungen immer dazu, dann Kollisionen */
 export function integrityNotice(result: IntegrityReport): NonNullable<Notice> {
@@ -38,4 +41,35 @@ export function integrityNotice(result: IntegrityReport): NonNullable<Notice> {
     tone: "ok",
     text: `Kette, Siegel und Sperren sind unverändert: ${result.entries} Einträge, ${result.seals} Siegel geprüft. Die geprüften Journal-, Steuer- und OPOS-Werte stimmen überein.`,
   };
+}
+
+/** Meldung zum Vergleich mit einem Prüfwert von außerhalb */
+export function pruefwertNotice(result: PruefwertResult): NonNullable<Notice> {
+  switch (result.status) {
+    case "ok":
+      return {
+        tone: "ok",
+        text: `Prüfwert Nr. ${result.seq} stimmt und die Kette ist bis dorthin lückenlos: Das Protokoll ist bis zu diesem Eintrag unverändert. Siegel und spätere Einträge prüft „Kette prüfen“.`,
+      };
+    case "beschaedigt":
+      return {
+        tone: "danger",
+        text: `Prüfwert Nr. ${result.seq} stimmt, aber Eintrag Nr. ${result.first} davor passt nicht mehr zur Kette (${result.befund}). Er wurde nachträglich verändert.`,
+      };
+    case "unbestaetigt":
+      return {
+        tone: "danger",
+        text: `Prüfwert Nr. ${result.seq} stimmt, die Kette lässt sich aber nicht bestätigen: ${result.befunde.every((b) => b.startsWith(`haben_integrity_problems: ${PRUEFUNG_ABGEBROCHEN}: `)) ? "Das Nachrechnen der Kette ist abgebrochen" : "Die Datenbank weicht vom Sollbestand ab"} (${result.befunde.length === 1 ? "ein Befund" : `${result.befunde.length} Befunde`}, etwa „${result.befunde[0]}“). Wer Trigger oder Funktionen ändern kann, kann auch das Nachrechnen fälschen. „Kette prüfen“ nennt alle Befunde.`,
+      };
+    case "abweichend":
+      return {
+        tone: "danger",
+        text: `Prüfwert Nr. ${result.seq} stimmt nicht. Das Protokoll wurde bis zu diesem Eintrag verändert und neu verkettet. Erwartet ${result.expected}, gefunden ${result.actual}.`,
+      };
+    case "fehlt":
+      return {
+        tone: "danger",
+        text: `Eintrag Nr. ${result.seq} fehlt, das Protokoll endet bei Nr. ${result.head ?? "–"}. Entweder wurde ein älteres Backup eingespielt oder Einträge wurden gelöscht.`,
+      };
+  }
 }

@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { strToU8, zipSync } from "fflate";
 import { USER } from "./daten.ts";
 import { durchlaufSeite, gehe, SETUP_CODE } from "./einrichtung.ts";
 
@@ -102,6 +104,60 @@ test("Einstellungen › Bereiche schaltet sofort wieder ein", async () => {
   await expect(karte.getByRole("checkbox", { name: /Personal/ })).toBeChecked();
 });
 
+test("Die fünf neuen Bereiche sind sichtbar und lassen sich ein- und ausblenden", async () => {
+  await gehe(page, "/einstellungen?bereich=bereiche");
+  const karte = page.getByRole("region", { name: "Bereiche im Menü" });
+  const seiten = [
+    ["Artikel", "/artikel"],
+    ["Zeiteinträge", "/leistungen"],
+    ["Textbausteine", "/textbausteine"],
+  ] as const;
+  const bereiche = ["Rechnungen schreiben", "Mahnwesen", ...seiten.map(([name]) => name)];
+  for (const name of bereiche) {
+    const schalter = karte.getByRole("checkbox", { name, exact: true });
+    await expect(schalter).toBeChecked();
+    await schalter.uncheck();
+    await expect(page.getByText(`${name} ist ausgeblendet.`)).toBeVisible();
+  }
+
+  await page.keyboard.press("Control+k");
+  const palette = page.getByRole("dialog", { name: "Befehlspalette" });
+  await expect(palette).toBeVisible();
+  for (const [name] of seiten) {
+    await expect(menue().getByRole("link", { name, exact: true })).toHaveCount(0);
+    await palette.getByRole("combobox").fill(name);
+    await expect(palette.getByRole("option", { name: new RegExp(name) })).toHaveCount(0);
+  }
+  await page.keyboard.press("Escape");
+  for (const [name, pfad] of seiten) {
+    await gehe(page, pfad);
+    await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+  }
+  await gehe(page, "/leistungen");
+  await expect(page.getByRole("button", { name: "Abrechnen", exact: true })).toHaveCount(0);
+
+  await gehe(page, "/rechnungen");
+  const reiter = page.getByRole("navigation", { name: "Bereiche der Rechnungen" });
+  await expect(reiter.getByRole("link", { name: "Wiederkehrend" })).toBeVisible();
+  await expect(reiter.getByRole("link", { name: "Mahnwesen" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Neue Rechnung" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Ausgangsrechnung hochladen" })).toBeVisible();
+
+  await gehe(page, "/rechnungen/mahnwesen");
+  await expect(page.getByRole("heading", { name: "Mahnwesen", level: 1 })).toBeVisible();
+
+  await gehe(page, "/einstellungen?bereich=bereiche");
+  for (const name of bereiche) {
+    const schalter = karte.getByRole("checkbox", { name, exact: true });
+    await expect(schalter).not.toBeChecked();
+    await schalter.check();
+    await expect(schalter).toBeEnabled();
+  }
+  await gehe(page, "/rechnungen");
+  await expect(page.getByRole("link", { name: "Neue Rechnung" })).toHaveCount(2);
+  await expect(reiter.getByRole("link", { name: "Mahnwesen" })).toBeVisible();
+});
+
 test("Fragen erneut durchgehen: vorausgefüllt, geänderte Rechtsform erst nach Rückfrage", async () => {
   await gehe(page, "/einstellungen?bereich=bereiche");
   await page.getByRole("link", { name: "Fragen erneut durchgehen" }).click();
@@ -163,9 +219,58 @@ test("Leere Belegliste: Satz mit Beispiel, Weg zum Postfach, kein Filter und kei
   await expect(page.getByRole("navigation", { name: "Filter" })).toHaveCount(0);
   // Der Weg zum Postfach steht im Leerzustand, nicht noch einmal darüber
   await expect(page.getByText("Rechnungen per E-Mail?")).toHaveCount(0);
-  await liste.getByRole("link", { name: "Postfach für Belege einrichten" }).click();
+  // Der Hinweis steht unter dem Knopf, nicht daneben, wo er am Handy mitten im Satz umbräche
+  const knopf = liste.getByRole("link", { name: "Postfach für Belege einrichten" });
+  for (const breite of [1440, 375]) {
+    await page.setViewportSize({ width: breite, height: 1000 });
+    const k = (await knopf.boundingBox())!;
+    const h = (await liste.getByText("Dann holt Haben Rechnungen").boundingBox())!;
+    expect(h.y, `Hinweis unter dem Knopf bei ${breite} px`).toBeGreaterThanOrEqual(k.y + k.height);
+  }
+  await knopf.click();
   await expect(page).toHaveURL(/\/einstellungen\?bereich=email/);
 });
+
+// DESIGN.md, Seitenkopf: Leert ein Filter die Liste, steht kein Knopf zum Anlegen im Leerzustand. Mit „Archivierte zeigen“
+// (archiv=true) zählen auch die archivierten Kontakte mit, die Liste ist also nur ohne jeden Kontakt leer.
+test("Leere Kontaktliste: Satz und Knopf zum Anlegen, mit Archivfilter nur der Satz (#1253)", async () => {
+  await gehe(page, "/kontakte");
+  const liste = page.getByRole("region", { name: "Kontaktliste" });
+  await expect(liste.getByText("Hier stehen deine Kunden und Lieferanten.")).toBeVisible();
+  await expect(liste.getByRole("link", { name: "Neuer Kontakt" })).toBeVisible();
+  await gehe(page, "/kontakte?archiv=true");
+  await expect(liste.getByText("Keine Kontakte, auch keine archivierten.")).toBeVisible();
+  await expect(liste.getByText("Hier stehen deine Kunden und Lieferanten.")).toHaveCount(0);
+  await expect(liste.getByRole("link", { name: "Neuer Kontakt" })).toHaveCount(0);
+});
+
+// DESIGN.md, Seitenkopf: Hat der Kopf einen Knopf zum Anlegen, steht derselbe Knopf im Leerzustand noch einmal, mit einem Filter nicht.
+// Bank kennt die Ausnahme, Pauschalen und Kasse haben keinen Knopf im Kopf.
+const LEERZUSTAND = [
+  { pfad: "/angebote", rolle: "link", name: "Neues Angebot" },
+  { pfad: "/rechnungen", rolle: "link", name: "Neue Rechnung" },
+  { pfad: "/rechnungen/wiederkehrend", rolle: "link", name: "Neue Vorlage" },
+  { pfad: "/dauerbelege", rolle: "link", name: "Neuer Dauerbeleg" },
+  { pfad: "/buchungen", rolle: "link", name: "Buchung erfassen" },
+  { pfad: "/anlagen", rolle: "link", name: "Anlage übernehmen" },
+  { pfad: "/artikel", rolle: "button", name: "Neuer Artikel", filter: "Archiviert" },
+  { pfad: "/textbausteine", rolle: "button", name: "Neuer Textbaustein", filter: "Archiviert" },
+  { pfad: "/leistungen", rolle: "button", name: "Neuer Eintrag", filter: "?von=2020-01-01" },
+] as const;
+
+for (const { pfad, rolle, name, ...rest } of LEERZUSTAND) {
+  test(`Leere Liste ${pfad}: „${name}“ im Seitenkopf und noch einmal im Leerzustand, mit Filter nur im Kopf (#1253)`, async () => {
+    const filter = "filter" in rest ? rest.filter : undefined;
+    const knopf = page.getByRole(rolle, { name, exact: true });
+    await gehe(page, pfad);
+    await expect(page.locator(".page-head").getByRole(rolle, { name, exact: true })).toHaveCount(1);
+    await expect(knopf).toHaveCount(2);
+    if (!filter) return;
+    if (filter.startsWith("?")) await gehe(page, pfad + filter);
+    else await page.getByRole("button", { name: new RegExp(`^${filter}`) }).click();
+    await expect(knopf).toHaveCount(1);
+  });
+}
 
 test("Am Handy ohne waagrechtes Scrollen, hell und dunkel", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -177,4 +282,83 @@ test("Am Handy ohne waagrechtes Scrollen, hell und dunkel", async () => {
       expect(overflow, `${pfad} (${modus})`).toBe(0);
     }
   }
+});
+
+/** Einstellungsdatei, wie „Einstellungen exportieren“ sie schreibt: ZIP mit einem Kontakt und passender Prüfsumme (#488) */
+function einstellungsdatei(): Buffer {
+  const kontakt = {
+    id: "0b6a1c1e-5d7e-4f0a-9a43-1f2d3c4b5a60",
+    kundennummer: "K-0041",
+    isCustomer: true,
+    isSupplier: false,
+    lieferantennummer: null,
+    name: "Nordwerk Übernahme GmbH",
+    strasse: "Hafenstraße 5",
+    plz: "20457",
+    ort: "Hamburg",
+    land: "DE",
+    email: "",
+    telefon: "",
+    ustId: "",
+    iban: "",
+    leitwegId: "",
+    unsereLieferantennummer: "",
+    defaultFormat: null,
+    skonto: null,
+    language: "de",
+    lexofficeId: null,
+    sevdeskId: null,
+    fastbillId: null,
+    debitorNr: null,
+    kreditorNr: null,
+    hourlyRateCents: null,
+    archivedAt: null,
+  };
+  const inhalt = {
+    format: "haben-einstellungen",
+    version: 1,
+    exportedAt: "2026-12-20T10:00:00.000Z",
+    appVersion: null,
+    company: null,
+    einrichtung: null,
+    letterheadProfiles: [],
+    logo: null,
+    background: null,
+    layouts: [],
+    units: [],
+    articles: [],
+    contacts: [kontakt],
+    contactPersons: [],
+    textBlocks: [],
+    ownAccounts: [],
+    mail: null,
+    quoteDefaultAttachments: [],
+    customPages: [],
+    procedureDetails: null,
+    vatFrequencies: [],
+  };
+  const sha256 = createHash("sha256").update(JSON.stringify(inhalt)).digest("hex");
+  return Buffer.from(zipSync({ "einstellungen.json": strToU8(JSON.stringify({ ...inhalt, sha256 }, null, 2)) }));
+}
+
+test("Neue Instanz übernimmt die Einstellungsdatei einer anderen, danach gibt es die Karte nicht mehr (#488)", async () => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await gehe(page, "/einstellungen?bereich=export");
+  const karte = page.getByRole("region", { name: "Einstellungen übernehmen" });
+  await expect(karte).toContainText("nur, solange hier noch keine Kontakte");
+  await karte
+    .getByLabel("Einstellungsdatei")
+    .setInputFiles({ name: "Haben-Einstellungen-2026-12-20.zip", mimeType: "application/zip", buffer: einstellungsdatei() });
+
+  const dialog = page.getByRole("dialog", { name: "Einstellungen übernehmen?" });
+  await expect(dialog).toContainText("Haben-Einstellungen-2026-12-20.zip");
+  await expect(dialog).toContainText("Kontakte");
+  await dialog.getByRole("button", { name: "Übernehmen" }).click();
+  await expect(karte).toContainText("Einstellungen übernommen, dazu 1 Kontakt, 0 Artikel, 0 Textbausteine, 0 eigene Layouts.");
+  await expect(karte.getByRole("button", { name: "Datei übernehmen …" })).toHaveCount(0);
+
+  await gehe(page, "/kontakte");
+  await expect(page.getByRole("link", { name: /Nordwerk Übernahme GmbH/ })).toBeVisible();
+  await gehe(page, "/einstellungen?bereich=export");
+  await expect(page.getByRole("region", { name: "Einstellungen übernehmen" })).toHaveCount(0);
 });

@@ -41,13 +41,19 @@ import { buildQuotePdf, texts, type QuoteDocument, type QuoteDocumentLine } from
 import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { ansprechpartnerSnapshot, contactPersonProblem, contactRoleProblem, loadCompany, sellerIssues } from "../stammdaten/index.ts";
+import { ansprechpartnerSnapshot, contactPersonProblem, contactRoleProblem, loadCompany, sellerIssues, standardTexte } from "../stammdaten/index.ts";
 import { withActor } from "../../db/actor.ts";
 import { db, schema, type Db, type Tx } from "../../db/index.ts";
 import { withCustomLayout } from "../stammdaten/index.ts";
-import { circleFor, documentNumber, peekNumber, takeNumber } from "./number-counter.ts";
+import { assertNumberingCurrent, circleContact, circleFor, customerNumberConflict, documentNumber, peekNumber, takeNumber } from "./number-counter.ts";
 import { quoteDraftLineSchema } from "./draft-line.ts";
-import { buyerFrom, effectivePriceMode, insertDraft, invoiceDiscountOf, lineDiscountOf, openAbschlaege, sellerFrom, type Invoice } from "./invoices.ts";
+import { openAbschlaege } from "./advance-deductions.ts";
+import { effectivePriceMode } from "./draft-schema.ts";
+import { bankverbindungFuerEntwurf, uebernommeneBankverbindung } from "./beleg-bankverbindung.ts";
+import type { ExternalReference } from "./external-reference.ts";
+import { buyerFrom, buyerIssues, invoiceDiscountOf, lineDiscountOf } from "./invoice-document.ts";
+import { insertDraft } from "./invoice-drafts.ts";
+import type { Invoice } from "./invoices.ts";
 import { removeFiles, unusedFiles } from "./attachment-store.ts";
 import { attachStoredToQuote, copyQuoteAttachments, quoteAttachmentFiles } from "./quote-attachments.ts";
 import { listQuoteDefaultAttachments } from "./quote-default-attachments.ts";
@@ -55,6 +61,7 @@ import { quoteChoices, storeQuoteChoices } from "./quote-choices.ts";
 import { documentReferences, referenceColumns, referenceFieldsSchema, referencesFromQuote } from "./order-references.ts";
 import { defaultSkonto } from "./skonto.ts";
 import { outgoingTaxColumns, outgoingTaxDetailsSchema } from "./tax-details.ts";
+import { angebotMitPlatzhaltern, mitVorlage, textMitVorlage } from "./beleg-platzhalter.ts";
 
 /**
  * Angebote: eigener Nummernkreis (AN-2026-001), PDF mit der Rechnungsvorlage, keine Buchung.
@@ -75,6 +82,8 @@ export const quoteDraftSchema = z
     brandProfileId: z.uuid().nullable().optional(),
     /** Ansprechpartner des Kunden (#424); der Stand beim Festschreiben steht im Käufer des Angebots */
     contactPersonId: z.uuid().nullable().default(null),
+    /** Zahlungskonto (#1887); null = Standard, fehlt = bisheriges bzw. bevorzugtes des Kontakts (bankverbindungFuerEntwurf) */
+    bankverbindungId: z.uuid().nullable().optional(),
     issueDate: isoDate,
     validUntil: isoDate,
     serviceFrom: isoDate.nullable(),
@@ -132,7 +141,7 @@ export type { QuoteListStatus };
 /** Positionen einer Abschlagsrechnung aus einer Zeile des Zahlungsplans, mit der Zeile (quote-plan.ts) */
 export interface AbschlagPlanLines {
   row: number;
-  lines: { description: string; quantity: number; unit: UnitLabel; unitPrice: number; taxRate: 1900 | 700 | 0 }[];
+  lines: { description: string; quantity: number; unit: UnitLabel; unitPrice: number; taxRate: 1900 | 700 | 0; arbeitskosten?: boolean }[];
 }
 
 /** Berechnet die Positionen in der Transaktion, die das Angebot gesperrt hat, nach der Auswahl des Kunden */
@@ -169,15 +178,17 @@ function lineRows(quoteId: string, input: QuoteDraftInput) {
     net: lineNets[index]!,
     ...discountColumns(line.discount),
     kind: line.kind ?? null,
+    arbeitskosten: line.arbeitskosten ?? false,
   }));
 }
 
-function draftValues(input: QuoteDraftInput) {
+function draftValues(input: QuoteDraftInput, bankverbindungId: string | null) {
   const priceMode = effectivePriceMode(input);
   const { totals } = quoteCalculation(input.lines, priceMode, input.discount ?? null);
   return {
     contactId: input.contactId,
     contactPersonId: input.contactPersonId ?? null,
+    bankverbindungId,
     issueDate: input.issueDate,
     validUntil: input.validUntil,
     serviceFrom: input.serviceFrom,
@@ -199,9 +210,16 @@ function draftValues(input: QuoteDraftInput) {
 }
 
 /** Legt den Entwurf an; parsed ist schon durch quoteDraftSchema gelaufen */
-async function insertQuoteDraft(tx: Tx, parsed: z.output<typeof quoteDraftSchema>, inheritedBrand: string | null = null): Promise<Quote> {
+async function insertQuoteDraft(
+  tx: Tx,
+  parsed: z.output<typeof quoteDraftSchema>,
+  reference?: ExternalReference,
+  /** Marke des Originals einer Kopie; sie bleibt auch, wenn sie inzwischen inaktiv ist */
+  inheritedBrand: string | null = null,
+): Promise<Quote> {
   const personProblem = await contactPersonProblem(tx, parsed.contactId, parsed.contactPersonId);
   if (personProblem) throw new QuoteError(personProblem);
+  const bankverbindungId = await bankverbindungFuerEntwurf(tx, parsed.bankverbindungId, parsed.contactId, null, (m) => new QuoteError(m));
   const brandProfileId = await checkedBrandProfileId(
     parsed.brandProfileId === undefined ? await defaultBrandProfileId(tx) : parsed.brandProfileId,
     inheritedBrand,
@@ -209,7 +227,7 @@ async function insertQuoteDraft(tx: Tx, parsed: z.output<typeof quoteDraftSchema
   );
   const [quote] = await tx
     .insert(schema.quotes)
-    .values({ ...draftValues(parsed), brandProfileId })
+    .values({ ...draftValues(parsed, bankverbindungId), ...reference, brandProfileId })
     .returning();
   if (parsed.lines.length > 0) await tx.insert(schema.quoteLines).values(lineRows(quote!.id, parsed));
   return quote!;
@@ -222,12 +240,21 @@ async function checkCustomer(tx: Tx, contactId: string | null) {
   if (problem) throw new QuoteError(problem);
 }
 
+export async function findQuoteIdByReference(reference: ExternalReference): Promise<string | undefined> {
+  const { quotes } = schema;
+  const [quote] = await db
+    .select({ id: quotes.id })
+    .from(quotes)
+    .where(and(eq(quotes.externalSource, reference.externalSource), eq(quotes.externalId, reference.externalId)));
+  return quote?.id;
+}
+
 /** Neuer Entwurf; er bekommt die Standardanhänge aus den Einstellungen (#415) als eigene Anhänge */
-export async function createQuoteDraft(actor: string, input: QuoteDraftInput): Promise<Quote> {
+export async function createQuoteDraft(actor: string, input: QuoteDraftInput, reference?: ExternalReference): Promise<Quote> {
   const parsed = quoteDraftSchema.parse(input);
   return withActor(actor, async (tx) => {
     await checkCustomer(tx, parsed.contactId);
-    const quote = await insertQuoteDraft(tx, parsed);
+    const quote = await insertQuoteDraft(tx, parsed, reference);
     // Mit ihrem Zeitpunkt aus den Einstellungen, wie beim Kopieren: so bleibt deren Reihenfolge
     await attachStoredToQuote(tx, quote.id, await listQuoteDefaultAttachments(tx));
     return quote;
@@ -254,16 +281,15 @@ export async function updateQuoteDraft(actor: string, id: string, input: QuoteDr
     if (personProblem) throw new QuoteError(personProblem);
     await tx.delete(schema.quoteLines).where(eq(schema.quoteLines.quoteId, id));
     if (parsed.lines.length > 0) await tx.insert(schema.quoteLines).values(lineRows(id, parsed));
+    const bankverbindungId = await bankverbindungFuerEntwurf(tx, parsed.bankverbindungId, parsed.contactId, draft, (m) => new QuoteError(m));
+    const brandProfileId = await checkedBrandProfileId(
+      parsed.brandProfileId === undefined ? draft.brandProfileId : parsed.brandProfileId,
+      draft.brandProfileId,
+      tx,
+    );
     const [updated] = await tx
       .update(schema.quotes)
-      .set({
-        ...draftValues(parsed),
-        brandProfileId: await checkedBrandProfileId(
-          parsed.brandProfileId === undefined ? draft.brandProfileId : parsed.brandProfileId,
-          draft.brandProfileId,
-          tx,
-        ),
-      })
+      .set({ ...draftValues(parsed, bankverbindungId), brandProfileId })
       .where(eq(schema.quotes.id, id))
       .returning();
     return updated!;
@@ -283,8 +309,8 @@ export async function deleteQuoteDraft(actor: string, id: string): Promise<void>
 
 /** Neues Angebot mit den Vorgaben aus den Firmendaten */
 export async function newQuoteDefaults(today: string) {
-  const company = await loadCompany();
-  const brandProfileId = await defaultBrandProfileId();
+  // Standard-Textbausteine für Angebote (#1494): Kopftext als Einleitung, Fußtext als Hinweis; eigene Texte der Standardmarke gehen vor
+  const [company, standard, brandProfileId] = await Promise.all([loadCompany(), standardTexte("angebot"), defaultBrandProfileId()]);
   const brand = brandProfileId ? await brandProfile(brandProfileId) : null;
   return {
     contactId: null,
@@ -293,8 +319,8 @@ export async function newQuoteDefaults(today: string) {
     validUntil: addDays(today, QUOTE_VALID_DAYS),
     serviceFrom: null,
     serviceTo: null,
-    intro: brand?.intro || company.quoteIntro,
-    note: brand?.note ?? "",
+    intro: brand?.intro || standard.kopf,
+    note: brand?.note || standard.fuss,
     taxTreatment: (company.kleinunternehmer ? "kleinunternehmer" : "regulaer") as TaxTreatment,
     exemptionReason: "",
     priceMode: "netto" as PriceMode,
@@ -359,12 +385,14 @@ export function quoteStatus(quote: Pick<Quote, "status" | "decision" | "invoiceI
   return coreQuoteStatus(quote, today);
 }
 
-export async function listQuotes(today: string) {
+/** Angebotsliste; mit id nur dieses eine Angebot (REST-API), wie listInvoices */
+export async function listQuotes(today: string, id?: string) {
   const rows = await db
     .select({
       id: schema.quotes.id,
       status: schema.quotes.status,
       number: schema.quotes.number,
+      contactId: schema.quotes.contactId,
       issueDate: schema.quotes.issueDate,
       validUntil: schema.quotes.validUntil,
       net: schema.quotes.net,
@@ -377,6 +405,7 @@ export async function listQuotes(today: string) {
     })
     .from(schema.quotes)
     .leftJoin(schema.contacts, eq(schema.contacts.id, schema.quotes.contactId))
+    .where(id ? eq(schema.quotes.id, id) : undefined)
     .orderBy(sql`${schema.quotes.number} desc nulls first`, desc(schema.quotes.createdAt));
   return rows.map((row) => ({ ...row, customer: row.buyerName ?? row.contactName ?? "–", listStatus: quoteStatus(row, today) }));
 }
@@ -440,6 +469,7 @@ export function quoteDocumentFor(
         net: calc.lineNets[i]!,
         ...lineDiscountOf(line),
         ...(line.kind ? { kind: line.kind } : {}),
+        ...(line.arbeitskosten ? { arbeitskosten: true } : {}),
         ...(line.kind === "alternative" ? { alternativeTo: alternativeMain(lines, line.position) ?? 0 } : {}),
       }),
     ),
@@ -461,7 +491,7 @@ export async function quoteIssues(id: string): Promise<string[]> {
   const data = await getQuote(id);
   if (!data) return ["Angebot nicht gefunden"];
   const { quote, lines, contact } = data;
-  const { company, seller, issues } = await documentIssuer(quote.brandProfileId);
+  const { company, seller, issues } = await documentIssuer(quote);
   issues.push(...sellerIssues(seller).map((issue) => `Firmendaten: ${issue}`));
   issues.push(...outgoingTaxIssues(quote.taxTreatment, quote.taxDetails, company.kleinunternehmer));
   issues.push(
@@ -470,11 +500,13 @@ export async function quoteIssues(id: string): Promise<string[]> {
       sellerUstId: company.ustId,
       buyerUstId: contact?.ustId,
       buyerCountry: contact?.land,
+      buyerPostalCode: contact?.plz,
+      foreignPlace: quote.taxDetails?.foreignPlace,
       exemptionReason: quote.exemptionReason,
     }),
   );
   if (quote.taxTreatment === "steuerfrei" && !quote.exemptionReason) issues.push("Befreiungsvorschrift fehlt");
-  if (!contact) issues.push("Kunde fehlt");
+  issues.push(...buyerIssues(company.quoteNumberFormat, contact));
   if (lines.length === 0) issues.push("Keine Positionen");
   if (lines.some((line) => lineAmount(line.quantity, line.unitPrice) === 0)) issues.push("Position ohne Betrag");
   if (quote.gross <= 0) issues.push("Angebotssumme muss positiv sein");
@@ -496,16 +528,27 @@ export async function finalizeQuote(actor: string, id: string): Promise<Quote> {
     const company = await loadCompany(tx);
     const lines = await tx.select().from(schema.quoteLines).where(eq(schema.quoteLines.quoteId, id)).orderBy(asc(schema.quoteLines.position));
     const [contact] = await tx.select().from(schema.contacts).where(eq(schema.contacts.id, quote.contactId!));
-    // Wie bei Rechnungen: Nummer lesen, PDF erzeugen, erst dann schreiben (number-counter.ts)
-    const circle = await circleFor(tx, "angebot", quote.issueDate);
-    const counter = await peekNumber(tx, "angebot", circle);
-    const number = await documentNumber(tx, "angebot", company.quoteNumberFormat, quote.issueDate, counter);
-    const { seller, letterhead: selectedLetterhead } = await documentBranding(sellerFrom(company), quote.brandProfileId, tx);
+    const { seller, letterhead: selectedLetterhead } = await documentBranding(tx, company, quote);
     const buyer = buyerFrom(contact!, await ansprechpartnerSnapshot(tx, quote.contactPersonId));
-    const doc = quoteDocumentFor(quote, lines, seller, buyer, number);
+    // Wie bei Rechnungen: Nummer lesen, PDF erzeugen, erst dann schreiben (number-counter.ts); {KUNDENNR} wird zur
+    // Kundennummer des Käufers, der Kreis beim Zähler je Kunde der des Kunden (#1426)
+    const circle = await circleFor(tx, "angebot", quote.issueDate);
+    const numberContactId = circleContact(company.quoteCounterPerCustomer, quote.contactId!);
+    if (numberContactId !== null) {
+      const conflict = await customerNumberConflict(tx, contact!);
+      if (conflict) {
+        throw new QuoteError(`Die Kundennummer ${contact!.kundennummer} hat auch „${conflict}“; mit Zähler je Kunde muss sie eindeutig sein.`);
+      }
+    }
+    const counter = await peekNumber(tx, "angebot", circle, numberContactId);
+    const number = await documentNumber(tx, "angebot", company.quoteNumberFormat, quote.issueDate, counter, buyer.kundennummer);
+    // Platzhalter in Einleitung und Hinweis (#1334) auflösen; so stehen sie auch im Angebot
+    const doc = angebotMitPlatzhaltern(quoteDocumentFor(quote, lines, seller, buyer, number));
     const pdf = await withCustomLayout("angebot", selectedLetterhead, (letterhead) => buildQuotePdf({ ...doc, ...letterhead }));
     const now = new Date();
-    await takeNumber(tx, "angebot", circle, counter);
+    await takeNumber(tx, "angebot", circle, counter, numberContactId);
+    const used = { format: company.quoteNumberFormat, date: quote.issueDate, year: circle, contactId: numberContactId };
+    await assertNumberingCurrent(tx, "angebot", used, quote.contactId!);
     const [finalized] = await tx
       .update(schema.quotes)
       .set({
@@ -513,12 +556,16 @@ export async function finalizeQuote(actor: string, id: string): Promise<Quote> {
         number,
         numberYear: circle,
         numberCounter: counter,
+        numberContactId,
         contactVersion: contact!.version,
         seller,
+        // Ab hier gilt die Kopie des Zahlungskontos im Verkäufer; ohne Verweis lässt sich das Konto löschen (#1887)
+        bankverbindungId: null,
         buyer,
         net: doc.totals.net,
         tax: doc.totals.tax,
         gross: doc.totals.gross,
+        ...textMitVorlage(quote, doc),
         pdf: Buffer.from(pdf),
         pdfSha256: sha256(pdf),
         lockedAt: now,
@@ -610,13 +657,14 @@ export async function quoteToInvoice(
         contactId: locked.contactId,
         brandProfileId: locked.brandProfileId,
         contactPersonId,
+        bankverbindungId: await uebernommeneBankverbindung(tx, locked),
         issueDate: today,
         serviceFrom: newFinal ? today : locked.serviceFrom,
         serviceTo: newFinal ? null : locked.serviceTo,
         paymentTermDays: company.paymentTermDays,
         skonto: defaultSkonto(company, contact, company.paymentTermDays),
         format: contact?.defaultFormat ?? (contact?.leitwegId ? "xrechnung-cii" : company.defaultFormat),
-        intro: locked.intro,
+        intro: mitVorlage(locked).intro,
         note: texts(locked.language).fromQuote(locked.number ?? "", texts(locked.language).date(locked.issueDate)),
         ...referencesFromQuote(locked),
         taxTreatment: locked.taxTreatment,
@@ -641,6 +689,7 @@ export async function quoteToInvoice(
                 unitPrice: line.unitPrice,
                 taxRate: line.taxRate as 1900 | 700 | 0,
                 ...lineDiscountOf(line),
+                arbeitskosten: line.arbeitskosten,
               })),
       },
       planned ? { paymentPlanRow: planned.row } : {},
@@ -664,14 +713,15 @@ export async function copyQuote(actor: string, id: string, today: string): Promi
   const input: QuoteDraftInput = {
     contactId: quote.contactId,
     brandProfileId: quote.brandProfileId,
+    bankverbindungId: await uebernommeneBankverbindung(db, quote),
     // Eine Kopie behält die Person, solange sie noch aktiv ist
     contactPersonId: quote.contactPersonId && (await contactPersonProblem(db, quote.contactId, quote.contactPersonId)) === null ? quote.contactPersonId : null,
     issueDate: today,
     validUntil: addDays(today, validDays || QUOTE_VALID_DAYS),
     serviceFrom: null,
     serviceTo: null,
-    intro: quote.intro,
-    note: quote.note,
+    // Mit Platzhaltern, wie im Entwurf des Originals, nicht mit dessen Werten (#1334)
+    ...mitVorlage(quote),
     ...referenceColumns(quote),
     taxTreatment: quote.taxTreatment,
     exemptionReason: quote.exemptionReason,
@@ -691,11 +741,12 @@ export async function copyQuote(actor: string, id: string, today: string): Promi
       taxRate: line.taxRate as 1900 | 700 | 0,
       kind: line.kind,
       ...lineDiscountOf(line),
+      arbeitskosten: line.arbeitskosten,
     })),
   };
   const parsed = quoteDraftSchema.parse(input);
   return withActor(actor, async (tx) => {
-    const copy = await insertQuoteDraft(tx, parsed, quote.brandProfileId);
+    const copy = await insertQuoteDraft(tx, parsed, undefined, quote.brandProfileId);
     await copyQuoteAttachments(tx, id, copy.id);
     return copy;
   });

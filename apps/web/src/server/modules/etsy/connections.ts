@@ -1,5 +1,5 @@
 import { authorizationUrl, createEtsyClient, createPkce, exchangeCode, type EtsyClient, type EtsyClientOptions } from "@haben/import";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { decrypt, encrypt } from "../../crypto.ts";
 import { withActor } from "../../db/actor.ts";
@@ -7,6 +7,7 @@ import { db, schema } from "../../db/index.ts";
 import { env } from "../../env.ts";
 import { UserError } from "../../errors.ts";
 import { today } from "../../today.ts";
+import { keineExterneQuelleFuerAbruf, openConflicts, providerKontoAnlegen } from "../bank/index.ts";
 import { ETSY_RHYTHMEN, type EtsyRhythmus } from "./abruf-regeln.ts";
 
 /*
@@ -133,6 +134,8 @@ export const etsySettingsSchema = z.object({
  */
 export async function saveEtsyConnection(actor: string, input: z.input<typeof etsySettingsSchema>): Promise<void> {
   const data = etsySettingsSchema.parse(input);
+  // Ein Konto, eine Quelle (#306): hat das Konto des Abrufs schon eine externe Quelle, kein Zugang
+  await keineExterneQuelleFuerAbruf(db, "etsy");
   const existing = await loadEtsyConnection();
   const sharedSecret = data.sharedSecret?.trim() || existing?.secret.sharedSecret || "";
   if (!sharedSecret) throw new EtsyError("Das gemeinsame Geheimnis der Etsy-App (shared secret) fehlt.");
@@ -205,7 +208,22 @@ export async function completeEtsyConnection(
     return fehlschlag(`Freigegeben, aber der Shop ließ sich nicht ermitteln: ${message(error)}`);
   }
   await storeEtsySecret(actor, secret, { shopId: shop.shopId, shopName: shop.shopName, lastError: null });
+  await kontoFuerEtsy(actor);
   return { ok: true, message: `Verbunden mit ${shop.shopName || "dem Shop"} (${shop.shopId}).` };
+}
+
+/**
+ * Legt das Konto der Art Zahlungsdienstleister für Etsy an, wenn es keins gibt, wie die Verbindungen zu Stripe und PayPal
+ * (#1729, #1951). Ohne Konto übernähme der Abruf nichts; ältere Zugänge ohne Konto meldet importEtsyLedger.
+ */
+async function kontoFuerEtsy(actor: string) {
+  await withActor(actor, async (tx) => {
+    const [da] = await tx
+      .select({ id: schema.bankAccounts.id })
+      .from(schema.bankAccounts)
+      .where(and(eq(schema.bankAccounts.purpose, "zahlungsdienstleister"), eq(schema.bankAccounts.provider, "etsy")));
+    if (!da) await providerKontoAnlegen(tx, { name: "Etsy", provider: "etsy" });
+  });
 }
 
 /** Trennt die Verbindung: Token weg, Schlüssel und Geheimnis bleiben für einen neuen Anlauf */
@@ -239,6 +257,8 @@ export async function etsySummary() {
     lastSyncAt: connection?.row.lastSyncAt ?? null,
     lastError: connection?.row.lastError ?? null,
     updatedAt: connection?.row.updatedAt ?? null,
+    /** Offene Konflikte des Abrufs (#306): Bis sie geklärt sind, übernimmt Haben aus dem Etsy-Abruf nichts */
+    konflikte: (await openConflicts()).filter((k) => k.provider === "etsy"),
   };
 }
 

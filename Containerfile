@@ -1,26 +1,20 @@
 # Haben – App-Container. ERiC wird nicht mitgeliefert (Lizenz); Haben lädt es auf Wunsch nach /var/lib/haben/eric
 # (Volume) oder es wird nach /opt/eric gemountet.
-FROM docker.io/oven/bun:1.4.4-slim AS build
+FROM docker.io/oven/bun:1.4.5-slim AS build
 WORKDIR /app
 COPY . .
-# Installation, Bau und Bereinigung bleiben in einer Schicht: Der native Snapshotter des Lab-Builders kopiert
-# sonst nach jedem Schritt auch den vollständigen Entwicklungsbaum. Quelländerungen installieren damit neu;
-# ein frischer Build braucht dafür keine Zwischenkopie der Entwicklungsabhängigkeiten.
-# Danach nur noch die Laufzeitabhängigkeiten; neu installieren statt entfernen, die Pakete liegen im Cache. Ohne
-# Peer-Abhängigkeiten: Über sie kämen Build-Werkzeuge ins Image (vite, vitest, drizzle-kit, tsx, esbuild mit eigener
-# Go-Laufzeit), die zur Laufzeit nicht laufen. Was die App als Peer braucht (react, zod, postgres …), steht in
-# apps/web/package.json als direkte Abhängigkeit; der CI-Job container lädt die externen Module des Bundles.
-# Der Befehl haben (Betriebsstatus) als eine Datei; Pakete aus node_modules bleiben außen vor und kommen zur Laufzeit
-# aus apps/web/node_modules, so bleibt etwa die native Bibliothek von Typst nur einmal im Image
+# Installation, Bau und Laufzeitbaum bleiben in einer Schicht: Der native Snapshotter des Lab-Builders kopiert sonst
+# nach jedem Schritt auch den vollständigen Entwicklungsbaum. Quelländerungen installieren damit neu.
+# Ins Laufzeit-Image kommt nur, was zur Laufzeit läuft (scripts/container/laufzeit.ts): das Server-Bundle, die Skripte,
+# die Bun im Image startet, gebündelt unter ihrem Pfad aus dem Repository, und ein node_modules nur mit den nativen
+# Paketen (Typst, koffi). Keine Build-Werkzeuge und keine Pakete, die schon im Bundle stecken; der CI-Job container
+# lädt die externen Module aller Bundles. Bun und die Betreiberbefehle kommen in denselben Baum; dessen Verzeichnisse
+# sind ausdrücklich 0755, damit USER bun sie lesen kann.
 RUN bun install --frozen-lockfile \
  && bun run build \
- && bun build apps/web/src/server/modules/betrieb/cli.ts --target bun --packages external --outfile apps/web/.output/haben-cli.js \
- && rm -rf node_modules apps/web/node_modules packages/*/node_modules \
- && bun install --frozen-lockfile --production --omit=peer \
- && install -d -m 0755 /runtime /runtime/app /runtime/app/apps /runtime/app/apps/web \
-      /runtime/usr /runtime/usr/local /runtime/usr/local/bin \
- && cp -a node_modules packages package.json /runtime/app/ \
- && cp -a apps/web/node_modules apps/web/.output apps/web/drizzle apps/web/src apps/web/package.json /runtime/app/apps/web/ \
+ && install -d -m 0755 /runtime /runtime/usr /runtime/usr/local /runtime/usr/local/bin \
+ && bun scripts/container/laufzeit.ts /runtime/app \
+ && chmod 0755 /runtime/app \
  && cp -a /usr/local/bin/bun /runtime/usr/local/bin/bun \
  && cp -a deploy/entrypoint.sh /runtime/usr/local/bin/haben-entrypoint \
  && cp -a deploy/haben.sh /runtime/usr/local/bin/haben
@@ -28,7 +22,7 @@ RUN bun install --frozen-lockfile \
 # Laufzeit auf Wolfi statt Debian: glibc wie bisher (ERiC ist eine glibc-Bibliothek, Alpine mit musl ginge nicht),
 # aber aktuelle Upstream-Versionen, vor allem von poppler, das jedes hochgeladene PDF liest. Wolfi ist rollend; der
 # Digest hält den Build reproduzierbar, Renovate hebt ihn an.
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:833c48f1faf32c90e6f9501a2410a9aa28ceb2c594102edd4470053c30efa089
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:be019c1c74fe69204a42c4e10bc4d886a49bf5403ffa74374ef7baa408fc9a26
 # poppler-utils: pdftotext und pdftoppm für hochgeladene PDFs (Textebene, Seitenbilder für einen eigenen KI-Dienst),
 # als eigener Prozess. font-liberation: ohne Schriften rendert pdftoppm nicht eingebettete Standardschriften wie
 # Helvetica gar nicht. libgcc: libgcc_s braucht ERiC neben glibc (steckt schon in wolfi-base, hier ausdrücklich).
@@ -50,8 +44,8 @@ ENV NODE_ENV=production \
     XDG_CACHE_HOME=/tmp/.cache
 # XDG_CACHE_HOME: Fontconfig (pdftoppm) braucht einen beschreibbaren Cache, auch bei schreibgeschütztem Dateisystem
 WORKDIR /app
-# Ein gemeinsamer Laufzeitbaum mit denselben Paketen, Quellen, Betreiberbefehlen und derselben Bun-Binärdatei
-# wie in der Build-Stufe. Die Verzeichnisse darüber sind ausdrücklich 0755, damit USER bun sie lesen kann.
+# Ein gemeinsamer Laufzeitbaum aus der Build-Stufe: Bundle, Migrationen, native Pakete, Betreiberbefehle und
+# dieselbe Bun-Binärdatei wie beim Bauen (glibc-Build)
 COPY --from=build /runtime/ /
 # Commit des Builds (#887) für haben status und als OCI-Label, etwa --build-arg HABEN_COMMIT="$(git rev-parse HEAD)".
 # Ohne Angabe leer. Erst hier, damit ein anderer Commit nur diese Schichten neu baut

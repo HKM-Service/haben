@@ -7,24 +7,38 @@ description: >-
 
 # Bankimport und Abgleich
 
-Unter **Bank** holst du die Umsätze automatisch über Enable Banking oder FinTS ab oder importierst Kontoauszüge als Datei, und ordnest jeden Umsatz einer Rechnung, einem Beleg oder einer direkten Buchung zu. Haben schlägt passende offene Posten mit Begründung vor. Jede Zuordnung erzeugt sofort eine festgeschriebene Buchung.
+Unter **Bank** holst du die Umsätze automatisch über Enable Banking oder FinTS ab oder importierst Kontoauszüge als Datei, und ordnest jeden Umsatz einer Rechnung, einem Beleg oder einer direkten Buchung zu. Haben schlägt passende offene Posten mit Begründung vor. Jede Zuordnung erzeugt sofort eine festgeschriebene Buchung. Die Zugänge zu Banken und Zahlungsdienstleistern verwaltest du unter **Geld › Verbindungen** (siehe [Verbindungen](#verbindungen)).
+
+## Konten und Verbindungen
+
+Oben stehen alle Konten als Karten: Name, Saldo, offene Umsätze und Weg mit Zeit („FinTS · heute 06:00“) oder ein Status wie **Fehlgeschlagen**, **Konflikt** oder **Läuft ab**. Ein Klick wählt das Konto. **⋯** auf der Karte bietet **Jetzt abrufen** (ohne Verbindung **Datei importieren**), **Name und Zweck …**, **Verbindung bearbeiten** und **Alle Verbindungen**. Ein negativer Saldo steht rot. Hat das gewählte Konto einen Status, steht darunter ein Hinweis mit dem vollen Text und dem Knopf, der ihn löst (**Klären**, **Neu anmelden**, **Zugang ändern**, **Jetzt abrufen**, **Datei importieren**). Die erste Zeile der Liste nennt Weg und Stand des Kontos, rechts daneben **Jetzt abrufen**; darunter stehen die Filter und die Suche. Im schmalen Fenster und am Handy werden die Karten zu einer Zeile kleiner Karten, die beim Rollen unter dem Kopf stehen bleibt: Name und darunter der Status mit Punkt in seiner Farbe, ohne Status die Zahl offener Umsätze.
+
+### Verbindungen
+
+**Geld › Verbindungen** zeigt je Gruppe, erst Banken, dann Zahlungsdienstleister, eine Tabelle: Konto mit Weg und Kennung, Abruf, Saldo, offene Umsätze und Status. Konten mit Problem stehen oben. Am Ende der Zeile stehen der Knopf zum Status, **Jetzt abrufen** (Pfeil) und **⋯** mit **Name und Zweck …**, **Zugang ändern** (FinTS), **Neu anmelden** (Enable Banking) bzw. **Bearbeiten …** (Zahlungsdienstleister), **Externe Quelle hinzufügen …**, **Gehört nicht zu dieser Firma …** und **Trennen** bzw. **Verbindung entfernen**. Ein Klick auf den Namen öffnet Zugang und Einstellungen der Verbindung, bei Enable Banking und ohne Verbindung **Name und Zweck**. **Alle abrufen** im Kopf ruft alle Verbindungen nacheinander ab. Darunter stehen unter **Stores und Marktplätze** Google Play und App Store sowie Etsy Payments, eingeklappt mit dem Stand in der Überschrift, und die ausgeschlossenen Konten. Unter **Einstellungen › Bank** bleibt nur der Zugang der Installation zu Enable Banking und FinTS.
 
 <img src="screenshot-bank.png#only-light" alt="Bankabgleich mit Umsatzliste links und rechts dem ausgewählten Zahlungseingang, dem besten Treffer Rechnung 2026-034 und den Gründen Betrag stimmt exakt und Rechnungsnummer im Verwendungszweck" width="900">
 <img src="screenshot-bank-dunkel.png#only-dark" alt="Bankabgleich mit Umsatzliste links und rechts dem ausgewählten Zahlungseingang, dem besten Treffer Rechnung 2026-034 und den Gründen Betrag stimmt exakt und Rechnungsnummer im Verwendungszweck" width="900">
 
 ## Automatischer Abruf
 
-Ist Enable Banking eingerichtet (unter **Einstellungen › Bank**, siehe [Anbindungen](installation-anbindungen.md#kontoabruf-enable-banking)), steht unter **Bank** der Bereich **Automatischer Abruf** mit dem Knopf **Bank verbinden**. Mit FinTS steht dort **Über FinTS verbinden**, siehe [Abruf über FinTS](#abruf-über-fints).
+Im Kopf der Seiten **Bank** und **Verbindungen** öffnet **Konto verbinden** ein Menü: **Bank hinzufügen**, **Zahlungsdienstleister hinzufügen** ([geführte Einrichtung](bank-zahlungsdienstleister.md#verbindungen-über-die-api)) und **Konto ohne Abruf anlegen**. **Bank hinzufügen** fragt **Wie verbinden?**:
 
-1. **Bank verbinden** klicken, die Bank suchen und auswählen. Gewählt ist die markierte Bank; bleibt nach der Suche nur eine übrig, ist sie schon gewählt. Unter der Liste steht, zu welcher Bank es weitergeht. Bietet die Bank beides an, wählst du Geschäfts- oder Privatkonto; das entscheidet, mit welchem Online-Banking-Zugang du dich gleich anmeldest. Unter **Umsätze abrufen ab** steht der Jahresbeginn; beginnt deine Buchhaltung in Haben später im Jahr, etwa nach einem Umzug, trägst du hier diesen Tag ein (siehe [Welche Umsätze abgerufen werden](#welche-umsätze-abgerufen-werden)).
+- **Online-Banking über Enable Banking (PSD2):** für die meisten Banken in Europa; braucht den Zugang zu Enable Banking unter **Einstellungen › Bank** ([Anbindungen](installation-anbindungen.md#kontoabruf-enable-banking)).
+- **FinTS (PIN/TAN):** vor allem für Sparkassen, Volks- und Raiffeisenbanken; braucht die Produktnummer der Installation, siehe [Abruf über FinTS](#abruf-über-fints).
+- **Kontoauszüge als Datei (CSV/CAMT):** geht immer; **Weiter** öffnet das Formular für ein Konto ohne Abruf, die Umsätze importierst du danach ([So gehst du vor](#so-gehst-du-vor)).
+
+Was auf deiner Installation nicht eingerichtet ist, steht ausgegraut mit dem, was fehlt. Das Formular des gewählten Wegs erscheint unter den Karten bzw. dem Kopf; dort stehen auch Schritte der Bank (TAN) und Meldungen nach einem Abruf.
+
+1. **Online-Banking über Enable Banking** wählen, **Weiter**, dann die Bank suchen und auswählen. Gewählt ist die markierte Bank; bleibt nach der Suche nur eine übrig, ist sie schon gewählt. Unter der Liste steht, zu welcher Bank es weitergeht. Bietet die Bank beides an, wählst du Geschäfts- oder Privatkonto; das entscheidet, mit welchem Online-Banking-Zugang du dich gleich anmeldest. Unter **Umsätze abrufen ab** steht der Jahresbeginn; beginnt deine Buchhaltung in Haben später im Jahr, etwa nach einem Umzug, trägst du hier diesen Tag ein (siehe [Welche Umsätze abgerufen werden](#welche-umsätze-abgerufen-werden)).
 2. **Weiter zur Bank** führt zur Anmeldeseite deiner Bank. Dort meldest du dich an, bestätigst mit TAN und wählst die Konten aus.
-3. Die Bank leitet zurück zu Haben. Haben ordnet die freigegebenen Konten über die IBAN zu, legt fehlende an und holt sofort die ersten Umsätze. Neue Konten heißen nach Bank, Kontoname der Bank und den letzten vier Ziffern der IBAN, z. B. „Finom Geschäftskonto …7890“; die Meldung nach der Rückkehr nennt sie. Name und Zweck legst du danach mit **Name und Zweck** fest (siehe [Konto](#konto)).
+3. Die Bank leitet zurück zu Haben. Haben ordnet die freigegebenen Konten über die IBAN zu, legt fehlende an und holt sofort die ersten Umsätze. Neue Konten heißen nach Bank, Kontoname der Bank und den letzten vier Ziffern der IBAN, z. B. „Finom Geschäftskonto …7890“; die Meldung nach der Rückkehr nennt sie. Name und Zweck legst du danach mit **⋯ › Name und Zweck …** fest (siehe [Konto](#konto)).
 
-Danach ruft Haben jede Verbindung einmal täglich ab, im Hintergrund und ohne dass du angemeldet sein musst. **Jetzt abrufen** holt die Umsätze sofort. Die Konten erscheinen als Reiter, mit „Abruf“ statt „CSV“ und dem Kontostand der Bank.
+Danach ruft Haben jede Verbindung einmal täglich ab, im Hintergrund und ohne dass du angemeldet sein musst. **Jetzt abrufen** holt die Umsätze sofort. Die Konten erscheinen als Karten mit dem Kontostand der Bank, darunter „Abruf“ und die Zeit des letzten Abrufs.
 
 ### Zustimmung
 
-Die Freigabe gilt nach PSD2 höchstens 180 Tage, bei manchen Banken weniger; das Datum steht an der Verbindung. Zwei Wochen vor Ablauf erscheint **Läuft bald ab** und der Knopf **Zustimmung erneuern**. Erneuern heißt: dieselbe Anmeldung bei der Bank noch einmal. Die neue Zustimmung löst die alte ab, und der Abruf macht dort weiter, wo er aufgehört hat. Lehnt die Bank den Zugriff ab, etwa weil du die Freigabe im Online-Banking widerrufen hast, steht die Verbindung auf **Abgelaufen**.
+Die Freigabe gilt nach PSD2 höchstens 180 Tage, bei manchen Banken weniger; das Datum steht an der Verbindung. Zwei Wochen vor Ablauf steht **Läuft ab** an Karte und Zeile, dazu der Knopf **Neu anmelden**. Erneuern heißt: dieselbe Anmeldung bei der Bank noch einmal. Die neue Zustimmung löst die alte ab, und der Abruf macht dort weiter, wo er aufgehört hat. Lehnt die Bank den Zugriff ab, etwa weil du die Freigabe im Online-Banking widerrufen hast, steht die Verbindung auf **Abgelaufen**.
 
 **Trennen** beendet die Zustimmung auch bei Enable Banking. Die schon abgerufenen Umsätze bleiben.
 
@@ -33,11 +47,17 @@ Die Freigabe gilt nach PSD2 höchstens 180 Tage, bei manchen Banken weniger; das
 - **Neues Konto:** ab dem 1. Januar des laufenden Jahres, oder ab dem Tag, den du unter **Umsätze abrufen ab** selbst einträgst. Manche Banken geben nur etwa 90 Tage zurück; lehnt die Bank den Zeitraum ab, holt Haben die letzten 89 Tage, nie aber Tage vor dem gewählten. Ältere Umsätze dann per Datei importieren.
 - **Konto schon per Datei importiert:** Bleibt **Umsätze abrufen ab** auf der Vorgabe, beginnt der erste Abruf am Tag nach dem letzten vorhandenen Umsatz, auch wenn der im Vorjahr liegt. Mit einem selbst eingetragenen Tag gilt das, wenn die vorhandenen Umsätze bis zum Vortag oder darüber hinaus reichen; sonst beginnt der Abruf am eingetragenen Tag. Im Anschluss an vorhandene Umsätze gibt es keinen Rückfall auf die letzten 89 Tage: Lehnt die Bank den Zeitraum ab, meldet Haben einen Fehler, statt still eine Lücke zu lassen. Banken schreiben den Verwendungszweck in der Schnittstelle oft anders als in der CSV; ein überlappender Zeitraum ergäbe sonst doppelte Umsätze.
 - **Zustimmung erneuert:** Bei Konten, die schon abgerufen wurden, macht der Abruf dort weiter, wo er aufgehört hat. **Umsätze abrufen ab** gilt nur für Konten, die noch nie abgerufen wurden; ein früher eingetragener Tag bleibt bei den anderen Konten erhalten.
-- **Folgeabrufe** beginnen sieben Tage vor dem letzten Abruf. So kommen auch spät gebuchte Umsätze an. Schon abgerufene erkennt Haben an der Kennung, die die Bank jedem Umsatz gibt (`entry_reference`), nicht am Inhalt: Zwei gleiche Zahlungen mit verschiedener Kennung bleiben beide. Am Hash wie beim Dateiimport erkennt Haben nur Umsätze ohne diese Kennung, alle Umsätze eines Kontos, für das die Bank keine Kennung des Kontos nennt, und Umsätze, die schon vor dem ersten Abruf mit Kennung da waren. Tage, die schon ein Dateiimport abdeckt, ruft Haben auch dabei nicht noch einmal ab: Der Folgeabruf beginnt frühestens am Tag nach dem letzten Umsatz aus einer Datei. Hast du beim Verbinden einen Tag unter **Umsätze abrufen ab** eingetragen, gehen auch Folgeabrufe nie vor diesen Tag zurück.
+- **Folgeabrufe** beginnen sieben Tage vor dem letzten Abruf. So kommen auch spät gebuchte Umsätze an. Bei einem Konto mit stabiler Kontokennung erkennt Haben schon abgerufene Umsätze an der eindeutigen Bankreferenz (`entry_reference`). Zwei gleiche Zahlungen mit verschiedenen eindeutigen Referenzen bleiben beide. Bei fehlenden oder mehrfach vergebenen Referenzen, Konten ohne Kontokennung und Umsätzen vor dem ersten Abruf mit Kennung gleicht Haben Inhalt und Anzahl der Vorkommen ab. Eine beim gebundenen Abruf mehrfach gelieferte Referenz behandelt Haben auch so, wenn sie in einem späteren Abruf nur einmal vorkommt. Die Detailkennung `transaction_id` dient nicht zur Wiedererkennung. Der Folgeabruf beginnt frühestens am Tag nach dem letzten Umsatz aus einer Datei und nie vor deinem Tag unter **Umsätze abrufen ab**.
 - **Vorgemerkte und andere nicht gebuchte Umsätze** übernimmt Haben nicht; ein vorgemerkter kommt mit einem Folgeabruf, sobald die Bank ihn bucht. Stornierte und abgelehnte Umsätze (Status CNCL und RJCT) werden nie gebucht.
-- **Stichtag:** Mit dem ersten Abruf, den Haben mit Kennung des Kontos übernimmt, merkt es sich einen Stichtag: den späteren von zwei Tagen, dem Tag nach dem letzten Umsatz aus einer Datei oder einem FinTS-Abruf und dem Tag unter **Umsätze abrufen ab**, aber nie nach dem Beginn dieses Abrufs; ohne beides den Beginn dieses Abrufs. Die Zeit davor decken Dateien oder frühere Abrufe ab: Liefert die Bank einen Umsatz vor dem Stichtag, übernimmt Haben ihn nicht und nennt ihn im Importprotokoll. Fehlt er in der Datei, etwa weil die Bank ihn nach dem Export noch am selben Tag gebucht hat, exportiere bei der Bank eine neue Datei mit diesem Tag und importiere sie; die schon vorhandenen Umsätze überspringt Haben ([Dubletten](#dubletten)). Den Stichtag nennt der Datenexport in `bank/quellen.csv`.
+- **Stichtag:** Mit dem ersten Abruf, den Haben mit Kennung des Kontos übernimmt, merkt es sich einen Stichtag: den späteren von zwei Tagen, dem Tag nach dem letzten Umsatz aus einer Datei oder einem FinTS-Abruf und dem Tag unter **Umsätze abrufen ab**, aber nie nach dem Beginn dieses Abrufs; ohne beides den Beginn dieses Abrufs. Die Zeit davor decken Dateien oder frühere Abrufe ab: Liefert die Bank einen Umsatz vor dem Stichtag, übernimmt Haben ihn nicht und nennt ihn im Importprotokoll. Fehlt er in der Datei, etwa weil die Bank ihn nach dem Export noch am selben Tag gebucht hat, exportiere bei der Bank eine neue Datei mit diesem Tag und importiere sie; die schon vorhandenen Umsätze überspringt Haben ([Dubletten](#dubletten)). Den Stichtag zeigt **Automatischer Abruf** hinter dem Konto („Bankabruf seit …“, mit „davor Dateien oder FinTS“, wenn es die gibt); der Datenexport nennt ihn in `bank/quellen.csv`.
 - **Umsätze außerhalb des Zeitraums:** Einen gebuchten Umsatz mit einem Buchungstag vor dem abgefragten Zeitraum, aber ab dem Stichtag übernimmt Haben mit, etwa von Banken, die nach Valuta filtern. Steht aus einer Datei oder einem FinTS-Abruf, die erst nach dem ersten übernommenen Abruf dazukamen, schon ein Umsatz mit diesem Tag und Betrag da, legt Haben keinen zweiten an, sondern verbindet den abgerufenen mit ihm und nennt das im Importprotokoll; jeder Umsatz der Datei gehört so höchstens einem abgerufenen. Einen mit einem Tag nach dem Abruf holt der nächste Abruf.
-- **Geänderter Umsatz:** Liefert die Bank einen schon abgerufenen Umsatz mit anderem Betrag oder Buchungstag, ändert Haben den gespeicherten nicht und speichert für dieses Konto nichts aus dem Abruf. Ebenso, wenn sie in einem Abruf denselben Umsatz (gleiche Kennung) zweimal mit verschiedenem Betrag oder Buchungstag liefert oder die Kennung des Kontos gerade nicht abrufbar ist. Die Meldung steht an der Verbindung unter **Automatischer Abruf**; einen geänderten oder doppelt gelieferten Umsatz hält Haben außerdem, ohne Umsätze, im Importprotokoll des Kontos fest, das der Datenexport als `bank/importe.csv` enthält. Kontostand und letzter Import in der Kontoübersicht bleiben beim letzten Import mit Inhalt, aus einer Datei oder einem Abruf. Die anderen Konten laufen weiter. Einen Weg, ihn in Haben zu klären, gibt es noch nicht ([#306](https://github.com/firsttris/haben/issues/306)): Bis dahin bleibt der Abruf dieses Kontos stehen, solange die Bank den Umsatz so liefert.
+- **Geänderter Umsatz:** Liefert die Bank eine bisher eindeutige Referenz mit anderem Betrag oder Buchungstag, ändert Haben den gespeicherten Umsatz nicht und speichert aus diesem Abruf keine neuen Umsätze für das betroffene Konto. Die Meldung steht unter **Automatischer Abruf**. Der abgelehnte Abruf erscheint im Importprotokoll und im Export `bank/importe.csv`. Ist die Kennung eines bereits gebundenen Kontos gerade nicht abrufbar, wartet der Abruf dieses Kontos. Die anderen Konten laufen weiter.
+- **Konflikt klären:** Bei einem geänderten Umsatz steht **Konflikt** an Karte und Zeile des Kontos; **Klären** im Hinweis über der Liste oder an der Zeile unter **Verbindungen** öffnet den Dialog. Er zeigt den bisherigen Umsatz mit seiner Zuordnung neben dem, den die Bank jetzt liefert, und bietet zwei Wege; überschrieben wird nie, und zurücknehmen lässt sich die Entscheidung nicht.
+    - **Bisherigen Umsatz behalten:** Haben merkt sich die neuen Angaben und legt nichts an.
+    - **Als weiteren Umsatz übernehmen:** Haben legt den gelieferten Umsatz zusätzlich an, mit eigenem Eintrag im Importprotokoll. Der bisherige bleibt mit seinen Zuordnungen stehen; beide zeigen einen Hinweis auf den anderen.
+
+    Danach übernimmt der nächste Abruf das Konto wieder. Liefert die Bank den Umsatz später noch einmal anders, entsteht ein neuer Konflikt. Die Klärungen enthält der Datenexport in `bank/klaerungen.csv`.
+
 - **Abruf abgelehnt:** Lehnt die Bank den Zeitraum eines Folgeabrufs für ein Konto ab, etwa weil er zu lang ist, steht der Fehler an der Verbindung, und nur dieses Konto bleibt stehen. Meldet die Bank zu viele Abrufe oder ist sie nicht erreichbar, endet der Abruf mit einer Meldung, und der nächste planmäßige Abruf versucht es wieder, ohne auf einen kürzeren Zeitraum auszuweichen. Die Verbindung hält Haben nur an, wenn die Zustimmung abgelaufen oder widerrufen ist.
 - **Kontostand:** Haben nimmt den gebuchten Saldo der Bank, bevorzugt den Tagesendsaldo (CLBD), sonst den aktuellen gebuchten Saldo (ITBD), und zwar den ersten, dessen Stichtag zum Abruf passt: nicht vor dem letzten Buchungstag, nicht nach dem Ende des Abrufs. Manche Banken melden den Tagesendsaldo nur bis gestern; mit einem Umsatz von heute gilt dann der gebuchte Saldo von heute. Verfügbare Salden mit Vormerkungen oder Kreditlinie übernimmt Haben nie.
 - **Konten ohne IBAN**, zum Beispiel Kreditkarten, ruft Haben nicht ab.
@@ -49,7 +69,13 @@ Jeder Abruf wird wie eine Datei als Import gespeichert, mit Zeitraum, Kontostand
 
 ### Abruf über FinTS
 
-Mit einer eigenen Registrierungsnummer für FinTS holt Haben die Umsätze direkt bei der Bank, mit PIN und TAN, ohne Enable Banking. Verbinden, TAN, welche Umsätze kommen, Fehler und was passiert, wenn ein Konto schon über Enable Banking kommt, stehen in [Abruf über FinTS](bank-fints.md).
+Mit einer eigenen Registrierungsnummer für FinTS holt Haben die Umsätze direkt bei der Bank, mit PIN und TAN, ohne Enable Banking. Verbinden, TAN, Wahl der Konten, welche Umsätze kommen, Fehler und was passiert, wenn ein Konto schon über Enable Banking kommt, stehen in [Abruf über FinTS](bank-fints.md).
+
+### Externe Quelle
+
+Ein eigener Dienst, der Zahlungen bei einem Anbieter abholt, etwa Verkäufe, Gebühren und Auszahlungen eines Marktplatzes, liefert sie über die [REST-API](api.md#bankumsätze) als Umsätze in ein Konto. Dafür gibst du die Quelle am Konto frei: unter **Verbindungen** an der Zeile des Kontos **⋯ › Externe Quelle hinzufügen …**, dann Anbieter und Kennung des Kontos beim Anbieter eintragen, so wie der Dienst sie liefert. Der Stichtag ist der erste Tag, den die Quelle liefert, frühestens der Tag nach dem letzten Umsatz des Kontos; leer gilt dieser Tag, bei einem Konto ohne Umsätze der heutige. Davor nimmt Haben nichts an; soll der Dienst in ein Konto ohne Umsätze auch ältere Zahlungen liefern, trag den ersten Tag ein. Ein Konto hat höchstens eine Quelle; ein Konto mit Bankabruf (Enable Banking oder FinTS), Etsy-, PayPal- oder Stripe-Abruf bekommt keine externe, auch vor dem ersten Abruf. Umgekehrt lässt sich ein Konto mit externer Quelle nicht für einen Abruf verbinden.
+
+Danach steht an der Zeile die Quelle mit Stichtag und bis wann geliefert ist; nach einer Lieferung zeigt die Karte des Kontos „REST-Import“. Liefert der Dienst einen schon übernommenen Umsatz anders, steht **Konflikt** an der Karte und **Klären** im Hinweis darunter, mit denselben zwei Wegen wie beim [Bankabruf](#welche-umsätze-abgerufen-werden).
 
 ## Unterstützte Formate
 
@@ -59,34 +85,41 @@ Mit einer eigenen Registrierungsnummer für FinTS holt Haben die Umsätze direkt
 | DKB-CSV (Export bis 2023) | Semikolon-CSV mit Buchungstag, Auftraggeber/Begünstigter, Betrag | ja | aus dem Dateikopf |
 | N26-CSV | Komma-CSV mit Booking Date bzw. Date, Amount, Partner Name bzw. Payee | nein | nein |
 | Swan-CSV | Komma-CSV mit Kopfblock (IBAN, Alter und Neuer Kontostand, Von, Bis) und den Spalten Datum, Name, Verwendungszweck, Kredit EUR, Debit EUR | ja | Alter und Neuer Kontostand aus dem Kopfblock |
+| BW-Bank-CSV ([Baden-Württembergische Bank](https://www.bw-bank.de/)), nur Export „CSV-CAMT V8“ | Semikolon-CSV mit den Spalten Auftragskonto, Buchungstag, Valutadatum, Buchungstext, Verwendungszweck, Glaeubiger ID, Mandatsreferenz, Kundenreferenz (End-to-End), Sammlerreferenz, Lastschrift Ursprungsbetrag, Auslagenersatz Ruecklastschrift, Beguenstigter/Zahlungspflichtiger, Kontonummer/IBAN, BIC (SWIFT-Code), Betrag, Waehrung, Info | ja, in jeder Zeile (Auftragskonto) | nein |
 | Commerzbank-CSV | Semikolon-CSV aus dem Online-Banking mit den Spalten Buchungstag, Umsatzart, Buchungstext, Betrag, IBAN Kontoinhaber, Sender, Empfänger, Verwendungszweck | ja, in jeder Zeile | nein |
 | ING-CSV | Umsatzanzeige: Semikolon-CSV mit Kopfblock (IBAN, Kontoname, Zeitraum) und den Spalten Buchung, Wertstellungsdatum (älter: Valuta), Auftraggeber/Empfänger, Buchungstext, Verwendungszweck, Saldo, Betrag | ja, im Kopf | aus der Spalte „Saldo“ |
 | C24-CSV | Komma-CSV mit den Spalten Transaktionstyp, Buchungsdatum, Betrag, Zahlungsempfänger, Verwendungszweck, Beschreibung, Kontonummer | nein, nur die Kontonummer | nein |
+| Deutsche Bank, Norisbank und Postbank (CSV) | Semikolon-CSV mit den Spalten Buchungstag, Wert, Umsatzart, Begünstigter / Auftraggeber, IBAN / Kontonummer, Betrag, Soll, Haben | ja, im Kopfblock | letzter Kontostand und Kontostand am Ende, wenn die Summe aufgeht |
+| Deutsche Bank, Norisbank und Postbank (CSV, Export bis Anfang 2024) | Semikolon-CSV mit `IBAN` statt `IBAN / Kontonummer` und `Abweichender Auftraggeber`; Betrag nur in Soll oder Haben | nein | wie oben |
 | CAMT.053 (XML) | Tagesauszug `BkToCstmrStmt` | ja | Anfangs- und Endsaldo des Auszugs |
 | PayPal | Aktivitätenexport (CSV), Spalten deutsch (Brutto, Gebühr, Netto, Transaktionscode) oder englisch (Gross, Fee, Net, Transaction ID) | nein, in das Konto des [Zahlungsdienstleisters](bank-zahlungsdienstleister.md) | Guthaben aus den Umsätzen |
 | Stripe | Saldenverlauf („Balance history“), alter Export (id, Type, Amount, Fee, Net, Available On) und neuer (balance_transaction_id, gross, fee, net, reporting_category) | nein, wie oben | wie oben |
 | Shopify Payments | Transaktionsexport mit Payout ID, Payout Date, Amount, Fee, Net | nein, wie oben | wie oben |
 | eBay | Transaktionsbericht (CSV), Spalten deutsch (Datum der Transaktionserstellung, Typ, Nettobetrag, Auszahlung Nr.) oder englisch (Transaction creation date, Type, Net amount, Payout ID) | nein, wie oben | wie oben |
 | Etsy | Monatsabrechnung (CSV), Spalten deutsch (Datum, Art, Titel, Info, Betrag, Gebühren & Steuern, Netto) oder englisch (Date, Type, Title, Info, Amount, Fees & Taxes, Net) | nein, wie oben | wie oben |
+| Amazon | Abrechnung (Settlement Report, Format V2), Tab-getrennt, je Marktplatz und Zeitraum: die erste Datenzeile ist die Zusammenfassung mit dem Auszahlungsbetrag, darunter eine Zeile je Position (transaction-type, amount-type, amount-description, amount); Beträge deutsch („6,49“) oder englisch („6.49“); das Amazon-Konto ist auf einen Marktplatz festgelegt, ein Report eines anderen wird abgelehnt | nein, wie oben | wie oben |
 | Andere Bank (CSV) | Jede andere CSV mit Kopfzeile; die Spalten ordnest du einmal selbst zu ([Andere Banken](bank-spaltenzuordnung.md)) | nein | nein |
 
 Bank und Format erkennt Haben am Inhalt, nicht am Dateinamen. CAMT.052 und CAMT.054 werden mit einer eigenen Meldung abgelehnt; nur der Tagesauszug CAMT.053 wird gelesen.
 
-Die Zeichenkodierung wird ebenfalls erkannt: UTF-8 mit oder ohne BOM, UTF-16 mit BOM, und alles, was kein gültiges UTF-8 ist, als Windows-1252 (ältere DKB-Exporte, ING).
+Die Zeichenkodierung wird ebenfalls erkannt: UTF-8 mit oder ohne BOM, UTF-16 mit BOM, und alles, was kein gültiges UTF-8 ist, als Windows-1252 (ältere DKB-Exporte, BW-Bank, ING und der Export der Deutschen Bank, Norisbank und Postbank bis Anfang 2024).
 
 Beim Lesen gilt außerdem:
 
-- Vorgemerkte Umsätze (DKB, CAMT-Status `PDNG`) werden übersprungen; Haben meldet ihre Anzahl.
+- Vorgemerkte Umsätze (DKB, BW-Bank, CAMT-Status `PDNG`) werden übersprungen; Haben meldet ihre Anzahl.
 - CAMT-Sammelbuchungen mit eigenen Einzelbeträgen werden in einzelne Umsätze aufgeteilt. Ergeben die Einzelbeträge nicht den Gesamtbetrag, kommt ein Hinweis.
+- BW-Bank-CSV: Im Online-Banking bei den Umsätzen exportierst du als **Excel (CSV-CAMT V8)**; nur diesen Export liest Haben, denn nur er nennt IBAN, BIC und Referenzen der Gegenseite vollständig. Die Exporte **(CSV-CAMT V2)**, **(CSV - gefilterte Einträge)** und **(CSV-MT940)** erkennt Haben und lehnt sie mit der Bitte um einen neuen Export ab; ältere Standard-Exporte mit demselben Kopf wie V8 gehen. Die XML-Exporte (CAMT.052) und der Text-Export (MT940, MT942) werden nicht gelesen. Eine Datei mit Umsätzen mehrerer Konten lehnt Haben ab. Haben erkennt den Export nur am Kopf: Dateien anderer Banken mit demselben Kopf, wahrscheinlich der Sparkassen, liest es ebenso; nur der Hinweis auf Umsätze desselben Kontos aus einer anderen Quelle nennt sie BW-Bank.
 - Commerzbank-CSV: Den Export holst du im Online-Banking bei den Umsätzen über **PDF / CSV**, Format CSV ([Commerzbank-Hilfe](https://www.commerzbank.de/service/wie-kann-ich-meine-umsaetze-exportieren/)). Name der Gegenseite und Verwendungszweck stehen in eigenen Spalten. Die IBAN der Gegenseite nennt der Export nur im Buchungstext, und nur bei Ausgängen, Daueraufträgen und Lastschriften, die du selbst einziehst; Eingänge haben keine: Für die [Vorschläge](#vorschläge) zählen dort Betrag, Rechnungsnummer im Verwendungszweck und Name, und am Kontakt merkt sich Haben keine IBAN. Haben nimmt nur eine IBAN mit gültiger Prüfziffer, nie die eigene, eine Gläubiger-ID oder eine strukturierte Referenz (RF…) aus dem Verwendungszweck. End-to-End-Referenz, Kundenreferenz, Mandatsreferenz und Gläubiger-ID liest Haben aus demselben Text; über die End-to-End-Referenz findet es auch [Überweisungen aus Haben](#überweisungen-aus-haben) wieder. Eine Datei mit Umsätzen mehrerer Konten lehnt Haben ab; exportiere je Konto eine Datei.
 - ING-CSV: Die Umsatzanzeige exportierst du im Online-Banking bei den Umsätzen als CSV. Exportierst du ein Suchergebnis (Zeile „Filter“ im Kopf), übernimmt Haben genau diese Umsätze, etwa einen einzelnen Zahlungseingang, und keine Salden: Der Saldo im Kopf gilt fürs ganze Konto. Die IBAN der Gegenseite nennt der Export nicht: Für die [Vorschläge](#vorschläge) zählen Betrag, Rechnungsnummer im Verwendungszweck und Name, und den [Geldtransit](#vorschläge-ohne-rechnung-und-geldtransit) zu einem eigenen Konto schlägt Haben nicht von selbst vor; du wählst ihn im Abgleich. Vorgemerkte Umsätze stehen nicht darin.
 - C24-CSV: Der Export (`Transaktionen.csv`) enthält die Umsätze eines Kontos oder einer Pocket. Gegenseite ist in beiden Richtungen die Spalte „Zahlungsempfänger“; der Zweck setzt sich aus Verwendungszweck und Beschreibung zusammen, bei Kartenzahlungen steht dort der Text des Händlers. Die eigene IBAN nennt die Datei nicht, nur die Kontonummer: Lege das Konto vorher an und wähle es beim Import aus (wie bei N26). Umbuchungen zwischen Pockets nennen keine Gegen-IBAN; den [Geldtransit](#vorschläge-ohne-rechnung-und-geldtransit) schlägt Haben dort nicht von selbst vor, du wählst ihn im Abgleich. Eine Datei mit Umsätzen mehrerer Konten lehnt Haben ab; exportiere je Konto bzw. Pocket eine Datei.
+- Deutsche Bank, Norisbank und Postbank (CSV): Alle drei exportieren dieselbe Datei; bei der Norisbank holst du sie in der **Finanzübersicht**: Konto in „Konten & Karten“, Drei-Punkte-Menü, **Als CSV exportieren**, Zeitraum, **Erstellen**. Die Datei beginnt mit einem Kopfblock (IBAN, Zeitraum, letzter Kontostand); die letzte Zeile nennt den Kontostand am Ende und ist kein Umsatz. Haben wählt das Konto über die IBAN im Kopfblock. „Betrag“ trägt das Vorzeichen, Soll und Haben wiederholen ihn; fehlt er, zählt die gefüllte Spalte. Die Gegen-IBAN steht in „IBAN / Kontonummer“; Haben nimmt sie nur mit gültiger Prüfziffer und nie die eigene. „Abweichender Empfänger“ bleibt unberücksichtigt: Dort steht bei Umbuchungen der eigene Name. Die Gegen-IBAN geht in den [Dubletten-Hash](#dubletten) ein; importiere denselben Zeitraum nach einem Import über die [Spaltenzuordnung](bank-spaltenzuordnung.md) nicht noch einmal, sonst kommen Umsätze mit Gegen-IBAN doppelt. Der Export bis Anfang 2024 nennt keine eigene IBAN: Lege das Konto vorher an und wähle es beim Import aus (wie bei N26). Noch ältere Exporte ohne `Abweichender Auftraggeber` ordnest du über die [Spaltenzuordnung](bank-spaltenzuordnung.md) zu.
+- CAMT.053 von Vivid Business: Name und IBAN der Gegenpartei stehen im Block `RltdPties`. Vivid Business lässt ihn im Export weg und schreibt beides nur in den Freitext des Umsatzes (`AddtlTxInf`, `AddtlNtryInf`). Haben liest es dann von dort: bei „Eingehende Überweisung Von …“ und „Ausgehende Überweisung An …“ den Namen vor dem Verwendungszweck und die IBAN, bei „Kartentransaktion …“ den Händler ohne IBAN. Passt der Text nicht genau dazu, etwa ohne gültige IBAN und BIC am Ende, bleibt die Gegenpartei leer. Bis Version 0.11.0 blieb die Gegenpartei bei Vivid leer. Die IBAN geht in den [Dubletten-Hash](#dubletten) ein. Zeiträume, die du damals schon importiert hast, importierst du deshalb nicht noch einmal, sonst kommen ihre Überweisungen doppelt.
 - Fremdwährungen in der Datei werden gemeldet; Bankkonten führt Haben nur in Euro. Rechnungen und Belege in Fremdwährung gleichst du mit dem Euro-Betrag aus (siehe [Kursdifferenz](#kursdifferenz-bei-fremdwährung)).
 
 ## So gehst du vor
 
 1. Bei deiner Bank die Umsätze als CSV oder CAMT.053 exportieren.
-2. Unter **Bank** auf **CSV / CAMT importieren** klicken und eine oder mehrere Dateien wählen (bis 50 Dateien auf einmal, bis 20 MB je Datei).
+2. Unter **Bank** auf **Datei importieren** klicken und eine oder mehrere Dateien wählen (bis 50 Dateien auf einmal, bis 20 MB je Datei). Haben nimmt das Konto aus der Datei. Nennt sie keins, etwa N26 oder der Export eines Zahlungsdienstleisters, fragt die Meldung nach dem Konto, vorgewählt ist das gewählte. Direkt in ein Konto importierst du über **⋯ › Datei importieren** auf seiner Karte oder **Datei importieren** über der Liste eines Kontos ohne Verbindung; so gilt auch eine gespeicherte [Spaltenzuordnung](bank-spaltenzuordnung.md).
 3. Haben meldet je Datei „… neue Umsätze für …“ und wie viele schon vorhanden waren, dazu Hinweise und eine eventuelle Lücke.
    Kennt Haben die Bank nicht, ordnest du die Spalten einmal zu ([Andere Banken](bank-spaltenzuordnung.md)).
 4. Links die offenen Umsätze durchgehen, rechts zuordnen.
@@ -97,7 +130,7 @@ Nennt die Datei eine IBAN (DKB, CAMT), legt Haben das Konto beim ersten Import a
 
 ### Name und Zweck
 
-Unter den Reitern stehen Name, Zweck und IBAN des gewählten Kontos. Mit **Name und Zweck** änderst du beides, auch für Konten aus dem automatischen Abruf oder dem Dateiimport. Der Name ist nur Anzeige: Umsätze bleiben am Konto, und spätere Importe findet Haben weiter über die IBAN. Die Änderung steht im Änderungsprotokoll.
+**⋯ › Name und Zweck …** auf der Karte oder an der Zeile unter **Verbindungen** zeigt Zweck und IBAN des Kontos und ändert Name und Zweck, auch für Konten aus dem automatischen Abruf oder dem Dateiimport. Der Name ist nur Anzeige: Umsätze bleiben am Konto, und spätere Importe findet Haben weiter über die IBAN. Die Änderung steht im Änderungsprotokoll.
 
 Viele Selbständige haben bei derselben Bank mehrere Konten, etwa ein Geschäftskonto und ein Steuerkonto, auf das sie die Umsatzsteuer zurücklegen und von dem das Finanzamt per Lastschrift einzieht. Der Zweck sagt Haben, wofür ein Konto dient:
 
@@ -106,17 +139,31 @@ Viele Selbständige haben bei derselben Bank mehrere Konten, etwa ein Geschäfts
 | Geschäftskonto (Standard) | wie bisher; sein Kontostand steht in der Übersicht |
 | Steuerkonto | Vorbelegung für [Bankverbindung ändern](finanzamt.md#bankverbindung-ändern); Lastschriften und Erstattungen der Umsatzsteuer auf diesem Konto bekommen „Umsatzsteuer an das Finanzamt“ als Vorschlag; die Übersicht zeigt den Stand neben der noch offenen Zahllast (abzüglich schon zugeordneter Zahlungen an das Finanzamt nach Ende des Zeitraums) und warnt, wenn er nicht reicht |
 | Rücklagen- oder Sparkonto | Überträge zu und von eigenen Konten bekommen „Geldtransit“ als Vorschlag |
-| Privatkonto | Umsätze dort bleiben zuordenbar; Umsatzsteuer und Steuerzahlungen bucht Haben gegen Entnahme bzw. Einlage ([Voranmeldung](#voranmeldung-zahllast-und-erstattung)). Auf deinen anderen Konten bekommen Überweisungen dorthin oder von dort „Privat“ als Vorschlag. Das Konto legst du mit **Konto hinzufügen** an; Umsätze importierst du nur, wenn du sie buchen willst, denn ungebuchte stehen unter „offen“, bis du sie [kennzeichnest](#privates-konto-umsätze-ohne-buchungsart). |
+| Privatkonto | Umsätze dort bleiben zuordenbar; Geschäftsvorfälle bucht Haben gegen Entnahme bzw. Einlage, in GmbH und UG gegen das Gesellschafter-Verrechnungskonto ([Privates Konto](#privates-konto-geschäftsvorfälle-gegen-entnahme-und-einlage)). Auf deinen anderen Konten bekommen Überweisungen dorthin oder von dort „Privat“ als Vorschlag. Das Konto legst du mit **Konto verbinden › Konto ohne Abruf anlegen** an; Umsätze importierst du nur, wenn du sie buchen willst, denn ungebuchte stehen unter „offen“, bis du sie [kennzeichnest](#privates-konto-umsätze-ohne-buchungsart). |
 
-Auf einem Privatkonto bietet der Abgleich Kontoführung und Bankgebühren, Zinserträge, Privat, Spende und Geldtransit nicht an, schlägt sie nicht vor und lehnt sie ab. Gebühren und Zinsen eines privaten Kontos sind privat: kein Betriebsaufwand (§ 12 Nr. 1 EStG) und keine Betriebseinnahme (§ 20 EStG); „Privat“ und „Spende“ buchten privat gegen privat, und Geldtransit wäre Entnahme gegen Entnahme. Schon gebuchte Zuordnungen bleiben sichtbar und lassen sich aufheben.
+Auf einem Privatkonto bietet der Abgleich Kontoführung und Bankgebühren, Zinserträge, Privat, Spende und Geldtransit nicht an, schlägt sie nicht vor und lehnt sie ab. Gebühren und Zinsen eines privaten Kontos sind privat: kein Betriebsaufwand (§ 12 Nr. 1 EStG) und keine Betriebseinnahme (§ 20 EStG); „Privat“ und „Spende“ buchten privat gegen privat, und Geldtransit wäre Entnahme gegen Entnahme. Alle anderen Arten sind dort erlaubt und laufen über Entnahme und Einlage, in GmbH und UG über das Gesellschafter-Verrechnungskonto ([unten](#privates-konto-geschäftsvorfälle-gegen-entnahme-und-einlage)). Schon gebuchte Zuordnungen bleiben sichtbar und lassen sich aufheben.
 
-Jedes Konto hat einen Zweck. Gebucht wird weiter auf das eine Bankkonto (1200 bzw. 1800); welche IBAN auf Rechnungen steht, bestimmen die Firmendaten.
+Jedes Konto hat einen Zweck. Außer auf einem privaten Konto bucht Haben auf das eine Bankkonto (1200 bzw. 1800); welche IBAN auf Rechnungen steht, bestimmen die Firmendaten oder ein [weiteres Zahlungskonto](rechnungen-zahlung.md#zahlungskonto).
 
-N26-Exporte enthalten keine eigene IBAN. Dafür legst du das Konto vorher mit **Konto hinzufügen** an (Name und IBAN) und wählst es vor dem Import in der Auswahl **Konto** aus. Steht die Auswahl auf „aus der Datei“, lehnt Haben eine Datei ohne IBAN ab.
+N26-Exporte enthalten keine eigene IBAN. Dafür legst du das Konto vorher mit **Konto verbinden › Konto ohne Abruf anlegen** an (Name und IBAN) und importierst die Datei in dieses Konto ([So gehst du vor](#so-gehst-du-vor)).
 
 Wählst du ein Konto aus und die Datei nennt eine andere IBAN, bricht der Import mit einer Meldung ab.
 
-Über der Liste steht je Konto ein Reiter mit Format und Datum des letzten Imports und dem Endsaldo. Ist der letzte Import älter als sieben Tage, ist die Angabe hervorgehoben.
+Über der Liste stehen die Konten als Karten in einer Zeile, getrennt in Banken und Zahlungsdienstleister; die Pfeile links und rechts rollen weiter. Jede Karte zeigt den Namen, den Saldo (Endsaldo des letzten Imports, beim Dienstleister das Guthaben) mit der Zahl offener Umsätze und darunter, woher der letzte Stand kommt und wann, etwa „FinTS · heute 06:00“ oder „Datei · 13.11.“. Nur wenn etwas nicht stimmt, steht dort ein Status:
+
+| Status | Wann |
+| --- | --- |
+| Fehlgeschlagen | Der letzte Abruf über FinTS, Enable Banking, Stripe oder PayPal ist fehlgeschlagen. |
+| Abgelaufen, Läuft ab | Die Zustimmung bei der Bank ist abgelaufen oder läuft in den nächsten 14 Tagen ab, ab 7 Tagen vorher hervorgehoben. |
+| Freigabe nötig | Die Bank wartet bei FinTS auf eine TAN oder Freigabe in der App. |
+| Konflikt | Der Abruf hat [Konflikte](#welche-umsätze-abgerufen-werden), die auf deine Entscheidung warten. |
+| Veraltet | Der letzte Import oder Abruf ist älter als sieben Tage. |
+
+### Privates Konto: Geschäftsvorfälle gegen Entnahme und Einlage
+
+Geschäftsvorfälle darfst du auf einem Privatkonto buchen; Haben stellt dafür die Gegenzeile um. Läuft das Geld über ein Konto mit dem Zweck **privat**, steht an der Stelle der Bank die Richtung des Zahlungskontos: ein Eingang als Privatentnahme (SKR03 1800, SKR04 2100, § 4 Abs. 1 Satz 2 EStG), ein Ausgang als Privateinlage (SKR03 1890, SKR04 2180, § 4 Abs. 1 Satz 8 EStG); in GmbH und UG steht dort in beiden Richtungen das Gesellschafter-Verrechnungskonto (SKR03 0730, SKR04 3510), weil § 4 EStG die Buchung dort nicht trägt. Das gilt für jede Buchungsart: Umsatzsteuer-Voranmeldung und Steuerzahlungen des Betriebs, Sondervorauszahlung, Rechnung, Beleg, Kategorie, Aufladung, Lohn und Darlehen. Der Vorgang selbst bleibt richtig gebucht — die Forderung ist getilgt, die Verbindlichkeit bezahlt, die Umsatzsteuer fällig —, nur das Geld kam nicht über das Geschäftskonto.
+
+Ausgenommen sind die Arten, die der Abgleich auf einem privaten Konto nicht anbietet; sie stehen mit ihrer Begründung unter [Name und Zweck](#name-und-zweck). Zuordnungen auf einem privaten Konto, die vor dieser Regel entstanden sind, bucht Haben nicht um: Bei den meisten Arten stehen sie weiter gegen 1200 bzw. 1800; Voranmeldung und Steuerzahlungen buchte Haben schon seit Version 0.9.0 so. Wer eine davon umgestellt haben will, hebt die Zuordnung auf und ordnet den Umsatz neu zu.
 
 ### Privates Konto: Umsätze ohne Buchungsart
 
@@ -126,17 +173,17 @@ Kennzeichnen lässt sich nur ein ganz offener Umsatz. Zuordnen, Direkt buchen, A
 
 ### Fremdes Konto ausschließen
 
-Manchmal gehört ein Konto nicht zu dieser Firma, etwa wenn der Bankzugang auch das Konto einer zweiten Firma freigibt. Löschen geht nicht: Importierte Umsätze sind gesperrt. Stattdessen schließt du das Konto aus: Wähle es und klicke neben **Name und Zweck** auf **Gehört nicht zu dieser Firma**; nach einer Rückfrage ist es erledigt.
+Manchmal gehört ein Konto nicht zu dieser Firma, etwa wenn der Bankzugang auch das Konto einer zweiten Firma freigibt. Löschen geht nicht: Importierte Umsätze sind gesperrt. Stattdessen schließt du das Konto aus: unter **Verbindungen** an seiner Zeile **⋯ › Gehört nicht zu dieser Firma …**; nach einer Rückfrage ist es erledigt. Beim [Abruf über FinTS](bank-fints.md) lässt du ein solches Konto schon beim Verbinden weg; dann legt Haben es gar nicht an.
 
-Das geht nur, **solange kein Umsatz des Kontos zugeordnet, verrechnet oder ausgebucht ist**, denn dann gehört das Konto zu dieser Firma. Hat das gewählte Konto schon eine Zuordnung, ist der Knopf gesperrt und nennt den Grund. Ein Zahlungsdienstleister lässt sich nicht ausschließen.
+Das geht nur, **solange kein Umsatz des Kontos zugeordnet, verrechnet oder ausgebucht ist**, denn dann gehört das Konto zu dieser Firma. Hat das Konto schon eine Zuordnung, nennt Haben statt der Rückfrage den Grund. Ein Zahlungsdienstleister lässt sich nicht ausschließen.
 
 Ein ausgeschlossenes Konto:
 
-- steht nicht mehr unter den Reitern und fehlt in Bankabgleich, Vorschlägen, Übersicht, Überweisungen und Lastschriften, in der Vorprüfung der Voranmeldung, in der Jahresauswahl und im [Jahresarchiv](auswertungen.md#jahresexport);
+- steht nicht mehr unter den Karten und fehlt in Bankabgleich, Vorschlägen, Übersicht, Überweisungen und Lastschriften, in der Vorprüfung der Voranmeldung, in der Jahresauswahl und im [Jahresarchiv](auswertungen.md#jahresexport);
 - wird beim automatischen Abruf übersprungen; die Verbindung selbst läuft für die anderen Konten weiter;
 - nimmt keinen Import an: Eine Datei mit seiner IBAN oder mit diesem Konto als Ziel lehnt Haben mit einer Meldung ab.
 
-Gelöscht wird nichts. Die Umsätze bleiben in der Datenbank, und der Schritt steht im [Änderungsprotokoll](buchhaltung.md#änderungsprotokoll). Unter **Ausgeschlossene Konten** am Ende der Seite siehst du die ausgeschlossenen Konten mit der Zahl ihrer Umsätze und nimmst ein Konto mit **… wieder aufnehmen** (mit dem Namen des Kontos) zurück; dann ist alles wie vorher da.
+Gelöscht wird nichts. Die Umsätze bleiben in der Datenbank, und der Schritt steht im [Änderungsprotokoll](buchhaltung.md#änderungsprotokoll). Unter **Ausgeschlossene Konten** am Ende der Seite **Verbindungen** siehst du die ausgeschlossenen Konten mit der Zahl ihrer Umsätze und nimmst ein Konto mit **… wieder aufnehmen** (mit dem Namen des Kontos) zurück; dann ist alles wie vorher da.
 
 ## Was beim Import passiert
 
@@ -144,17 +191,21 @@ Gelöscht wird nichts. Die Umsätze bleiben in der Datenbank, und der Schritt st
 
 Jeder Umsatz bekommt einen Hash aus Buchungsdatum, Betrag, IBAN der Gegenseite und Verwendungszweck (Leerzeichen und Groß-/Kleinschreibung vereinheitlicht). Dazu kommt ein Zähler für gleiche Umsätze innerhalb derselben Datei: Zwei echte, identische Buchungen am selben Tag bekommen so verschiedene Hashes (Zähler 0 und 1) und werden beide übernommen.
 
-Umsätze, deren Hash es für das Konto schon gibt, überspringt Haben. Du kannst also überlappende Zeiträume oder dieselbe Datei noch einmal importieren, ohne doppelte Umsätze zu bekommen. Beim Abruf über Enable Banking gilt das nur für Umsätze ohne Kennung der Bank; die anderen erkennt Haben an der Kennung ([Folgeabrufe](#welche-umsätze-abgerufen-werden)). Während eines Imports ist das Konto gesperrt, damit parallele Importe nichts doppelt anlegen.
+Umsätze, deren Hash es für das Konto schon gibt, überspringt Haben. Du kannst also überlappende Zeiträume oder dieselbe Datei noch einmal importieren, ohne doppelte Umsätze zu bekommen. Beim Abruf über Enable Banking gilt das für Umsätze ohne verwendbare Kennung der Bank; die anderen erkennt Haben an der Kennung ([Folgeabrufe](#welche-umsätze-abgerufen-werden)). Während eines Imports ist das Konto gesperrt, damit parallele Importe nichts doppelt anlegen.
 
-Die Prüfung gilt innerhalb einer Quelle. Sie erkennt nicht, dass dieselbe Zahlung aus zwei Quellen stammt: Der Abruf und die Datei derselben Bank schreiben den Verwendungszweck oft anders, und manche Exporte nennen das Zahlungs- statt des Buchungsdatums, ein bis drei Tage daneben. Ein Konto bekommt seine Umsätze deshalb aus einer Quelle. Wer die Quelle wechselt, importiert ab dem Tag nach dem letzten vorhandenen Umsatz; der [Abruf](#welche-umsätze-abgerufen-werden) beginnt nach einem Dateiimport von selbst dort.
+Beim Abruf über Enable Banking erscheint **Mögliche Dublette** bei Umsätzen ohne belastbare Referenz. Haben vergleicht getrennt gelieferte Umsätze auf demselben Konto mit gleichem Buchungstag, Betrag, Währung und gleicher oder beidseitig fehlender Gegen-IBAN. Beim Verwendungszweck lässt Haben Leerzeichen und Großschreibung außer Acht und toleriert bis zu zwei Zeichenänderungen. In den Umsatzdetails siehst du beide Texte. Haben lässt den Verdachtsfall in Zuordnungsvorschlägen aus. Liefert ein späterer Abruf beide Umsätze gemeinsam, entfällt ein noch offener Verdacht. Beim ersten Hintergrundlauf nach dem Update prüft Haben einmalig die vorhandenen Umsätze aller Konten.
 
-Liegen im Zeitraum einer neuen Datei schon Umsätze aus einem anderen Format oder aus dem Abruf (altes und neues CSV der DKB zählen als ein Format) und legt der Import trotzdem Umsätze neu an, meldet Haben das neben der Meldung zur Lücke, mit Zeitraum, Quelle und Anzahl. Importiert wird trotzdem. Unscharf über Betrag und Datum verglichen wird bewusst nicht, sonst blieben echte gleiche Zahlungen an Folgetagen unbemerkt.
+Mit **Ist eine Dublette** nimmst du den Umsatz aus den offenen Beträgen und aus dem berechneten Guthaben eines Zahlungsdienstleisters. Hat der Umsatz bereits eine Zuordnung, Verrechnung oder Ausbuchung, hebe sie zuerst auf. Ein Erlösanteil einer bereits übernommenen Store-Auszahlung lässt sich ebenfalls nicht als Dublette markieren. Haben verhindert Ketten aus Dublettenentscheidungen und eine Bestätigung, wenn ein gemeinsamer Abruf eigenständige Zahlungen belegt. Mit **Keine Dublette** kennzeichnest du die Zahlung als eigenständig. Liefert die Bank beide Umsätze nach einer Bestätigung gemeinsam, zeigt Haben das bei der Entscheidung an. Mit **Entscheidung zurücknehmen** kannst du sie aufheben. Der Umsatz bleibt erhalten. Das Änderungsprotokoll hält Verdacht, Entscheidung und Rücknahme fest.
+
+Beim automatischen Inhaltsabgleich können dieselben Zahlungen aus zwei Quellen unterschiedlich aussehen. Abruf und Datei schreiben den Verwendungszweck oft anders, und manche Exporte nennen das Zahlungsdatum statt des Buchungsdatums. Ein Konto bekommt seine Umsätze deshalb aus einer Quelle. Wer die Quelle wechselt, importiert ab dem Tag nach dem letzten vorhandenen Umsatz. Der [Abruf](#welche-umsätze-abgerufen-werden) beginnt nach einem Dateiimport von selbst dort.
+
+Liegen im Zeitraum einer neuen Datei schon Umsätze aus einem anderen Format oder aus dem Abruf (altes und neues CSV der DKB zählen als ein Format) und legt der Import trotzdem Umsätze neu an, meldet Haben das in einer eigenen Meldung, mit Zeitraum, Quelle und Anzahl. Reicht die Datei bis zum [Stichtag](#welche-umsätze-abgerufen-werden) eines Abrufs, nennt die Meldung ihn und den Abruf; eine Datei braucht es danach nur für eine Lücke im Abruf. Importiert wird trotzdem. Unscharf über Betrag und Datum verglichen wird bewusst nicht, sonst blieben echte gleiche Zahlungen an Folgetagen unbemerkt.
 
 ### Saldenprüfung
 
-Haben vergleicht den Anfangssaldo der neuen Datei mit dem Endsaldo des vorigen Imports desselben Kontos. Passen sie nicht zusammen und überschneiden sich die Zeiträume nicht, meldet Haben eine Lücke mit Differenz, etwa: „Lücke: Anfangssaldo … passt nicht zum Endsaldo … des vorigen Imports. … vermutlich fehlen Umsätze dazwischen.“ Importiert wird trotzdem.
+Haben vergleicht den Anfangssaldo der neuen Datei mit dem Endsaldo des vorigen Imports desselben Kontos; ein später beginnender Import zählt dafür nicht. Passen sie nicht zusammen, meldet Haben eine Lücke mit Differenz, etwa: „Lücke: Anfangssaldo … passt nicht zum Endsaldo … des vorigen Imports. … vermutlich fehlen Umsätze dazwischen.“ Reicht der vorige Import über den Anfang der neuen Datei hinaus, kommt stattdessen ein Hinweis auf die Überschneidung. Importiert wird trotzdem.
 
-Bei DKB-CSV leitet Haben die Salden aus dem Kontostand im Dateikopf ab, wenn dessen Datum zum Zeitraum der Umsätze passt. Swan-CSV nennt beide Salden im Kopfblock. ING-CSV führt den Kontostand nach jeder Buchung; Haben übernimmt die Salden, wenn diese Spalte lückenlos aufgeht, sonst kommt ein Hinweis. N26-, Commerzbank- und C24-CSV und ein gefilterter ING-Export haben keine Salden; dort entfällt die Prüfung.
+Bei DKB-CSV leitet Haben die Salden aus dem Kontostand im Dateikopf ab, wenn dessen Datum zum Zeitraum der Umsätze passt. Swan-CSV nennt beide Salden im Kopfblock. ING-CSV führt den Kontostand nach jeder Buchung; Haben übernimmt die Salden, wenn diese Spalte lückenlos aufgeht, sonst kommt ein Hinweis. Deutsche Bank, Norisbank und Postbank nennen den letzten Kontostand im Kopfblock und den am Ende der Datei; Haben übernimmt beide, wenn die Differenz aufgeht, sonst kommt ein Hinweis. N26-, Commerzbank- und C24-CSV und ein gefilterter ING-Export haben keine Salden; dort entfällt die Prüfung.
 
 ### Unveränderlichkeit
 
@@ -162,9 +213,15 @@ Importe, Umsätze, Zuordnungen und [Verrechnungen](#gegenläufige-umsätze-verre
 
 ## Umsatzliste
 
-Ab zwei Konten zeigt der erste Reiter, **Alle Konten**, die Umsätze aller Konten in einer Liste, unter der Gegenpartei mit dem Namen des Kontos. Dorthin führt auch **Alle anzeigen** bei den Bankumsätzen der [Schnellsuche](suche.md).
+Ab zwei Konten zeigt die erste Karte, **Alle Konten**, die Umsätze aller Konten in einer Liste, unter der Gegenpartei mit dem Namen des Kontos. Die Karte nennt die Zahl der Konten und offenen Umsätze und mit „Prüfen“, wie viele Konten einen Status haben, sonst „Alles aktuell“. Dorthin führt auch **Alle anzeigen** bei den Bankumsätzen der [Schnellsuche](suche.md).
 
 Die Filter **Alle**, **Offen** (mit Anzahl), **Zugeordnet** (auch verrechnete Umsätze) und **Vorschlag** schränken die Liste ein. **Vorschlag** zeigt nur Umsätze mit dem gleichnamigen Status. Das Suchfeld findet dieselben Umsätze wie die [Schnellsuche](suche.md#was-sie-findet), dazu Beträge, deren Zahl die Eingabe enthält: `19.9` findet 19,90 €. Angezeigt werden höchstens 500 Treffer.
+
+Über der Liste steht, wie viele Umsätze noch offen sind: dieselbe Zahl wie am Filter **Offen**, für das gewählte Konto bzw. alle Konten, unabhängig von Suche und Filter. Teilweise zugeordnete Umsätze zählen mit, [gekennzeichnete private](#privates-konto-umsätze-ohne-buchungsart) nicht, bei einem Zahlungsdienstleister Zahlung und Gebühr zusammen einmal.
+
+- **Nächsten offenen** wählt den nächsten offenen Umsatz der Liste, am Ende wieder von vorn, und setzt den Fokus auf seine Zeile.
+- Steht kein weiterer offener Umsatz in der Liste (anderer Filter oder Suche), zeigt der Knopf alle offenen Umsätze ohne Suche, ohne den Fokus zu setzen. Zeigt die Liste schon alle offenen und ist nur einer offen, fehlt der Knopf.
+- Ist alles zugeordnet, steht dort „Alles zugeordnet.“ mit den Links **Belege prüfen** und, außer bei Kleinunternehmern, **Voranmeldung prüfen**. Ohne importierte Umsätze steht stattdessen „Keine Umsätze.“.
 
 Die Spaltenköpfe Datum, Gegenpartei · Verwendungszweck, Betrag und Status sortieren die Liste. Der erste Klick sortiert absteigend, ein zweiter Klick auf denselben Kopf dreht die Richtung; der aktive Kopf zeigt einen Pfeil. Ohne Auswahl steht der neueste Umsatz oben. Am Handy sind Datum und Status ausgeblendet, dort sortieren Gegenpartei und Betrag.
 
@@ -172,7 +229,7 @@ Nach Datum, Gegenpartei und Betrag sortiert Haben alle Umsätze des Kontos bzw. 
 
 | Hinweis | Bedeutung |
 | --- | --- |
-| Vorschlag | Es gibt einen passenden offenen Posten; das Wort steht in Blau, darunter Rechnung oder Voranmeldung mit Nummer, bei einem Beleg der Lieferant. Bei einem [Vorschlag ohne Rechnung](#vorschläge-ohne-rechnung-und-geldtransit) und einer Buchung nach der Gegenpartei steht nichts darunter. |
+| Vorschlag | Es gibt einen passenden offenen Posten; das Wort steht in Blau, darunter Rechnung oder Voranmeldung mit Nummer, bei einem Beleg der Lieferant. Bei einem [Vorschlag ohne Rechnung](#vorschläge-ohne-rechnung-und-geldtransit) und einer Buchung nach der Gegenpartei steht in der Statusspalte nichts darunter. Bei einem [bestätigbaren Vorschlag](#vorschläge-bestätigen) steht unter dem Verwendungszweck, was gebucht würde („Vorschlag: …“). |
 | Teilweise | Ein Teil des Umsatzes ist zugeordnet; darunter, wie viel noch offen ist. |
 | Beleg fehlt | Ausgabe ohne Zuordnung und ohne Vorschlag; das Wort steht in Orange. |
 | Offen | Eingang ohne Zuordnung und ohne Vorschlag. |
@@ -181,6 +238,23 @@ Nach Datum, Gegenpartei und Betrag sortiert Haben alle Umsätze des Kontos bzw. 
 | Privat | Auf einem privaten Konto als kein Betriebsvorgang gekennzeichnet; darunter „kein Betriebsvorgang“ (siehe [Umsätze ohne Buchungsart](#privates-konto-umsätze-ohne-buchungsart)). |
 
 Der Hinweis „Vorschlag“ in der Liste rechnet wie die Detailansicht, also auch mit der IBAN der Gegenseite.
+
+### Vorschläge bestätigen
+
+Bei Umsätzen mit bestätigbarem Vorschlag steht in der Liste unter dem Verwendungszweck, was gebucht würde („Vorschlag: Rechnung R-2026-001“, „Vorschlag: Erlöse 19 %“). Mehrere davon bestätigst du in einem Schritt:
+
+1. Markiere die Umsätze mit dem Markierfeld vor der Zeile. Die Leertaste markiert den Umsatz mit dem Fokus. **Alle … Vorschläge markieren** über der Liste setzt alle Haken. Es lassen sich höchstens 200 Umsätze auf einmal markieren; gibt es mehr Vorschläge, steht dort **Die ersten 200 von … Vorschlägen markieren**, und ein weiterer Haken von Hand wird mit einem Hinweis abgelehnt.
+2. Klicke auf **… bestätigen** (mit der Zahl der markierten Umsätze, etwa **3 bestätigen**). Haben bucht alle markierten Umsätze in einem Schritt, genau so, als hättest du jeden einzeln mit **Zuordnen** bzw. **Buchen** gebucht: dieselbe Buchung, festgeschrieben, nur mit Gegenbuchung aufzuheben.
+
+- Bestätigen lässt sich ein Vorschlag nur, wenn er ohne Rückfrage buchbar ist:
+    - eine Rechnung oder ein Beleg mit genau dem offenen Betrag des Umsatzes, ohne Skonto und ohne Kursdifferenz;
+    - eine Rechnung mit ihren offenen Korrekturen („Rechnung minus Korrektur“), gebucht als Aufteilung, ohne Skonto;
+    - eine Buchung auf eine Kategorie nach früheren Zuordnungen;
+    - die einfachen Arten ohne weitere Angaben: Privat, Spende, Gebühren, Mahnerlöse, Zinserträge.
+- Es gilt dieselbe Reihenfolge wie in der Detailansicht: Eine Regel der Kontozwecke geht dem Gelernten vor; ist sie nicht bestätigbar, gibt es keinen Vorschlag zum Bestätigen.
+- Beim Einzelbuchen in der Detailansicht bleiben Geldtransit, Steuerzahlungen (Umsatzsteuer, Sondervorauszahlung, Lohnsteuer), Darlehen, Voranmeldungen und Aufladungen. Auch ein Zahlungseingang mit Rechnung oder Beleg auf dem Konto eines Zahlungsdienstleisters bleibt dort, weil zur Zahlung eine Gebühr gehören kann, die erst **Zuordnen und Gebühr buchen** mitbucht. Umsätze ohne bestätigbaren Vorschlag haben kein Markierfeld. Eine Lastschrift des Finanzamts über den Betrag einer Lohnsteuer-Anmeldung zeigt wie in der Detailansicht den Hinweis „Vorschlag“ und steht im Filter **Vorschlag**, aber ohne Markierfeld.
+- Gebucht wird erst mit dem Klick auf **… bestätigen**. Der Server berechnet den Vorschlag dabei neu und bucht, was er jetzt ergibt.
+- Es wird alles oder nichts gebucht. Geht bei einem Umsatz etwas schief, etwa weil ein Beleg inzwischen bezahlt ist, bleibt auch der Rest ungebucht, und die Meldung nennt den Umsatz.
 
 ## Vorschläge
 
@@ -192,12 +266,15 @@ Jeder Posten bekommt Punkte:
 | --- | ---: |
 | Betrag stimmt exakt | 50 |
 | Betrag stimmt mit … Skonto (…), in der Frist (siehe [Skonto auf eigene Rechnungen](#skonto-auf-eigene-rechnungen)) | 50 |
+| Betrag stimmt mit Korrektur … (…), auch „… und … Skonto (…), in der Frist“, nur bei Rechnungen mit offenen Korrekturen (siehe [Skonto auf eigene Rechnungen](#skonto-auf-eigene-rechnungen)) | 50 |
 | Betrag passt bis auf eine Kursdifferenz (…), nur bei Fremdwährung (siehe [Kursdifferenz](#kursdifferenz-bei-fremdwährung)) | 30 |
 | Rechnungsnummer im Verwendungszweck | 40 |
+| Nummer der Korrektur im Verwendungszweck, nur wenn der Betrag mit der Korrektur stimmt und die Rechnungsnummer fehlt | 40 |
 | Bestellnummer im Verwendungszweck, nur bei exaktem Betrag (siehe unten) | 60 |
 | Überweisung aus Haben (Referenz), nur bei Belegen | 60 |
 | IBAN bekannt vom Kontakt bzw. bei Belegen IBAN des Lieferanten | 30 |
 | Name passt | 15 |
+| Auf das Konto der Rechnung, nur wenn eine Rechnung auf ein angelegtes [weiteres Zahlungskonto](rechnungen-zahlung.md#zahlungskonto) lautet | 10 |
 | Datum passt (± 5 Tage), nur bei Belegen, gemessen an Beleg- oder Fälligkeitsdatum | 10 |
 | Teilbetrag des offenen Betrags | 5 |
 
@@ -223,13 +300,13 @@ Jede gesendete oder [vermerkte](umsatzsteuer.md#abgabe-außerhalb-von-haben-verm
 
 Wie bei Rechnungen ab 40 Punkten. Zwei Zeiträume mit gleicher Zahllast unterscheidet der Zeitraum im Verwendungszweck. Gebucht wird wie „Umsatzsteuer an das Finanzamt“ (SKR03 1780, SKR04 3820), mit dem Bezug auf die Voranmeldung; in der Liste der Zuordnungen steht er dahinter, etwa „Umsatzsteuer USt 10/2026“. In der EÜR zählt die Zahlung am Buchungstag; die Vorauszahlung für Dezember bzw. das vierte Quartal, gezahlt bis 10. Januar, ohne Dauerfristverlängerung im Vorjahr (§ 11 Abs. 2 Satz 2 EStG, [Vorauszahlung um den Jahreswechsel](auswertungen.md#umsatzsteuer-vorauszahlung-um-den-jahreswechsel)).
 
-Liegt der Umsatz auf einem Konto mit dem Zweck **privat**, bucht Haben die Gegenzeile nicht gegen die Bank, sondern gegen die Privatentnahme (SKR03 1800, SKR04 2100), in GmbH und UG gegen das Gesellschafter-Verrechnungskonto; eine Zahlung an das Finanzamt von dort wird zur Einlage (SKR03 1890, SKR04 2180, in GmbH und UG dasselbe Verrechnungskonto). Das Geld fließt ins Private, die Forderung bzw. Verbindlichkeit gegenüber dem Finanzamt wird trotzdem erfüllt; die Entnahme steht in § 4 Abs. 1 Satz 2 EStG, die Einlage in Satz 8 (beides im Einzelunternehmen; in GmbH und UG trägt § 4 EStG die Buchung nicht). Ohne diese Unterscheidung stünde die Erstattung auf dem Geschäftskonto, auf dem sie nie war. Das gilt auch für die anderen [Steuerzahlungen](bank-steuern-darlehen.md#steuerzahlungen) des Betriebs; die Steuern des Inhabers lehnt Haben dort ab.
+Liegt der Umsatz auf einem Konto mit dem Zweck **privat**, bucht Haben die Gegenzeile nicht gegen die Bank, sondern nach der Richtung des Zahlungskontos: die Erstattung als Entnahme, eine Zahlung an das Finanzamt als Einlage ([Privates Konto](#privates-konto-geschäftsvorfälle-gegen-entnahme-und-einlage)). Das Geld fließt ins Private, die Forderung bzw. Verbindlichkeit gegenüber dem Finanzamt wird trotzdem erfüllt. Ohne diese Unterscheidung stünde die Erstattung auf dem Geschäftskonto, auf dem sie nie war. Das gilt auch für die anderen [Steuerzahlungen](bank-steuern-darlehen.md#steuerzahlungen) des Betriebs; die Steuern des Inhabers lehnt Haben dort ab.
 
 ### Dauerbelege: noch zu prüfen
 
 Belege aus einem [Dauerbeleg](belege.md#dauerbelege) (Miete, Versicherung, Leasing) entstehen ungebucht mit dem Status „Zu prüfen“ und sind deshalb noch kein offener Posten. Damit die Abbuchung trotzdem ihren Beleg findet, sucht Haben für einen Ausgang auch unter diesen Belegen, wenn sie über das Geschäftskonto bezahlt werden, mit denselben Punkten wie oben. Gezeigt werden nur Treffer, deren Betrag genau zum Umsatz passt, unter **Dauerbeleg, noch zu prüfen**:
 
-- **Buchen und zuordnen** bucht den Beleg wie **Bestätigen und buchen** auf der Belegseite (Aufwand und Vorsteuer an Verbindlichkeiten, mit Belegdatum) und ordnet ihm in derselben Transaktion den Umsatz zu (Verbindlichkeiten an Bank). Fehlt dem Beleg etwas zum Buchen oder passt die Zuordnung nicht (etwa weil der Umsatz inzwischen zugeordnet ist), steht der Grund im Feld, und nichts ist gebucht.
+- **Buchen und zuordnen** bucht den Beleg wie **Bestätigen und buchen** auf der Belegseite (Aufwand und Vorsteuer an Verbindlichkeiten, mit Belegdatum) und ordnet ihm in derselben Transaktion den Umsatz zu (Verbindlichkeiten an Bank). Fehlt dem Beleg etwas zum Buchen oder passt die Zuordnung nicht (etwa weil der Umsatz inzwischen zugeordnet ist), steht der Grund im Feld, und nichts ist gebucht. Hast du den Beleg auf § 13b oder innergemeinschaftlichen Erwerb umgestellt, fehlt der Knopf: Dann buchst du ihn auf der Belegseite, deren Rückfrage bei § 13b EU und Erwerb die [USt-IdNr. des Lieferanten](belege-ausland.md#ust-idnr-des-lieferanten-bestätigen) beim BZSt bestätigt.
 - **Beleg prüfen** öffnet den Beleg; nach dem Buchen erscheint er hier als gewöhnlicher Vorschlag.
 
 Haben bucht einen Dauerbeleg nie von selbst, auch nicht bei einem eindeutigen Treffer.
@@ -264,6 +341,8 @@ Die Rechnung ist wieder offen und steht unter **Lastschriften** zum erneuten Ein
 4. **Zuordnen** klicken. Ist der Umsatz damit ganz zugeordnet, springt die Auswahl zum nächsten offenen Umsatz, am Ende der Liste wieder von vorn.
 
 Tastatur: **Enter** ordnet zu, solange der Fokus nicht in einem Eingabefeld, auf einem Knopf oder Link liegt. **J** springt zum nächsten, **K** zum vorigen Umsatz.
+
+Unter **Zugeordnet** führt „Buchung vom …“ bei jeder Zuordnung auf ihre Buchung im [Journal](buchhaltung.md#die-seite-buchungen). Umgekehrt öffnet die Herkunft „Bank“ in Journal und Kontenblatt diesen Umsatz.
 
 ### Teilzahlungen und mehrere Zuordnungen
 
@@ -310,6 +389,15 @@ Beispiel: Rechnung 4.760,00 €, der Kunde überweist 4.664,80 € (2 % Skonto).
 
 Hast du selbst Skonto abgezogen, liegt die Abbuchung unter dem Beleg. Dann gibt es **Rest … als erhaltenes Skonto**: Verbindlichkeiten an 3730 bzw. 5730 Erhaltene Skonti und an Vorsteuer, anteilig je Steuersatz; die Vorsteuer in der Voranmeldung sinkt im Monat der Ausbuchung, vor der Ausführung einer Leistung nach dem Belegdatum nicht ([Vorsteuer (Kz 66)](umsatzsteuer.md#vorsteuer-kz-66)). Ohne Vorsteuerabzug mindert das Skonto den Aufwand brutto. Bei Belegen mit § 13b, mit Privatanteil oder für Anlagen gibt es das nicht.
 
+**Rechnung minus Korrektur:** Gibt es zur Rechnung eine offene Rechnungskorrektur, die den Rest genau ausgleicht, hat der Kunde die Korrektur gleich abgezogen. Gleicht keine einzelne den Rest aus, aber alle offenen Korrekturen der Rechnung zusammen, gilt dasselbe für alle. Der Hauptknopf beim besten Treffer heißt dann **Mit Korrektur … zuordnen** (bei mehreren **Mit Korrekturen … zuordnen**) und bucht die Aufteilung: die Rechnung über ihren offenen Betrag, jede Korrektur über ihren negativen Betrag; danach sind alle bezahlt, nichts wird ausgebucht. Haben bietet für den Rest weder Skonto noch Forderungsausfall, Gebühr oder Kursdifferenz an, sondern **Mit Korrektur … aufteilen**, das dieselbe Aufteilung zum Ansehen und Ändern öffnet.
+
+Zieht der Kunde die Korrektur ab und dann Skonto, rechnet Haben das Skonto vom geminderten Betrag (Rechnung 119,00 €, Korrektur −23,80 €, 2 % Skonto auf 95,20 € = 1,90 €, Zahlung 93,30 €). **Mit Korrektur … zuordnen, Rest … als Skonto** bucht die Aufteilung auf Rechnung und Korrekturen und bucht nur diese 1,90 € als gewährtes Skonto aus. Das gilt für die noch ganz offene Rechnung mit allen ihren offenen Korrekturen. Hebst du einen Teil auf, hebt Haben die ganze Aufteilung samt Skonto auf.
+
+Bei mehreren Steuersätzen mindert das Skonto die Entgelte, die nach den Korrekturen übrig sind, nicht den Mix der Rechnung ([§ 17 Abs. 1 Satz 1 UStG](https://www.gesetze-im-internet.de/ustg_1980/__17.html): die Minderung je Umsatz). Beispiel: Rechnung 107,00 € (100,00 € netto zu 7 %) und 119,00 € (100,00 € netto zu 19 %), Korrektur −59,50 € nur auf den 19-%-Teil, offen 166,50 €, 2 % Skonto 3,33 €, Zahlung 163,17 €. Übrig sind 107,00 € zu 7 % und 59,50 € zu 19 %; danach teilt Haben das Skonto auf: 2,00 € netto und 0,14 € Umsatzsteuer zu 7 %, 1,00 € netto und 0,19 € Umsatzsteuer zu 19 %. Nach dem Mix der Rechnung wären es rund 1,58 € und 1,75 €, also zu viel Minderung auf 19 %.
+
+- Hat eine Korrektur einen Steuersatz, den die Rechnung nicht hat, gibt es den Knopf nicht; dann teilst du den Umsatz auf und buchst den Rest einzeln.
+- So verteilt nur **Mit Korrektur … zuordnen, Rest … als Skonto**. Teilst du von Hand auf und buchst den Rest danach unter **Ausbuchen** aus, verteilt Haben das Skonto nach dem Mix der Rechnung.
+
 Einen Forderungsausfall ohne Zahlung, etwa bei Insolvenz des Kunden, buchst du auf der Seite der Rechnung unter **Ausbuchen** (siehe [Rechnungen](rechnungen.md#ausbuchen)). Hebst du die Zuordnung einer Zahlung auf, hebt Haben einen mit ihr ausgebuchten Rest mit auf.
 
 ### Skonto auf eigene Rechnungen
@@ -329,8 +417,8 @@ Die Differenz ist Aufwand oder Ertrag aus Kursdifferenzen, ohne Umsatzsteuer; di
 
 | Fall | SKR03 | SKR04 |
 | --- | --- | --- |
-| Kunde zahlt weniger, du zahlst mehr | 2150 Aufwendungen aus Kursdifferenzen | 6880 |
-| Kunde zahlt mehr, du zahlst weniger | 2660 Erträge aus Kursdifferenzen | 4840 |
+| Kunde zahlt weniger, du zahlst mehr | 2150 Aufwendungen aus der Währungsumrechnung | 6880 |
+| Kunde zahlt mehr, du zahlst weniger | 2660 Erträge aus der Währungsumrechnung | 4840 |
 
 Beispiel: Rechnung über 1.190,00 USD, zum USt-Kurs 1 EUR = 1,0812 USD sind das 1.100,63 €. Der Kunde überweist 1.095,00 €. Haben ordnet 1.095,00 € zu und bucht 5,63 € auf 2150 gegen Forderungen. Bei Ist-Versteuerung wird die Umsatzsteuer der Rechnung trotzdem voll fällig, auch auf den ausgebuchten Teil. In der EÜR stehen die Erlöse in voller Höhe und die 5,63 € als eigener Posten „Aufwendungen aus Kursdifferenzen“; im Abgleich der Auswertungen werden die Konten gegen diesen Posten geprüft.
 
@@ -352,11 +440,11 @@ Greift keine der Regeln aus [Vorschläge ohne Rechnung](#vorschläge-ohne-rechnu
 So gelernt werden:
 
 - Kontoführung und Bankgebühren, Privat, Spenden, Mahngebühren und Zinserträge;
-- [Einnahmen und Ausgaben auf eine Kategorie](#auf-eine-kategorie-buchen), jede Kategorie und jeder Steuersatz für sich: Hast du die Aufladungen beim Kiosk zweimal als Telefon gebucht, steht beim dritten Mal „Ausgabe: Telefon“ als Vorschlag da, und unter **Direkt buchen** sind Art und Kategorie schon gewählt. Zwei Zahlungen eines Privatkunden mit 7 % und eine mit 19 % ergeben „Einnahme: Erlöse 7 %“. Eine Kategorie, die am Tag des Umsatzes so nicht buchbar wäre, schlägt Haben nicht vor, etwa Erlöse mit 19 %, wenn du inzwischen Kleinunternehmer bist.
+- [Einnahmen und Ausgaben auf eine Kategorie](#auf-eine-kategorie-buchen), jede Kategorie und jeder Steuersatz für sich: Hast du die Aufladungen beim Kiosk zweimal als Telefon gebucht, steht beim dritten Mal „Ausgabe: 4920 · Telefon“ (SKR03; in SKR04 „6805 · Telefon“) als Vorschlag da, und unter **Direkt buchen** sind Art und Kategorie schon gewählt. Zwei Zahlungen eines Privatkunden mit 7 % und eine mit 19 % ergeben „Einnahme: Erlöse 7 %“. Eine Kategorie, die am Tag des Umsatzes so nicht buchbar wäre, schlägt Haben nicht vor, etwa Erlöse mit 19 %, wenn du inzwischen Kleinunternehmer bist. Dasselbe gilt für eine [Aufladung eines Guthabens](#aufladung-eines-guthabens): Sie wird mit ihrer Ausgabekategorie gelernt, die Karte nennt aber „Aufladung Guthaben“ und darunter die Felder mit der Kategorie; in GmbH und UG bietet Haben sie nicht an.
 
 Nie gelernt werden Geldtransit (dafür braucht es die Gegenbuchung), alles mit dem Finanzamt, weil über dieselbe IBAN Umsatzsteuer und private Steuern laufen, und Lohn, Sozialversicherung, Steuerzahlungen und Darlehen: Dort ändern sich Abrechnung, Steuerart und Jahr oder der Teil der Rate von Zahlung zu Zahlung, und die Regeln oben kennen sie besser.
 
-Gebucht wird ein gelernter Vorschlag wie jeder andere erst mit **Buchen**; Haben bucht nie von selbst.
+Gebucht wird ein gelernter Vorschlag wie jeder andere erst mit **Buchen** oder, für mehrere Umsätze, mit [**… bestätigen**](#vorschläge-bestätigen); Haben bucht nie von selbst.
 
 ### Direkt buchen
 
@@ -375,6 +463,7 @@ Für Umsätze ohne Rechnung oder Beleg klickst du **Direkt buchen** („Bankumsa
 | Zinserträge (Guthabenzinsen auf ein betriebliches Konto) | 2650 Sonstige Zinsen und ähnliche Erträge | 7100 |
 | Steuerzahlung oder Erstattung (Finanzamt, Gemeinde), siehe [Steuerzahlungen](bank-steuern-darlehen.md#steuerzahlungen) | je nach Steuerart und Teil | je nach Steuerart und Teil |
 | Einnahme oder Ausgabe (Kategorie, Steuersatz), siehe [Auf eine Kategorie buchen](#auf-eine-kategorie-buchen) | Konto der Kategorie | Konto der Kategorie |
+| Aufladung Guthaben (nur Einzelunternehmen), siehe [Aufladung eines Guthabens](#aufladung-eines-guthabens) | Konto der Kategorie | Konto der Kategorie |
 | Darlehen: Auszahlung, Tilgung, Zinsen oder Gebühren, siehe [Darlehen](bank-steuern-darlehen.md#darlehen) | je nach Darlehen und Teil | je nach Darlehen und Teil |
 | Kapitalertragsteuer an das Finanzamt (Ausschüttung), nur GmbH und UG | 1746 Verbindlichkeiten aus Einbehaltungen | 3760 |
 | Lohn/Gehalt an Mitarbeiter | 1740 Verbindlichkeiten aus Lohn und Gehalt | 3720 |
@@ -387,11 +476,28 @@ Die drei Lohnzahlungen bezahlen, was eine festgeschriebene [Lohnabrechnung](lohn
 
 Für Ausgaben mit Rechnung gilt: erst den Beleg unter [Belege](belege.md) hochladen und buchen, dann hier zuordnen. Direkt gebuchte Ausgaben haben keine Vorsteuer.
 
+### Aufladung eines Guthabens
+
+Bei manchen Anbietern zahlst du Geld ein, das dort als Guthaben liegt und erst später über eine Rechnung verbraucht wird: die Aufladung eines Mobilfunk-Guthabens, ein Guthaben beim Kiosk oder beim Hosting-Anbieter. Ist das Guthaben ein Mehrzweck-Gutschein, gibt es für die Aufladung selbst keine Rechnung. Dann ordnest du den Umsatz unter **Direkt buchen** als **Aufladung Guthaben** zu und wählst die **Kategorie**, zu der der Aufwand gehört; einen Steuersatz gibt es dort nicht.
+
+Gebucht wird Bank gegen das Konto der gewählten Ausgabekategorie, ohne Vorsteuer; auf einem [privaten Konto](#privates-konto-geschäftsvorfälle-gegen-entnahme-und-einlage) steht statt der Bank die Privateinlage. Die Aufladung selbst trägt keine Umsatzsteuer: Beim Mehrzweck-Gutschein unterliegt die vorangegangene Übertragung nicht der Umsatzsteuer (§ 3 Abs. 15 UStG). Beim Einzweck-Gutschein ist dagegen schon die Aufladung die Leistung (§ 3 Abs. 14 UStG); dort brauchst du eine Rechnung, und der Betrag geht über [Belege](belege.md). Für den Vorsteuerabzug ist ohnehin eine Rechnung nötig, hier die über den Verbrauch des Guthabens (§ 15 Abs. 1 Satz 1 Nr. 1 Satz 2 UStG). Damit ist die Aufladung im Monat der Zahlung Betriebsausgabe (§ 11 Abs. 2 EStG). Eine Aufladung trägt nie einen Steuersatz; Haben lehnt eine Einnahmekategorie und jede andere Kategorie ab, die einen Beleg verlangt.
+
+Die Aufladung braucht keinen Beleg: Sie steht in der EÜR als Ausgabe ihrer Kategorie und im DATEV-Buchungsstapel ohne Belegnummer. Verbraucht die spätere Rechnung das Guthaben, steht dort eine Position „Verrechnung Guthaben“: Sie mindert den Aufwand der Rechnung, ohne dass Geld fließt. Diese Verrechnung kann Haben noch nicht buchen. Bis der Bezug zwischen Aufladung und Rechnung kommt (Teil 2 von [#1356](https://github.com/Speicherstadt/haben/issues/1356)), bildet deshalb keine der beiden Buchungen Aufwand und Vorsteuer der Rechnung zugleich richtig ab:
+
+- **Nur die Aufladung buchen, die Rechnung liegen lassen:** Der Aufwand steht einmal, im Monat der Zahlung; die Vorsteuer der Rechnung bleibt ungenutzt. Das ist die Regel bis Teil 2.
+- **Die Rechnung zusätzlich als Beleg buchen:** Die Vorsteuer der Rechnung wäre abziehbar, aber der verrechnete Teil bleibt als offener Posten stehen, weil für ihn kein Geld fließt — und sobald du ihn mit einer Zahlung ausgleichst, zählt die EÜR den Aufwand ein zweites Mal.
+
+Mit dem Bezug zählt der Aufwand einmal, und die Vorsteuer kommt aus der Rechnung.
+
+Die Buchung als Ausgabe gilt für die EÜR des Einzelunternehmens (§ 11 Abs. 2 EStG). In GmbH und UG bietet Haben die Zuordnungsart deshalb weder an noch bucht sie sie: Dort bleibt der gezahlte Betrag bis zur Rechnung ein Vermögensgegenstand (§ 246 Abs. 1 Satz 1 HGB), und die Aktivierung über ein eigenes Sachkonto ist noch nicht gebaut ([#1281](https://github.com/Speicherstadt/haben/issues/1281)).
+
 ### Auf eine Kategorie buchen
 
-Eine Einnahme ohne Rechnung, etwa die Zahlung eines Privatkunden, oder eine kleine Ausgabe ohne Beleg buchst du unter **Direkt buchen** als **Einnahme oder Ausgabe (Kategorie, Steuersatz)**. Du wählst die **Kategorie** und bei Erlösen den **Steuersatz** (19 % oder 7 %); Haben zeigt Netto und Umsatzsteuer des Betrags an. Das geht auch als Teil einer Aufteilung.
+Eine Einnahme ohne Rechnung, etwa die Zahlung eines Privatkunden, oder eine kleine Ausgabe ohne Beleg buchst du unter **Direkt buchen** als **Einnahme oder Ausgabe (Kategorie, Steuersatz)**. Du wählst die **Kategorie** in einem Suchfeld: Bei Ausgaben steht die Nummer des Kontos im Kontenrahmen der Firma vor der Bezeichnung („6805 · Telefon“ in SKR04), und „6805“, „Telefon“ oder die Gruppe finden sie. Bei Erlösen wählst du außerdem den **Steuersatz** (19 % oder 7 %); Haben zeigt Netto und Umsatzsteuer des Betrags an. Das geht auch als Teil einer Aufteilung.
 
 Gebucht wird nur auf eine Kategorie, nicht frei auf ein Konto mit Steuerschlüssel: Voranmeldung, EÜR und E-Bilanz hängen an den Kategorien und ihren Konten (siehe [Roadmap](roadmap.md#bewusst-nicht)). Für Vorgänge ohne Bankumsatz, etwa eine Sachentnahme, gibt es [freie Buchungen mit Steuerschlüssel](buchhaltung.md#manuelle-und-freie-buchungen); Bank- und Steuerkonten lassen sich auch dort nicht bebuchen.
+
+Schon vor dem Buchen zeigt die Karte **Wird gebucht**, was Haben bucht: je Zeile Konto mit Nummer, Steuer und Betrag, die Umsatzsteuer als eigene Zeile (die Bankzeile ist der Umsatz selbst). Sie ändert sich mit Kategorie, Steuersatz und Betrag und ist nur eine Anzeige.
 
 | Kategorie | SKR03 | SKR04 | Voranmeldung | EÜR (Einzelunternehmen) |
 | --- | --- | --- | --- | --- |
@@ -432,7 +538,7 @@ Im Einzelunternehmen ist die einbehaltene Steuer eine Entnahme, angerechnet wird
 
 ## Zahlungsdienstleister
 
-<a id="google-play-und-app-store"></a>Konten bei PayPal, Stripe, Shopify Payments, eBay, Etsy, SumUp, Google Play und App Store stehen unter [Zahlungsdienstleister](bank-zahlungsdienstleister.md).
+<a id="google-play-und-app-store"></a>Konten bei PayPal, Stripe, Shopify Payments, eBay, Etsy, Amazon, SumUp, Google Play und App Store stehen unter [Zahlungsdienstleister](bank-zahlungsdienstleister.md).
 
 ## Buchungen
 
@@ -481,18 +587,18 @@ Bezahlt der Kunde bar, erfasst du das im [Kassenbuch](kasse.md#rechnung-bar-beza
 
 Bei **Ist-Versteuerung** geht die Umsatzsteuer zurück auf „nicht fällig“ (SKR03 1776 an 1766, SKR04 3806 an 3816, hier 47,50 €), denn das Entgelt ist nicht mehr vereinnahmt; mit dem nächsten Zahlungseingang wird sie wieder fällig. Bei Soll-Versteuerung bleibt die Steuer, wie sie ist.
 
-Bei Eingängen (Privateinlage, Geldtransit, Erstattung vom Finanzamt) steht die Bank im Soll und das Gegenkonto im Haben; auf einem Konto mit dem Zweck **privat** steht dort die Privatentnahme bzw. die Einlage ([Voranmeldung](#voranmeldung-zahllast-und-erstattung)). Steuerzahlungen stehen unter [Steuerzahlungen](bank-steuern-darlehen.md#steuerzahlungen).
+Bei Eingängen (Privateinlage, Geldtransit, Erstattung vom Finanzamt) steht die Bank im Soll und das Gegenkonto im Haben; auf einem Konto mit dem Zweck **privat** steht dort die Privatentnahme bzw. die Einlage ([Privates Konto](#privates-konto-geschäftsvorfälle-gegen-entnahme-und-einlage)). Steuerzahlungen stehen unter [Steuerzahlungen](bank-steuern-darlehen.md#steuerzahlungen).
 
 > [!IMPORTANT]
-> Die Konten stammen aus `packages/core/src/posting.ts`. Gleiche sie vor dem Echtbetrieb mit deiner Steuerberatung ab.
+> Die Konten stammen aus `packages/core/src/kontenplan.ts`. Gleiche sie vor dem Echtbetrieb mit deiner Steuerberatung ab.
 
 ## Zuordnung aufheben
 
-Unter **Zugeordnet** steht neben jeder Zuordnung **Aufheben**, bei einer Aufteilung einmal **Aufteilung aufheben** für alle Teile. Haben fragt vorher in einem Dialog nach und nennt Zuordnung, Betrag und den **Tag der Aufhebung**. Vorbelegt ist der Buchungstag der Zahlung, solange deren Zeitraum nicht gemeldet ist, sonst heute. Es löscht dabei nichts: Es legt eine Gegenzeile mit umgekehrtem Betrag an und bucht die ursprüngliche Buchung mit vertauschten Seiten zurück („Storno: …“), und zwar an diesem Tag. Die aufgehobene Zuordnung bleibt durchgestrichen sichtbar, der Betrag ist wieder offen.
+Unter **Zugeordnet** steht neben jeder Zuordnung **Aufheben**, bei einer Aufteilung einmal **Aufteilung aufheben** für alle Teile. Haben fragt vorher in einem Dialog nach und nennt Zuordnung, Betrag und den **Tag der Aufhebung**. Vorbelegt ist der Buchungstag der Zahlung, solange deren Zeitraum nicht gemeldet ist, sonst heute. Es löscht dabei nichts: Es legt eine Gegenzeile mit umgekehrtem Betrag an und bucht die ursprüngliche Buchung mit vertauschten Seiten zurück („Storno: …“), und zwar an diesem Tag. Die aufgehobene Zuordnung bleibt durchgestrichen sichtbar, der Betrag ist wieder offen. Unter der aufgehobenen Zuordnung steht dann neben „Buchung vom …“ auch „Gegenbuchung vom …“.
 
 Eine Zuordnung lässt sich nur einmal aufheben.
 
-Der Tag der Aufhebung darf nicht in der Zukunft liegen. Als Untergrenze gilt das Buchungsdatum der Zahlung, bei einem künftigen Buchungsdatum heute. Änderbar bleibt der vorbelegte Tag in jedem Fall.
+Der Tag der Aufhebung darf nicht in der Zukunft liegen. Als Untergrenze gilt der Tag, an dem die Zuordnung wirksam wurde, bei einem künftigen Buchungsdatum heute. Änderbar bleibt der vorbelegte Tag in jedem Fall.
 
 Eine Aufhebung in einem schon gemeldeten Zeitraum bleibt erlaubt. Die Gegenbuchung wirkt an ihrem Tag, die abgegebene Voranmeldung ändert sich nicht nachträglich.
 
@@ -502,7 +608,9 @@ Zwei Fälle sind zu unterscheiden.
 
 **Die Bemessungsgrundlage ändert sich nachträglich**, etwa durch Rückzahlung, Storno oder Ausfall. Dann greift [§ 17 Abs. 1 UStG](https://www.gesetze-im-internet.de/ustg_1980/__17.html), und die Berichtigung gehört in den Zeitraum, in dem die Änderung eintritt. Dafür ist der Tag der Aufhebung richtig.
 
-**Die Zuordnung war von Anfang an falsch**, etwa auf die falsche Rechnung oder ohne jede Kundenzahlung. Das ist keine Änderung der Bemessungsgrundlage, sondern die Berichtigung eines Erfassungsfehlers. Bei Ist-Versteuerung entsteht die Steuer mit der Vereinnahmung ([§ 13 Abs. 1 Nr. 1 Buchstabe b UStG](https://www.gesetze-im-internet.de/ustg_1980/__13.html)), also gehört die Korrektur in den Monat der Zahlung; ist die Anmeldung dafür schon abgegeben, wird sie nach [§ 153 Abs. 1 AO](https://www.gesetze-im-internet.de/ao_1977/__153.html) berichtigt. Dafür den Tag der Zahlung wählen. Wer im Juli eine März-Zahlung von Rechnung A auf B umhängt und dabei den Tag der Aufhebung nimmt, bekommt B im März und die Gegenzeile von A im Juli — bis dahin stehen die März-Umsatzsteuer und das Bankkonto doppelt.
+**Die Zuordnung war von Anfang an falsch**, etwa auf die falsche Rechnung oder ohne jede Kundenzahlung. Bei Ist-Versteuerung entsteht die Steuer mit der Vereinnahmung ([§ 13 Abs. 1 Nr. 1 Buchstabe b UStG](https://www.gesetze-im-internet.de/ustg_1980/__13.html)). Soll die Berichtigung unmittelbar im Monat der Zahlung wirken, wähle bei der Aufhebung den Tag der Zahlung. Bei einer bereits abgegebenen fehlerhaften Anmeldung gilt [§ 153 Abs. 1 AO](https://www.gesetze-im-internet.de/ao_1977/__153.html).
+
+Ordne einen aufgehobenen Betrag unter **Aufgehobene Zuordnung** erneut zu. Haben übernimmt den Tag der Aufhebung für die neue Buchung und speichert ihren Bezug. Stehen mehrere aufgehobene Teile zur Wahl, wähle für jeden Betrag den passenden Teil. Das geht über **Aufteilen** und auch bei einem separaten Rest als Gebühr oder Kursdifferenz. Einen bisher freien Teil buchst du über **Noch nie zugeordnet** zum Buchungstag des Umsatzes. Die ursprüngliche Zuordnung, ihre Aufhebung und die neue Zuordnung bleiben nachvollziehbar. Wird eine März-Zahlung im Juli aufgehoben und erneut derselben Leistung zugeordnet, gleichen sich die beiden Juli-Buchungen aus.
 
 Beim [Stornieren eines Belegs](belege.md#stornieren-und-neu-erfassen) kann Haben dessen Bankzuordnungen in derselben bestätigten Aktion aufheben. Die Rückfrage nennt die Zuordnungen einschließlich aller Teile betroffener Aufteilungen. Mit der Zahlung verknüpfte Ausbuchungen wie Skonto werden mit aufgehoben. Scheitert die Rücknahme oder der Belegstorno, wird keiner der beiden Teile gespeichert.
 
@@ -530,6 +638,6 @@ Einen einzelnen Umsatz ohne Gegenstück verrechnet Haben nicht: Was Geld bewegt,
 ## Grenzen
 
 - Automatischer Abruf über Enable Banking (PSD2) oder FinTS mit PIN/TAN; FinTS nur mit eigener Registrierungsnummer, ohne chipTAN optisch (Flickercode, dafür chipTAN manuell wählen) und ohne Kreditkarten. Ohne beides kommen die Umsätze per Datei.
-- Dateiimport mit eigenem Format für DKB, Commerzbank, ING, C24, N26, Swan und CAMT.053; die CSV anderer Banken über eine [eigene Spaltenzuordnung](bank-spaltenzuordnung.md), ohne Salden. Zahlungsdienstleister: PayPal, Stripe, Shopify Payments, eBay und Etsy per CSV, [Etsy](bank-zahlungsdienstleister.md#etsy-zahlungsverlauf-über-die-api) auch per Abruf des Zahlungsverlaufs, [Google Play und App Store](bank-zahlungsdienstleister.md#google-play-und-app-store) per Abruf der Finanzberichte; SumUp und andere lassen sich anlegen, aber noch nicht importieren.
+- Dateiimport mit eigenem Format für DKB, Commerzbank, BW-Bank, Deutsche Bank, Norisbank, Postbank, ING, C24, N26, Swan und CAMT.053; die CSV anderer Banken über eine [eigene Spaltenzuordnung](bank-spaltenzuordnung.md), ohne Salden. Zahlungsdienstleister: PayPal, Stripe, Shopify Payments, eBay, Etsy und Amazon per CSV, [Etsy](bank-zahlungsdienstleister.md#etsy-zahlungsverlauf-über-die-api) auch per Abruf des Zahlungsverlaufs, [PayPal](bank-zahlungsdienstleister.md#paypal-umsätze-über-die-api) auch per Abruf der Transaktionen, [Stripe](bank-zahlungsdienstleister.md#stripe-umsätze-über-die-api) auch per Abruf der Umsätze, [Google Play und App Store](bank-zahlungsdienstleister.md#google-play-und-app-store) per Abruf der Finanzberichte; SumUp und andere lassen sich anlegen, aber noch nicht importieren.
 - Zahlungsdienstleister nur in Euro; Zeilen in anderen Währungen (etwa ein USD-Guthaben bei PayPal) übernimmt Haben nicht und meldet sie. Ausnahme ist der App Store: Fremdwährung rechnet Haben mit dem Umsatzsteuer-Umrechnungskurs in Euro um (siehe [Google Play und App Store](bank-zahlungsdienstleister.md#google-play-und-app-store)).
 - Kursdifferenzen nur beim Ausgleich einer Rechnung oder eines Belegs in Fremdwährung; Bankkonten und Verrechnungskonten von Zahlungsdienstleistern nur in Euro.

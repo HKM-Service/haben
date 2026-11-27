@@ -19,6 +19,7 @@ import {
   autoFetchStatus,
   disableAutoFetch,
   enableAutoFetch,
+  erledigtVermerken,
   fetchPostfach,
   lastPostfachRequest,
   listPostfachDocuments,
@@ -60,6 +61,8 @@ export const getFinanzamt = createServerFn({ method: "GET" })
       autoFetch,
       // Einkommensteuer-Vorauszahlungen hat nur ein Einzelunternehmen; eine GmbH oder UG zahlt Körperschaftsteuer
       basis: isKapitalgesellschaft(company.rechtsform) ? null : basis,
+      // Der Haken „Keine Einkommensteuer-Vorauszahlungen festgesetzt“ steuert den Hinweis im Reiter (#1287)
+      keineVorauszahlungen: company.taxpayer.keineVorauszahlungen ?? false,
       messages,
       certificate: certificate ? { filename: certificate.filename } : null,
       mode: elsterMode(),
@@ -69,10 +72,11 @@ export const getFinanzamt = createServerFn({ method: "GET" })
 
 export const sendFinanzamtMessage = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(messageSchema.extend({ kind: z.enum(["validate", "test", "send"]), pin: z.string().max(64).optional() }))
+  .validator(messageSchema.and(z.object({ kind: z.enum(["validate", "test", "send"]), pin: z.string().max(64).optional() })))
   .handler(async ({ data, context }) => {
-    const { kind, pin, ...message } = data;
-    const result = await sendMessage(context.user.id, message, elsterClient(), { kind, pin, herstellerId: env().ELSTER_HERSTELLER_ID });
+    // sendMessage liest die Nachricht selbst mit messageSchema; kind und pin fallen dabei weg
+    const { kind, pin } = data;
+    const result = await sendMessage(context.user.id, data, elsterClient(), { kind, pin, herstellerId: env().ELSTER_HERSTELLER_ID });
     return { ok: result.ok, code: result.code, message: result.message, transferTicket: result.transferTicket ?? null };
   });
 
@@ -101,3 +105,12 @@ export const disablePostfachAutoFetch = createServerFn({ method: "POST" })
     await disableAutoFetch(context.user.id);
     return { ok: true };
   });
+
+/**
+ * Bescheid als geprüft abhaken oder wieder öffnen (#1819). Der Vermerk ist ein Ereignis, kein Zustandsfeld: `postfach_documents`
+ * bleibt unverändert, und im Audit-Log steht, wer wann abgehakt hat.
+ */
+export const markPostfachDocument = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ id: z.string().uuid(), art: z.enum(["geprueft", "wieder_offen"]) }))
+  .handler(async ({ data, context }) => erledigtVermerken(data.id, data.art, context.user.id));

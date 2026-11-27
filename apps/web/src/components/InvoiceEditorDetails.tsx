@@ -1,0 +1,214 @@
+import { advanceUsesPayments, CURRENCY_CODE, parseExchangeRate, vatTerritory } from "@haben/core";
+import { Link } from "@tanstack/react-router";
+import { useId } from "react";
+import { FORMAT_LABEL, FORMATS } from "../lib/invoice.ts";
+import type { DraftInput } from "../server/modules/rechnungen/index.ts";
+import { BrandProfileSelect } from "./BrandProfileSelect.tsx";
+import { Field } from "./Field.tsx";
+import { OrderReferenceFields } from "./OrderReferenceFields.tsx";
+import { InvoiceCustomerFields, InvoiceDatePaymentFields, InvoiceTaxFields } from "./InvoiceEditorFields.tsx";
+import { ForeignCurrencyHint, FORMAT_HINT, ServiceHint, serviceHintIds, serviceHintState } from "./InvoiceEditorHinweise.tsx";
+import type { InvoiceEditorModel } from "./use-invoice-editor.ts";
+
+// Karte „Rechnungsdaten“ bzw. „Angebotsdaten“: Art, Kunde, Daten, Zahlung, Währung, Format und Steuer
+
+/** onBrandChanged: Die Marke bringt ihre eigene Gestaltung mit; ungespeicherte Änderungen am Standard verwerfen */
+export function InvoiceEditorDetails({ editor, onBrandChanged }: { editor: InvoiceEditorModel; onBrandChanged?: () => void }) {
+  const {
+    advanceType,
+    brandProfileId,
+    brandProfiles,
+    contact,
+    contacts,
+    currencyCode,
+    editable,
+    error,
+    format,
+    kind,
+    language,
+    quote,
+    references,
+    serviceFrom,
+    serviceTo,
+    setBrandProfileId,
+    setFormat,
+    setLanguage,
+    setReferences,
+    setServiceFrom,
+    setServiceTo,
+    taxTreatment,
+    touch,
+    variant,
+  } = editor;
+  const serviceHint = serviceHintState({ kind, variant, advanceType, currency: currencyCode, taxTreatment });
+  const serviceHintFor = serviceHintIds(serviceHint);
+  const territoryHintId = useId();
+  const territoryDescription = editable && vatTerritory(contact?.land, contact?.plz) ? territoryHintId : undefined;
+  return (
+    <section className="card" aria-label={quote ? "Angebotsdaten" : "Rechnungsdaten"}>
+      <div className="form-grid">
+        <InvoiceVariantFields editor={editor} />
+        <BrandProfileSelect
+          profiles={brandProfiles}
+          value={brandProfileId}
+          disabled={!editable}
+          onChange={(value) => {
+            touch(setBrandProfileId)(value);
+            onBrandChanged?.();
+          }}
+        />
+        <InvoiceCustomerFields editor={editor} territoryDescription={territoryDescription} />
+        <InvoiceDatePaymentFields editor={editor} />
+        <Field label="Leistung von" describedBy={serviceHintFor.von} error={error("serviceFrom")}>
+          {(control) => (
+            <input
+              {...control}
+              type="date"
+              value={serviceFrom}
+              onChange={(e) => touch(setServiceFrom)(e.target.value)}
+              required={variant === "abschlag" && advanceType === "teilleistung"}
+            />
+          )}
+        </Field>
+        <Field label="Leistung bis" describedBy={serviceHintFor.bis}>
+          {(control) => <input {...control} type="date" value={serviceTo} onChange={(e) => touch(setServiceTo)(e.target.value)} />}
+        </Field>
+        <ServiceHint state={serviceHint} />
+        <OrderReferenceFields value={references} onChange={touch(setReferences)} disabled={!editable} />
+        <Field label="Sprache" hint="Texte im PDF und in der E-Mail; die E-Rechnung selbst bleibt maschinenlesbar wie gehabt." style={{ gridColumn: "1 / -1" }}>
+          {(control) => (
+            <select {...control} value={language} onChange={(e) => touch(setLanguage)(e.target.value as "de" | "en")} disabled={!editable}>
+              <option value="de">Deutsch</option>
+              <option value="en">Englisch</option>
+            </select>
+          )}
+        </Field>
+        {kind === "rechnung" && <InvoiceCurrencyFields editor={editor} />}
+        {!quote && (
+          <Field label="E-Rechnungsformat" hint={FORMAT_HINT} style={{ gridColumn: "1 / -1" }}>
+            {(control) => (
+              <select {...control} value={format} onChange={(e) => touch(setFormat)(e.target.value as DraftInput["format"])}>
+                {FORMATS.map((f) => (
+                  <option key={f} value={f}>
+                    {FORMAT_LABEL[f]}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        )}
+        <InvoiceTaxFields editor={editor} territoryDescription={territoryDescription} />
+      </div>
+      {!contacts.length && (
+        <p className="small muted" style={{ margin: 0 }}>
+          Noch keine Kontakte. <Link to="/kontakte/neu">Kunden anlegen</Link>
+        </p>
+      )}
+    </section>
+  );
+}
+
+export function InvoiceVariantFields({ editor }: { editor: InvoiceEditorModel }) {
+  const { advanceType, chooseVariant, editable, kind, setAdvanceType, taxTreatment, touch, variant } = editor;
+  return (
+    <>
+      {kind === "rechnung" && (
+        <Field
+          label="Rechnungsart"
+          hint={
+            variant &&
+            (variant === "abschlag"
+              ? "Anzahlung vor Leistung oder Rechnung über eine bereits erbrachte Teilleistung."
+              : "Über die gesamte Leistung; die gewählten Abschlagsrechnungen werden mit Netto und Umsatzsteuer abgezogen.")
+          }
+          style={{ gridColumn: "1 / -1" }}
+        >
+          {(control) => (
+            <select {...control} value={variant ?? ""} onChange={(e) => chooseVariant((e.target.value || null) as "abschlag" | "schluss" | null)}>
+              <option value="">Rechnung</option>
+              <option value="abschlag">Abschlagsrechnung</option>
+              <option value="schluss">Schlussrechnung</option>
+            </select>
+          )}
+        </Field>
+      )}
+      {kind === "rechnung" && variant === "abschlag" && (
+        <div className="checkbox-hinted" style={{ gridColumn: "1 / -1" }}>
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={advanceType === "teilleistung"}
+              disabled={!editable}
+              aria-describedby="invoice-advance-hint"
+              onChange={(e) => touch(setAdvanceType)(e.target.checked ? "teilleistung" : "anzahlung")}
+            />
+            Teilleistung bereits erbracht
+          </label>
+          <span id="invoice-advance-hint" className="field-hint">
+            {advanceType === "teilleistung"
+              ? taxTreatment === "regulaer"
+                ? "Bei Soll-Versteuerung entsteht die Umsatzsteuer mit der Teilleistung."
+                : "Tatsächliches Leistungsdatum der Teilleistung angeben. Der Meldezeitpunkt richtet sich nach der gewählten Steuerbehandlung."
+              : taxTreatment === "regulaer"
+                ? "Umsatzsteuer entsteht bei Zahlungseingang; bei Soll-Versteuerung spätestens mit der Schlussleistung."
+                : taxTreatment === "kleinunternehmer"
+                  ? "Als Kleinunternehmer weist du auf der Anzahlung keine Umsatzsteuer aus."
+                  : advanceUsesPayments(taxTreatment)
+                    ? "Steuerfreie Anzahlung ohne Umsatzsteuerausweis. Der Meldezeitpunkt richtet sich nach Zahlung und Schlussleistung."
+                    : "Für diese Steuerbehandlung gelten die bisherigen Meldezeitpunkte; die Zahlungsregel für inländische Anzahlungen gilt hier nicht."}
+          </span>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function InvoiceCurrencyFields({ editor }: { editor: InvoiceEditorModel }) {
+  const { currency, currencyCode, exchangeRate, exchangeRateDate, foreign, rateInfo, setCurrency, setExchangeRate, setExchangeRateDate, tageskurs, touch } =
+    editor;
+  return (
+    <>
+      <Field label="Währung" describedBy={foreign ? "invoice-currency-hint" : undefined}>
+        {(control) => (
+          <>
+            <input
+              {...control}
+              value={currency}
+              onChange={(e) => touch(setCurrency)(e.target.value.toUpperCase().slice(0, 3))}
+              list="invoice-currency-codes"
+              maxLength={3}
+              className="mono"
+              aria-invalid={!CURRENCY_CODE.test(currencyCode)}
+            />
+            <datalist id="invoice-currency-codes">
+              {["EUR", "USD", "GBP", "CHF", "PLN", "SEK", "DKK", "JPY"].map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </>
+        )}
+      </Field>
+      {foreign && (
+        <Field label={<>Kurs: 1 EUR = … {CURRENCY_CODE.test(currencyCode) ? currencyCode : ""}</>} describedBy="invoice-currency-hint">
+          {(control) => (
+            <input
+              {...control}
+              className="mono"
+              inputMode="decimal"
+              value={exchangeRate}
+              placeholder="leer = USt-Umrechnungskurs"
+              onChange={(e) => touch(setExchangeRate)(e.target.value)}
+              aria-invalid={exchangeRate.trim() !== "" && parseExchangeRate(exchangeRate) === null}
+            />
+          )}
+        </Field>
+      )}
+      {foreign && tageskurs && (
+        <Field label="Kursdatum">
+          {(control) => <input {...control} type="date" value={exchangeRateDate} onChange={(e) => touch(setExchangeRateDate)(e.target.value)} />}
+        </Field>
+      )}
+      {foreign && <ForeignCurrencyHint currencyCode={currencyCode} rateInfo={rateInfo} />}
+    </>
+  );
+}

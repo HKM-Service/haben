@@ -11,7 +11,7 @@ import { euerAusJournal } from "./euer-journal.ts";
  */
 
 /** Zeilen aus den Buchungen des Anlagenverzeichnisses */
-const ANLAGE: EuerLineKey[] = ["afa", "gwg", "sammelposten", "restbuchwert", "privateKfz", "ustEntnahmen"];
+const ANLAGE: EuerLineKey[] = ["afa", "sonderAfa", "gwg", "sammelposten", "restbuchwert", "privateKfz", "ustEntnahmen"];
 const EINNAHMEN_IM_MONAT = new Set<EuerLineKey>(["einnahmenKleinunternehmer", "einnahmenSteuerpflichtig", "einnahmenSteuerfrei", "kursgewinne"]);
 const AUSGABEN_IM_MONAT = (key: EuerLineKey) =>
   key.startsWith("ausgabe:") ||
@@ -19,7 +19,7 @@ const AUSGABEN_IM_MONAT = (key: EuerLineKey) =>
   ["personal", "kursverluste", "steuerNebenleistungen", "schuldzinsen", "schuldzinsenAnlage"].includes(key);
 
 export async function euerAusDemJournal(year: number, q: Db | Tx, { ohneManuelle = false } = {}): Promise<EuerResult> {
-  const { summe, monate } = await euerAusJournal(year, q, undefined, ohneManuelle);
+  const { summe, monate } = await euerAusJournal(year, q, ohneManuelle);
   // Ohne Zeilen, die sich aufheben (Zahlung und Aufhebung): computeEuer verrechnet sie vorher, die Zeile entsteht dort nicht
   const summen = new Map((Object.entries(summe.zeilen) as [EuerLineKey, Cents][]).filter(([, betrag]) => betrag !== 0));
   // Noch nicht gebucht: AfA und Privatnutzung aus dem Anlagenverzeichnis, die schon gebuchten Anlagen nicht doppelt

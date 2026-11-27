@@ -1,10 +1,13 @@
+import { waehleKategorie } from "./kategorie.ts";
+import { pruefsumme, type Sollbestand } from "@firsttris/gobd-kern/sperren";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { zipSync } from "fflate";
 import { readFileSync } from "node:fs";
 import postgres from "postgres";
 import { currentDay, currentYear, day, EIGENE_SEITE, fakeEigeneSeite, SESSION, YEAR } from "./daten.ts";
-import { databaseUrlFuer } from "./durchlaeufe.ts";
+import { databaseUrlFuer, portFuer } from "./durchlaeufe.ts";
+import sollbestand from "../src/server/db/trigger-inventory.json" with { type: "json" };
 import {
   bestaetigen,
   faktenZeigen,
@@ -15,6 +18,7 @@ import {
   gehe,
   INVOICES,
   kontaktAnlegen,
+  kontoVerbinden,
   kundeWaehlen,
   rechnungFestschreiben,
   lieferantWaehlen,
@@ -25,7 +29,7 @@ import { receiptJpeg } from "./belegbild.ts";
  * Ein Durchlauf wie im echten Betrieb, in einer leeren Datenbank: Konto einrichten, Kunden anlegen,
  * Rechnungen schreiben, einen Beleg buchen, den Kontoauszug importieren und zuordnen. Danach müssen
  * Buchungen und Konten stimmen. Dazu, was die Tests im Projekt „mit-daten“ (playwright.config.ts) vorfinden
- * müssen: Auftragsarchiv, eigene Seite, Mitarbeiter, Dauerbeleg. Zum Schluss speichert der Test die Sitzung
+ * müssen: Auftragsarchiv, eigene Seite, Mitarbeiter, Dauerbeleg, Umsatzsteuer an das Finanzamt. Zum Schluss speichert der Test die Sitzung
  * (SESSION); mit ihr und diesen Daten laufen danach die Tests im Projekt „mit-daten“ parallel. Was diese Daten
  * nicht braucht, spielen rechnungen.spec.ts und belege-steuern.spec.ts mit eigenem Server daneben durch.
  */
@@ -91,9 +95,9 @@ test("Einrichtung: Konto, Firmendaten und Rechnungsnummer", async () => {
   await expect(format.getByText(/braucht das Jahr/)).toBeVisible();
   await expect(format.getByRole("button", { name: "Format speichern" })).toBeDisabled();
   // Läuft der Zähler weiter, ist das Jahr frei; das Beispiel zeigt den Jahreswechsel (#328)
-  await rechnungen.getByLabel("Zähler").selectOption({ label: "läuft weiter" });
+  await rechnungen.getByLabel("Zähler", { exact: true }).selectOption({ label: "läuft weiter" });
   await expect(format).toContainText("Beispiel: RE-412, RE-413");
-  await rechnungen.getByLabel("Zähler").selectOption({ label: "beginnt jedes Jahr neu" });
+  await rechnungen.getByLabel("Zähler", { exact: true }).selectOption({ label: "beginnt jedes Jahr neu" });
   await rechnungen.getByLabel("Format").fill("RE-{JJJJ}-{MM}-{NNNN}");
   await expect(format).toContainText(/Beispiel: RE-\d{4}-\d{2}-0001, RE-\d{4}-\d{2}-0002/);
   await format.getByRole("button", { name: "Format speichern" }).click();
@@ -103,7 +107,7 @@ test("Einrichtung: Konto, Firmendaten und Rechnungsnummer", async () => {
   // Die folgenden Tests rechnen mit den Nummern ab Werk
   await format.getByRole("button", { name: "Auf Standard zurücksetzen" }).click();
   await expect(rechnungen.getByLabel("Format")).toHaveValue("{JJJJ}-{NNN}");
-  await expect(rechnungen.getByLabel("Zähler")).toHaveValue("jaehrlich");
+  await expect(rechnungen.getByLabel("Zähler", { exact: true })).toHaveValue("jaehrlich");
 
   await go("/einstellungen?bereich=gestaltung");
   const akzent = page.getByRole("form", { name: "Akzentfarbe" });
@@ -197,6 +201,13 @@ test("Einrichtung: Konto, Firmendaten und Rechnungsnummer", async () => {
   await expect(logoZeichen).toHaveCount(0);
 });
 
+test("Bank-Anfangsbestand im Einzelunternehmen", async () => {
+  await go("/buchungen/neu");
+  const form = page.getByRole("form", { name: "Manuelle Buchung" });
+  await expect(form).toContainText("Der Bank-Anfangsbestand braucht keine Buchung.");
+  await expect(form.getByRole("link", { name: "Bank", exact: true })).toHaveAttribute("href", "/bank");
+});
+
 test("Kunden anlegen", async () => {
   for (const c of CUSTOMERS) await kontaktAnlegen(page, c);
   await go("/kontakte");
@@ -214,6 +225,35 @@ test("Kunden anlegen", async () => {
   await expect(liste).toContainText("+49 40 123456-0");
   await page.getByPlaceholder(/^Suchen:/).fill("gibt es nicht");
   await expect(liste).toContainText("Kein Kontakt passt");
+});
+
+test("Zähler je Kunde: Einstellung mit Pflichtformat, Karte am Kontakt (#1426)", async () => {
+  await go("/einstellungen?bereich=rechnungen");
+  const format = page.getByRole("form", { name: "Nummernformat" });
+  const rechnungen = format.getByRole("group", { name: "Rechnungen" });
+  await rechnungen.getByLabel("Eigener Zähler je Kunde").check();
+  await expect(format.getByText(/braucht die Kundennummer/)).toBeVisible();
+  await expect(format.getByRole("button", { name: "Format speichern" })).toBeDisabled();
+  await rechnungen.getByLabel("Format").fill("RE-{JJJJ}-{KUNDENNR}-{NNN}");
+  await format.getByRole("button", { name: "Format speichern" }).click();
+  await expect(format.getByRole("status")).toContainText("Nummernformat gespeichert.");
+
+  // Die Karte des Kundenkreises steht auf der Seite des Kontakts — nur mit Kundennummer und nur für die Art mit Schalter
+  await go("/kontakte");
+  await page.getByRole("link", { name: "Nordwerk Software GmbH" }).first().click();
+  await expect(page.getByRole("form", { name: /Nummern dieses Kunden/ })).toHaveCount(0);
+  await page.getByLabel("Kundennummer").fill("NW-1");
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await expect(page.getByRole("form", { name: /^Rechnungsnummern dieses Kunden/ })).toBeVisible();
+  await expect(page.getByRole("form", { name: /^Angebotsnummern dieses Kunden/ })).toHaveCount(0);
+
+  // Zurück auf den Stand, mit dem die folgenden Tests rechnen
+  await page.getByLabel("Kundennummer").fill("");
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await go("/einstellungen?bereich=rechnungen");
+  await format.getByRole("button", { name: "Auf Standard zurücksetzen" }).click();
+  await expect(rechnungen.getByLabel("Format")).toHaveValue("{JJJJ}-{NNN}");
+  await expect(rechnungen.getByLabel("Eigener Zähler je Kunde")).not.toBeChecked();
 });
 
 test("Lastschriftmandat am Kunden: Gläubiger-ID, Mandat mit PDF anlegen und widerrufen (#445)", async ({ browser }) => {
@@ -497,6 +537,46 @@ test("Mahnung: Einleitung und Schluss lassen sich mit den Knöpfen auszeichnen (
   ).toBe("%PDF-");
 });
 
+test("Ausgeblendete Rechnungsbereiche lassen Korrekturen und den Mahnverlauf sichtbar", async () => {
+  await go("/rechnungen/mahnwesen");
+  await page.getByRole("link", { name: "Zahlungserinnerung", exact: true }).first().click();
+  await page.waitForURL(/mahnwesen\/[0-9a-f-]{36}$/);
+  const mahnseite = new URL(page.url()).pathname;
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("button", { name: "Zahlungserinnerung erstellen" }).click();
+  await page.waitForURL(/rechnungen\/[0-9a-f-]{36}$/);
+  const rechnungsseite = new URL(page.url()).pathname;
+  const mahnungen = page.getByRole("region", { name: "Mahnungen" });
+  await expect(mahnungen.getByRole("button", { name: "per E-Mail" })).toBeVisible();
+
+  const bereiche = "/einstellungen?bereich=bereiche";
+  const schalter = (name: string) => page.getByRole("checkbox", { name, exact: true });
+  const aendern = async (sichtbar: boolean) => {
+    await go(bereiche);
+    for (const name of ["Mahnwesen", "Rechnungen schreiben"]) {
+      await schalter(name).setChecked(sichtbar);
+      await expect(schalter(name)).toBeEnabled();
+    }
+  };
+  await aendern(false);
+  try {
+    await go(rechnungsseite);
+    await expect(mahnungen.getByRole("link", { name: /^Zahlungserinnerung vom/ })).toBeVisible();
+    await expect(mahnungen.getByRole("button", { name: "per E-Mail" })).toHaveCount(0);
+    await expect(mahnungen.getByRole("link", { name: "Nächste Mahnstufe" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Kopieren", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Stornieren", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Rechnungskorrektur anlegen" })).toBeVisible();
+    await go("/rechnungen/mahnwesen");
+    await expect(page.getByRole("heading", { level: 1, name: "Mahnwesen" })).toBeVisible();
+    await expect(page.locator('a[href^="/rechnungen/mahnwesen/"]')).toHaveCount(0);
+    await go(mahnseite);
+    await expect(page.getByRole("button", { name: /erstellen$/ })).toBeVisible();
+  } finally {
+    await aendern(true);
+  }
+});
+
 /** IBAN des Lieferanten Funknetz Mobil GmbH, im Kontakt und im Kontoauszug */
 const SUPPLIER_IBAN = "DE02100100100006820101";
 /** EndToEndId der SEPA-Überweisung für den Mobilfunkbeleg; der Kontoauszug nennt sie als Kundenreferenz */
@@ -525,7 +605,7 @@ test("Beleg hochladen und buchen", async ({ browser }) => {
   await expect(page.getByLabel("Lieferant", { exact: true })).toHaveValue("Funknetz Mobil GmbH");
   await page.getByLabel("Rechnungsnummer").fill("MF-0815");
   await page.getByLabel("Belegdatum").fill(day(-9));
-  await page.getByLabel("Kategorie").selectOption("telefon");
+  await waehleKategorie(page.getByLabel("Kategorie"), "telefon");
   await page.getByLabel("Netto", { exact: true }).fill("38,57");
   await page.getByRole("button", { name: "Bestätigen und buchen" }).click();
   await faktenZeigen(page, "Betrag");
@@ -547,12 +627,13 @@ test("Überweisung als SEPA-Datei: offenen Beleg wählen, Datei herunterladen, V
   // Ohne Bankkonto gibt es kein Auftraggeberkonto
   await expect(page.getByText(/braucht Haben das Konto, von dem sie abgeht/)).toBeVisible();
   await go("/bank");
-  await page.getByRole("button", { name: "Konto hinzufügen" }).click();
+  await kontoVerbinden(page, "Konto ohne Abruf anlegen");
   const accountForm = page.locator("form").filter({ has: page.getByRole("button", { name: "Konto anlegen" }) });
   await accountForm.getByRole("textbox", { name: "Name" }).fill("Girokonto");
   await accountForm.getByRole("textbox", { name: "IBAN" }).fill("DE45 1203 0000 1234 5678 90");
   await accountForm.getByRole("button", { name: "Konto anlegen" }).click();
-  await expect(page.getByRole("combobox", { name: "Konto" }).locator("option", { hasText: "Girokonto" })).toHaveCount(1);
+  // Das neue Konto ist gewählt: seine Karte steht in der Leiste (#1951)
+  await expect(page.getByRole("navigation", { name: "Konten" }).getByRole("link", { name: /^Girokonto/ })).toHaveAttribute("aria-current", "page");
 
   await go("/ueberweisungen");
   const form = page.getByRole("form", { name: "SEPA-Überweisung erzeugen" });
@@ -1069,8 +1150,9 @@ test("Eigene Seiten: im Menü einhängen, im Rahmen anzeigen, ändern und entfer
   await expect(form.getByLabel("Adresse")).toHaveValue("");
   await expect(form.getByLabel("Öffnen")).toHaveValue("haben");
   await expect(paperless).toHaveAccessibleName("Paperless (öffnet in neuem Tab)");
-  // Die eingeklappte Leiste steht verborgen daneben im DOM, mit demselben Hinweis
-  await expect(page.getByText("Öffnet in neuem Tab").filter({ visible: true })).toBeVisible();
+  // Der Hinweis in der Liste der Einstellungen; der Menülink trägt „ (öffnet in neuem Tab)“ nur für Screenreader (1 × 1 px,
+  // für Playwright sichtbar), exact schließt ihn aus
+  await expect(page.getByText("Öffnet in neuem Tab", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Paperless bearbeiten" }).click();
   await expect(page.getByRole("form", { name: "Paperless bearbeiten" }).getByLabel("Öffnen")).toHaveValue("tab");
   await page.getByRole("button", { name: "Paperless entfernen" }).click();
@@ -1112,12 +1194,20 @@ test("Lohn: Minijob anlegen und den laufenden Monat abrechnen", async ({ browser
   await form.getByLabel("Ort", { exact: true }).fill("Regensburg");
   await form.getByLabel("Geburtsdatum").fill("2001-03-15");
   await form.getByLabel("Art der Beschäftigung").selectOption("minijob");
-  await form.getByLabel("Monatsgehalt brutto in Euro").fill("520,00");
+  const gehalt = form.getByLabel("Monatsgehalt brutto in Euro");
+  await gehalt.fill("3.000 Euro");
   await form.getByLabel("Eintritt", { exact: true }).fill(`${currentYear()}-01-01`);
   await form.getByLabel("Steuer-ID").fill("47291830467");
   await form.getByLabel("Versicherungsnummer").fill("65150301A123");
   await form.getByLabel("Personengruppe").fill("109");
   await form.getByLabel("Beitragsgruppenschlüssel").fill("6100");
+  // Ein nicht lesbarer Betrag: Meldung an genau diesem Feld, Fokus dort, nichts angelegt (#1277)
+  await form.getByRole("button", { name: "Mitarbeiter anlegen" }).click();
+  await expect(form.getByText("Trag den Betrag ein, etwa 1.234,56.")).toBeVisible();
+  await expect(gehalt).toBeFocused();
+  await expect(gehalt).toHaveAttribute("aria-invalid", "true");
+  await expect(page).toHaveURL(/\/lohn\/mitarbeiter\/neu$/);
+  await gehalt.fill("520,00");
   await form.getByRole("button", { name: "Mitarbeiter anlegen" }).click();
   await page.waitForURL(/\/lohn$/);
   await expect(page.getByRole("link", { name: "Jonas Aushilfe", exact: true })).toBeVisible();
@@ -1134,14 +1224,14 @@ test("Lohn: Minijob anlegen und den laufenden Monat abrechnen", async ({ browser
 test("Dauerbeleg: Miete mit Vertrag anlegen, Beleg zu prüfen, im Bankabgleich buchen und zuordnen", async () => {
   const termin = day(-4);
   await go("/dauerbelege");
-  await page.getByRole("link", { name: "Neuer Dauerbeleg" }).click();
+  await page.locator(".page-head").getByRole("link", { name: "Neuer Dauerbeleg" }).click();
   await page.waitForURL(/\/dauerbelege\/neu$/);
   await page.waitForLoadState("networkidle");
   await page.getByLabel("Bezeichnung").fill("Büromiete Hafenstraße");
   await page.getByLabel("Lieferant", { exact: true }).fill("Hafen Immobilien GmbH");
   await page.getByLabel("Vertrags- oder Kundennummer (optional)").fill("MV-2026-17");
   // Eigene Kategorie für Miete (#312): DATEV 4210 bzw. 6310
-  await page.getByLabel("Kategorie").selectOption({ label: "Miete für Geschäftsräume" });
+  await waehleKategorie(page.getByLabel("Kategorie"), "miete");
   await page.getByLabel("Erster Beleg am").fill(termin);
   await page.getByLabel("Fällig Tage nach dem Termin").fill("3");
   await page
@@ -1150,7 +1240,7 @@ test("Dauerbeleg: Miete mit Vertrag anlegen, Beleg zu prüfen, im Bankabgleich b
   // Ohne Steuerausweis gibt es keine Vorsteuer; der Vertrag weist sie hier aus (Option nach § 9 UStG)
   await expect(page.getByText(/Vorsteuer nur mit einem Dokument/)).toBeVisible();
   await page.getByLabel("Steuersatz 1").selectOption("1900");
-  await page.getByLabel(/weist die Umsatzsteuer gesondert aus/).check();
+  await page.getByLabel(/^Weist die Umsatzsteuer gesondert aus/).check();
   await page.getByLabel("Netto 1").fill("500,00");
   await expect(page.getByLabel("Umsatzsteuer 1")).toHaveValue("95,00");
   await expect(page.getByText("Je Termin: 500,00 € netto + 95,00 € Umsatzsteuer = 595,00 €")).toBeVisible();
@@ -1223,6 +1313,57 @@ test("Dauerbeleg: Miete mit Vertrag anlegen, Beleg zu prüfen, im Bankabgleich b
   await expect(page.getByText(/Pausiert: Bis zum Fortsetzen/)).toBeVisible();
   await page.getByRole("button", { name: "Fortsetzen" }).click();
   await expect(page.getByText(/Aktiv: Haben legt zu jedem Termin/)).toBeVisible();
+});
+
+test("Umsatzsteuer an das Finanzamt ohne Beleg, für den Drilldown der BWA (#1635)", async () => {
+  // Von außen über die Server-Module wie in dauerfrist-euer.spec.ts: Der Bankabgleich ist hier nicht das Thema
+  Object.assign(process.env, {
+    DATABASE_URL: databaseUrlFuer(),
+    BETTER_AUTH_URL: `http://localhost:${portFuer()}`,
+    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? "e2e-geheimnis-mindestens-zweiunddreissig-zeichen",
+    HABEN_ENCRYPTION_KEY: process.env.HABEN_ENCRYPTION_KEY ?? Buffer.alloc(32, 7).toString("base64"),
+    DOCUMENTS_DIR: process.env.E2E_DOCUMENTS_DIR ?? "test-results/e2e-belege",
+  });
+  const bank = await import("../src/server/modules/bank/index.ts");
+  const csv =
+    `"Girokonto";"DE45 1203 0000 1234 5678 90"\n""\n` +
+    `"Buchungsdatum";"Wertstellung";"Status";"Zahlungspflichtige*r";"Zahlungsempfänger*in";"Verwendungszweck";"Umsatztyp";"IBAN";"Betrag (€)";"Gläubiger-ID";"Mandatsreferenz";"Kundenreferenz"\n` +
+    [
+      dkb(day(-2)),
+      dkb(day(-2)),
+      "Gebucht",
+      "Max Mustermann",
+      "Finanzamt Regensburg",
+      "USt-Vorauszahlung",
+      "Ausgang",
+      "DE76750000000075001007",
+      // kleiner als die Miete (595,00 €): bank-sortierung.spec.ts erwartet die Miete als größten Ausgang
+      "-234,00",
+      "",
+      "",
+      "",
+    ]
+      .map((v) => `"${v}"`)
+      .join(";") +
+    "\n";
+  await bank.importStatement("e2e-ablauf", { bytes: new TextEncoder().encode(csv), filename: "finanzamt.csv" }, null);
+  const sql = postgres(databaseUrlFuer(), { max: 1 });
+  const [umsatz] = await sql<{ id: string }[]>`select id from bank_transactions where purpose = 'USt-Vorauszahlung'`;
+  await sql.end();
+  await bank.allocate("e2e-ablauf", { kind: "ustVorauszahlung", transactionId: umsatz!.id, amount: -234_00 });
+  await (await import("../src/server/db/index.ts")).closeDatabase();
+});
+
+// Dieselbe Prüfsumme schreibt der Release-Workflow in die Versionshinweise (#1683)
+test("Kette prüfen zeigt die Prüfsumme der Sperren, gleich der in den Versionshinweisen", async () => {
+  await go("/einstellungen?bereich=export");
+  const card = page.locator("section.card").filter({ has: page.getByRole("heading", { name: "Änderungsprotokoll prüfen", exact: true }) });
+  await card.getByRole("button", { name: "Kette prüfen", exact: true }).click();
+  await expect(card).toContainText("Kette, Siegel und Sperren sind unverändert");
+  await expect(card).toContainText(
+    `Prüfsumme der Sperren${pruefsumme(sollbestand as Sollbestand)}Gleich der des Sollbestands, den diese Version ausliefert; veröffentlicht in den Versionshinweisen zu Haben`,
+  );
+  await expect(card.getByRole("link", { name: /^Versionshinweisen zu Haben / })).toHaveAttribute("href", /\/releases\/tag\/v/);
 });
 
 test("Kette prüfen unterscheidet Betreiberhinweise von abgeschalteten und fehlenden Sperren", async () => {

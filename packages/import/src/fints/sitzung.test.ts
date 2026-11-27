@@ -11,6 +11,7 @@ import {
   fintsUmsaetze,
   type FintsZugang,
 } from "./sitzung.ts";
+import { ohneBankdaten } from "./log.ts";
 import { type FintsTestbank, startFintsTestbank } from "./testbank.ts";
 
 const PRODUKT = { id: "TESTPRODUKT0123456789ABCD", version: "0.9" };
@@ -43,7 +44,15 @@ describe("FinTS-Sitzung gegen die nachgebaute Bank", () => {
   });
 
   beforeEach(() => {
-    Object.assign(bank.zustand, { scaBeiAnmeldung: false, scaBeiUmsaetzen: false, freigegeben: false, nichtErreichbar: false, mt940Unlesbar: false });
+    Object.assign(bank.zustand, {
+      scaBeiAnmeldung: false,
+      scaBeiUmsaetzen: false,
+      freigegeben: false,
+      appTanEintippen: false,
+      umsatzTanVerschwiegen: false,
+      nichtErreichbar: false,
+      mt940Unlesbar: false,
+    });
   });
 
   it("verbindet mit TAN bei der Anmeldung und ruft danach Umsätze ab", async () => {
@@ -108,6 +117,68 @@ describe("FinTS-Sitzung gegen die nachgebaute Bank", () => {
     expect(ohneTan.art === "ok" && ohneTan.wert.map((s) => s.format)).toEqual(["MT940"]);
   });
 
+  it("fragt bei pushTAN eine TAN ab, wenn die Bank sie eintippen lässt (0030 ohne 3955, wie die Consorsbank)", async () => {
+    const client = fintsClient(PRODUKT, zugang);
+    await fintsSynchronisieren(client);
+    Object.assign(bank.zustand, { scaBeiAnmeldung: true, appTanEintippen: true });
+    client.selectTanMethod(921);
+    const anmeldung = await fintsSynchronisieren(client);
+    expect(anmeldung).toMatchObject({
+      art: "tan",
+      anfrage: { entkoppelt: false, text: "Bitte generieren Sie eine TAN mit Ihrer Banking App oder Ihrem TAN Generator und geben diese hier ein." },
+    });
+    if (anmeldung.art !== "tan") return;
+
+    const fertig = await fintsSynchronisieren(client, { referenz: anmeldung.anfrage.referenz, tan: "123456" });
+    expect(fertig.art).toBe("ok");
+    // Die TAN geht mit Prozess 2 an die Bank, nicht als Statusabfrage (S); das Verfahren bleibt in den BPD entkoppelt
+    expect(bank.zustand.anfragen.filter((a) => a.tan === "123456").at(-1)).toMatchObject({ tanProzess: "2", verfahren: 921 });
+    expect(client.config.selectedTanMethod?.isDecoupled).toBe(true);
+    expect(fintsKonten(client).abrufbar.map((k) => k.iban)).toEqual([IBAN]);
+  });
+
+  it("ruft Umsätze nach 9075 noch einmal mit TAN-Schritt ab und merkt sich das in den BPD (wie die Consorsbank)", async () => {
+    bank.zustand.umsatzTanVerschwiegen = true;
+    const client = fintsClient(PRODUKT, zugang);
+    await fintsSynchronisieren(client);
+    client.selectTanMethod(921);
+    expect((await fintsSynchronisieren(client)).art).toBe("ok");
+    const konto = fintsKonten(client).abrufbar[0]!;
+    const vorher = bank.zustand.anfragen.length;
+    /** Je Umsatzabruf: ging der TAN-Schritt (HKTAN) mit? */
+    const mitTanSchritt = () =>
+      bank.zustand.anfragen
+        .slice(vorher)
+        .filter((a) => a.segmente.includes("HKKAZ"))
+        .map((a) => a.segmente.includes("HKTAN"));
+
+    const umsaetze = await fintsUmsaetze(client, konto, "2026-10-01", "2026-10-31");
+    expect(umsaetze.art === "ok" && umsaetze.wert[0]?.transactions).toHaveLength(2);
+    expect(mitTanSchritt()).toEqual([false, true]);
+    expect(client.config.bankingInformation.bpd?.allowedTransactions.find((t) => t.transId === "HKKAZ")?.tanRequired).toBe(true);
+
+    // Der nächste Abruf schickt den TAN-Schritt gleich mit
+    expect((await fintsUmsaetze(client, konto, "2026-10-01", "2026-10-31")).art).toBe("ok");
+    expect(mitTanSchritt()).toEqual([false, true, true]);
+  });
+
+  it("ruft nach 9075 auch mit TAN-Schritt neu ab, wenn schon die Anmeldung des Abrufs eine TAN brauchte", async () => {
+    bank.zustand.umsatzTanVerschwiegen = true;
+    const client = fintsClient(PRODUKT, zugang);
+    await fintsSynchronisieren(client);
+    client.selectTanMethod(912);
+    expect((await fintsSynchronisieren(client)).art).toBe("ok");
+    const konto = fintsKonten(client).abrufbar[0]!;
+
+    // TAN schon bei der Anmeldung des Abrufs (etwa nach 180 Tagen); HKKAZ folgt im selben Dialog noch ohne HKTAN
+    bank.zustand.scaBeiAnmeldung = true;
+    const anmeldung = await fintsUmsaetze(client, konto, "2026-10-01", "2026-10-31");
+    if (anmeldung.art !== "tan") throw new Error("TAN erwartet");
+    const fertig = await fintsUmsaetze(client, konto, "2026-10-01", "2026-10-31", { referenz: anmeldung.anfrage.referenz, tan: "123456" });
+    expect(fertig.art === "abgelehnt" ? fertig.meldung : fertig.art).toBe("ok");
+    expect(client.config.bankingInformation.bpd?.allowedTransactions.find((t) => t.transId === "HKKAZ")?.tanRequired).toBe(true);
+  });
+
   it("wirft, wenn lib-fints die Umsätze nicht lesen kann, statt keine zu melden", async () => {
     const client = fintsClient(PRODUKT, zugang);
     await fintsSynchronisieren(client);
@@ -163,7 +234,8 @@ describe("FinTS-Sitzung gegen die nachgebaute Bank", () => {
 
   it("schreibt eine Antwort, die lib-fints nicht lesen kann, nicht ins Log", async () => {
     // lib-fints 1.5.3 schreibt sie sonst mit console.error ganz ins Log (httpClient.js, sendMessage), auch ohne debugEnabled:
-    // Umsätze, Namen und IBANs der Inhaberin im Log des Servers
+    // Umsätze, Namen und IBANs der Inhaberin im Log des Servers. Der Logger der App schickt jede Ausgabe von console durch
+    // ohneBankdaten; der Test prüft, dass das auch die Zeilen dieser Version von lib-fints erkennt
     const geheim = "Max Mustermann DE89370400440532013000";
     const server = createServer((_req, res) => res.end(Buffer.from(`HNHBK:1:3+kaputt'HIRMG:2:2+${geheim}'`, "latin1").toString("base64")));
     await new Promise<void>((fertig) => server.listen(0, "127.0.0.1", fertig));
@@ -171,7 +243,13 @@ describe("FinTS-Sitzung gegen die nachgebaute Bank", () => {
     try {
       const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
       await expect(fintsSynchronisieren(fintsClient(PRODUKT, { ...zugang, url }))).rejects.toThrow();
-      expect(log.mock.calls.flat().map(String).join("\n")).not.toContain(geheim);
+      expect(log.mock.calls.length).toBeGreaterThan(0);
+      expect(
+        log.mock.calls
+          .flatMap((args) => ohneBankdaten(args))
+          .map(String)
+          .join("\n"),
+      ).not.toContain(geheim);
     } finally {
       log.mockRestore();
       server.close();

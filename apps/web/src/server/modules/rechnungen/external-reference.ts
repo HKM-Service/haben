@@ -4,7 +4,9 @@ import { z } from "zod";
 import { withActor } from "../../db/actor.ts";
 import { db, schema } from "../../db/index.ts";
 import { isUniqueViolation } from "../../errors.ts";
-import { assertCustomer, insertDraft, type DraftInput, type Invoice, type InvoiceLine } from "./invoices.ts";
+import type { DraftInput } from "./draft-schema.ts";
+import { assertCustomer, insertDraft } from "./invoice-drafts.ts";
+import type { Invoice, InvoiceLine } from "./invoices.ts";
 
 /*
  * Externe Referenz eines Rechnungsentwurfs (#199): Plattform und Bestellnummer eines Vorgangs außerhalb von Haben, etwa
@@ -77,6 +79,7 @@ export function draftInputOf(invoice: Invoice, lines: InvoiceLine[]): DraftInput
     contactId: invoice.contactId,
     brandProfileId: invoice.brandProfileId,
     contactPersonId: invoice.contactPersonId,
+    bankverbindungId: invoice.bankverbindungId,
     issueDate: invoice.issueDate,
     serviceFrom: invoice.serviceFrom,
     serviceTo: invoice.serviceTo,
@@ -100,6 +103,7 @@ export function draftInputOf(invoice: Invoice, lines: InvoiceLine[]): DraftInput
     language: invoice.language,
     variant: invoice.variant,
     advanceType: invoice.advanceType,
+    replacesInvoiceId: invoice.replacesInvoiceId,
     quoteId: invoice.quoteId,
     deducts: [...new Set(lines.flatMap((line) => (line.deductionOf ? [line.deductionOf] : [])))],
     currency: invoice.currency,
@@ -118,6 +122,7 @@ export function draftInputOf(invoice: Invoice, lines: InvoiceLine[]): DraftInput
         unitPrice: line.unitPrice,
         taxRate: line.taxRate as 1900 | 700 | 0,
         discount: discountFromColumns(line.discountPercent, line.discountAmount),
+        arbeitskosten: line.arbeitskosten,
       })),
   };
 }

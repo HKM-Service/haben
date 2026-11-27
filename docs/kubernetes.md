@@ -7,20 +7,20 @@ description: >-
 
 # Kubernetes
 
-Das Helm-Chart [`deploy/helm`](https://github.com/firsttris/haben/tree/main/deploy/helm) startet dieselben Images wie
+Das Helm-Chart [`deploy/helm`](https://github.com/Speicherstadt/haben/tree/main/deploy/helm) startet dieselben Images wie
 [Docker Compose](installation.md#docker-compose): die App, daneben im selben Pod das tägliche Backup, und auf Wunsch
 PostgreSQL als StatefulSet. Haben läuft immer mit genau einem Pod; ein Update beendet ihn, bevor der neue startet, weil
 die Migrationen beim Start nur vorwärts gehen. Jede Einstellung ist in
-[`values.yaml`](https://github.com/firsttris/haben/blob/main/deploy/helm/values.yaml) erklärt, für deine Version im Klon
+[`values.yaml`](https://github.com/Speicherstadt/haben/blob/main/deploy/helm/values.yaml) erklärt, für deine Version im Klon
 unter `haben/deploy/helm/values.yaml`.
 
 ## Installieren
 
 1. Das Chart in der Version holen, die du installierst
-   ([aktuelle Version](https://github.com/firsttris/haben/releases/latest)), damit Chart und Image zusammenpassen:
+   ([aktuelle Version](https://github.com/Speicherstadt/haben/releases/latest)), damit Chart und Image zusammenpassen:
 
     ```sh
-    git clone --depth 1 --branch v0.10.0 https://github.com/firsttris/haben.git
+    git clone --depth 1 --branch v0.10.0 https://github.com/Speicherstadt/haben.git
     ```
 
 2. Eine Datei `werte.yaml` anlegen und mit `chmod 600 werte.yaml` nur für dich lesbar machen:
@@ -96,13 +96,75 @@ heißt er `<Release>-haben-db`. Die Passwörter bestehen wie im Chart nur aus Bu
 (`openssl rand -hex 24`), weil sie in der URL stehen. Mit `app.existingSecret` prüft das Chart die Schlüssel nicht; ein
 fehlender fällt erst beim Start der App auf.
 
+## Mit Flux
+
+Mit [Flux](https://fluxcd.io/) baut der Cluster das Chart selbst vom Release-Tag, ab v0.11.0. Die Werte aus
+`werte.yaml` stehen dann in der `HelmRelease`, die geheimen in Secrets wie unter
+[Secrets aus einer anderen Quelle](#secrets-aus-einer-anderen-quelle), nicht im Klartext im Git-Repository:
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: haben
+  namespace: haben
+spec:
+  interval: 1h
+  url: https://github.com/Speicherstadt/haben
+  ref:
+    tag: v0.11.0
+  ignore: |                         # nur das Chart, nicht das ganze Repository
+    /*
+    !/deploy/helm/
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: haben
+  namespace: haben
+spec:
+  interval: 30m
+  timeout: 45m                      # Datenbank bis 30 min (etwa Upgrade von PostgreSQL), danach App bis 15 min
+  chart:
+    spec:
+      chart: ./deploy/helm
+      reconcileStrategy: Revision   # Chart.yaml bleibt bei 0.1.0, ohne bliebe das Chart beim ersten Tag stehen
+      sourceRef:
+        kind: GitRepository
+        name: haben
+  upgrade:
+    remediation:
+      retries: 0                    # kein Rollback durch Flux, die Migrationen gehen nur vorwärts
+  values:
+    domain: haben.example.de
+    image:
+      tag: "0.11.0"                 # dieselbe Version wie ref.tag
+    app:
+      existingSecret: haben-app
+    postgresql:
+      existingSecret: haben-db
+    backup:
+      existingSecret: haben-backup
+    # übrige Werte wie in werte.yaml, etwa ingress
+```
+
+Ein Update geht wie unter [Updates](#updates), statt der Befehle im Klon mit einem Commit, der `ref.tag` und
+`image.tag` anhebt. Zum Zurücknehmen stehen `ref.tag` und `image.tag` auf der vorigen Version und `postgresql.tag` auf
+der neuen (Schritt 2 unter [Updates](#updates)) im selben Commit wie `restore.enabled: true`, sonst startet die alte
+Version mit der schon migrierten Datenbank; nach `restore.sh` folgt ein Commit mit `restore.enabled: false`.
+
+Flux wendet einen solchen Commit meist zweimal an: zuerst die Werte mit dem bisherigen Chart, dann das Chart des Tags.
+`restore.sh` startest du deshalb erst, wenn `flux get helmrelease -n haben` als Revision `0.1.0+` mit dem Commit des
+vorigen Tags zeigt.
+
 ## Eigene Datenbank
 
 Mit `postgresql.enabled: false` startet keine Datenbank. Die Zugänge stehen dann in `app.secretEnv`: `DATABASE_URL` für
 die App-Rolle und, für [getrennte Rollen](installation-konfiguration.md#getrennte-datenbankrollen), `MIGRATION_DATABASE_URL`
 für den Eigentümer, bei CloudNativePG etwa über den `-rw`-Service. Ein Pooler davor muss im Sitzungsmodus laufen, siehe
 [Image](installation.md#image). Das Backup braucht den Eigentümerzugang auch: `PGHOST`, `PGUSER` und `PGDATABASE` unter `backup.env`, `PGPASSWORD`
-unter `backup.secretEnv`. Schaltest du es ab, weil der Operator die Datenbank sichert, fehlen im Backup die Belege.
+unter `backup.secretEnv`. Es bringt `pg_dump` für PostgreSQL 16 bis 19 mit. Schaltest du es ab, weil der Operator die
+Datenbank sichert, fehlen im Backup die Belege.
 
 ## Ingress und Gateway API
 
@@ -178,6 +240,41 @@ ihn nicht über `podSelector` und `namespaceSelector`
 Für ihn gehört meist ein `ipBlock` mit den Adressen der Knoten in `ingressFrom`; Cilium wertet ihn erst mit
 `policyCIDRMatchMode: nodes` aus ([Cilium](https://docs.cilium.io/en/stable/network/kubernetes/policy/)).
 
+## Metriken
+
+`GET /api/metrics` gibt es nur mit `HABEN_METRICS_TOKEN` ([Konfiguration](installation-konfiguration.md)) unter
+`app.secretEnv` oder im `app.existingSecret`; was der Endpunkt meldet und Alarmregeln stehen unter
+[Überwachung](installation-ueberwachung.md). Mit dem Prometheus Operator, etwa aus kube-prometheus-stack, legt
+`metrics.serviceMonitor.enabled: true` einen `ServiceMonitor` an, der das Token aus dem Secret der App nimmt. Die
+`labels` braucht es, wenn der Prometheus nur ServiceMonitore mit bestimmten Labels auswählt (`serviceMonitorSelector`):
+
+```yaml
+app:
+  secretEnv:
+    HABEN_METRICS_TOKEN: "<openssl rand -hex 32>"
+metrics:
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+networkPolicy:
+  metricsFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+```
+
+Mit `networkPolicy.enabled` lässt `metricsFrom` Prometheus zusätzlich zu `ingressFrom` an die App. Er erreicht dann wie
+der Ingress-Controller die ganze App an Port 3000 und könnte `X-Forwarded-For` setzen, deshalb dort nur die Pods von
+Prometheus angeben, nicht den ganzen Namespace.
+
+`metrics.prometheusRule.enabled: true` legt die [Alarmregeln](installation-ueberwachung.md) als `PrometheusRule` an, mit
+`metrics.prometheusRule.labels` für den `ruleSelector`. Die Regeln gelten für alle Reihen mit diesen Namen; bei mehreren
+Installationen im Cluster schaltet man sie deshalb nur bei einer ein.
+
 ## ELSTER
 
 ERiC gibt es nur für Linux x86_64. In einem Cluster mit beiden Architekturen setzt `nodeSelector` mit
@@ -192,7 +289,8 @@ Der Container `backup` sichert Datenbank und Belege täglich um 03:15 Uhr, wie u
 [Backup und Wiederherstellen](installation-backup.md#backup-und-wiederherstellen) beschrieben. Ohne
 `RESTIC_REPOSITORY` unter `backup.env` liegt das Repository im Volume `haben-backups` im selben Cluster; gegen dessen
 Verlust gehört es auf ein [zweites System](installation-backup.md#repository-auf-einem-zweiten-system), mit dem Chart
-über S3 oder einen REST-Server.
+über S3, einen REST-Server oder ein [rclone-Ziel](installation-backup.md#ziel-über-rclone-für-webdav-onedrive-und-smb);
+dafür die Konfiguration über `backup.extraVolumes` und `backup.extraVolumeMounts` einhängen.
 
 Ein Backup von Hand, etwa vor einem Update:
 

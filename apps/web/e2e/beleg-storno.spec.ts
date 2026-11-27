@@ -1,9 +1,11 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import postgres from "postgres";
-import { currentDay } from "./daten.ts";
+import { currentDay, day } from "./daten.ts";
 import { databaseUrlFuer, portFuer } from "./durchlaeufe.ts";
 import { einrichten } from "./einrichtung.ts";
+import { kategorieName } from "./kategorie.ts";
+import { abgearbeitet } from "./warten.ts";
 
 /** Beleg und zugeordnete Bankzahlung in eigener Datenbank; der Storno läuft durch die echte Oberfläche (#653). */
 test.describe.configure({ mode: "serial" });
@@ -88,22 +90,21 @@ test("Beleg speichern, dann „Bestätigen und buchen“: der Dialog bleibt nach
   const id = await receipt(browser, "Review Flake GmbH", "R-1", currentDay(), false);
   await page.goto(`/belege/${id}`);
   await page.waitForLoadState("networkidle");
-  let neuGeladen = false;
   const ladeBeleg = (url: URL) => url.pathname.startsWith("/_serverFn/") && decodeURIComponent(url.search).includes(id);
   await page.route(ladeBeleg, async (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     await new Promise((fertig) => setTimeout(fertig, 1500));
-    const antwort = await route.fetch();
-    neuGeladen = true;
-    await route.fulfill({ response: antwort });
+    await route.fulfill({ response: await route.fetch() });
   });
+  const neuGeladen = page.waitForResponse((antwort) => antwort.request().method() === "GET" && ladeBeleg(new URL(antwort.url())));
   await page.getByLabel("Rechnungsnummer").fill("R-2");
   await page.getByRole("button", { name: "Speichern", exact: true }).click();
   await page.getByRole("button", { name: "Bestätigen und buchen", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("button", { name: "Buchen", exact: true })).toBeVisible();
-  await expect.poll(() => neuGeladen).toBe(true);
-  await page.waitForTimeout(1000);
+  // Erst wenn die Seite die neu geladenen Daten verarbeitet hat, zeigt sich, ob der Dialog bleibt
+  await (await neuGeladen).finished();
+  await abgearbeitet(page);
   await expect(dialog.getByRole("button", { name: "Buchen", exact: true })).toBeVisible();
   await page.unroute(ladeBeleg);
   await dialog.getByRole("button", { name: "Abbrechen" }).click();
@@ -112,6 +113,13 @@ test("Beleg speichern, dann „Bestätigen und buchen“: der Dialog bleibt nach
 test("Bankzuordnung im Stornodialog bestätigen und zusammen mit dem Beleg zurücknehmen", async () => {
   await page.goto(`/belege/${documentId}`);
   await expect(page.locator(".page-head").getByText("Gebucht", { exact: true })).toBeVisible();
+  // Rückweg zur Buchung (#1855): ins Journal des Monats, die Zeile hervorgehoben und mit dem Fokus
+  await page.getByRole("link", { name: /^Buchung vom / }).click();
+  await page.waitForURL(/\/buchungen\?.*#buchung-/);
+  const zielzeile = page.locator('tr[aria-current="true"]');
+  await expect(zielzeile).toContainText("L-4711");
+  await expect(zielzeile).toBeFocused();
+  await page.goto(`/belege/${documentId}`);
   await page.getByRole("button", { name: "Beleg stornieren", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Beleg stornieren?" });
   await expect(dialog).toBeVisible();
@@ -154,8 +162,12 @@ test("Bankzuordnung im Stornodialog bestätigen und zusammen mit dem Beleg zurü
   await page.reload();
   await expect(page.locator(".page-head").getByText("Storniert", { exact: true })).toBeVisible();
   expect((await sql`select id from document_cancellations where document_id = ${documentId}`).length).toBe(1);
+  // Nach dem Storno bleibt der Weg ins Journal, mit der Gegenbuchung (#1855)
+  await expect(page.getByRole("link", { name: /^Gegenbuchung vom / })).toBeVisible();
   await page.getByRole("link", { name: "Gegenbuchung", exact: true }).click();
   await expect(page.getByText(/Storno: Beleg L-4711/)).toBeVisible();
+  // Der Link zeigt auf die Zeile der Gegenbuchung, nicht nur auf den Monat (#1855)
+  await expect(zielzeile).toContainText("Storno: Beleg L-4711");
 });
 
 test("gebuchter Beleg erklärt die Aufteilung über Storno, ein stornierter nicht mehr (#1112)", async () => {
@@ -191,6 +203,67 @@ test("gebuchtes Anlagegut verspricht keinen Storno zum Aufteilen", async ({ brow
   await page.goto(`/belege/${id}`);
   await expect(page.getByText("Belege zu Anlagegütern lassen sich nicht stornieren.", { exact: false })).toBeVisible();
   await expect(page.getByText(/lässt sich stornieren/)).toHaveCount(0);
+});
+
+test("Beleg duplizieren: neue Datei mit den Feldern des Originals und Datum heute, dieselbe Datei kein zweites Mal (#1295)", async ({ browser }) => {
+  // Vor dem Abschluss des Jahres weiter unten, damit das Original gebucht ist
+  const original = await receipt(browser, "Papierhaus Petersen", "P-1101", day(-10));
+  const bild = await browser.newPage({ viewport: { width: 620, height: 400 } });
+  await bild.setContent(`<body style="font: 16px sans-serif; padding: 32px"><h2>Papierhaus Petersen</h2><p>Rechnung P-1102</p><p>Gesamt 119,00 €</p></body>`);
+  const datei = { name: "P-1102.jpg", mimeType: "image/jpeg", buffer: await bild.screenshot({ type: "jpeg", quality: 80 }) };
+  await bild.close();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/belege/${original}`);
+  await page.waitForLoadState("networkidle");
+  await page.getByLabel("Datei für das Duplikat").setInputFiles(datei);
+
+  await expect(page).toHaveURL(/dupliziert=/);
+  const kopie = new URL(page.url()).pathname.split("/").at(-1)!;
+  expect(kopie).not.toBe(original);
+  await expect(page.getByText(/^Dupliziert aus einem früheren Beleg/)).toBeVisible();
+  await expect(page.getByLabel("Lieferant", { exact: true })).toHaveValue("Papierhaus Petersen");
+  await expect(page.getByLabel("Rechnungsnummer", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Belegdatum", { exact: true })).toHaveValue(currentDay());
+  await expect(page.getByLabel("Kategorie", { exact: true })).toHaveValue(kategorieName("software"));
+  const [neu] =
+    await sql`select filename, status, gross, sha256 = (select sha256 from documents where id = ${original}) as gleiche_datei from documents where id = ${kopie}`;
+  expect(neu).toEqual({ filename: "P-1102.jpg", status: "neu", gross: 11_900, gleiche_datei: false });
+
+  // Zurück zum Original und dieselbe Datei noch einmal: Haben zeigt den vorhandenen Entwurf statt eines zweiten
+  await page.getByRole("link", { name: "früheren Beleg", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/belege/${original}$`));
+  await page.waitForLoadState("networkidle");
+  await page.getByLabel("Datei für das Duplikat").setInputFiles(datei);
+  await expect(page).toHaveURL(new RegExp(`/belege/${kopie}\\?vorhanden=true`));
+  await expect(page.getByText("Die gewählte Datei liegt schon in Haben; das ist ihr Beleg, dupliziert wurde nichts.")).toBeVisible();
+  expect((await sql`select count(*)::int as n from documents where supplier_name = 'Papierhaus Petersen'`)[0]!.n).toBe(2);
+});
+
+test("gleiche Rechnungsnummer desselben Lieferanten: Hinweis mit Link und im Buchungsdialog, ohne Sperre (#1314)", async ({ browser }) => {
+  const original = await receipt(browser, "Papierhaus Petersen", "P-2201", day(-5));
+  const zweiter = await receipt(browser, "Papierhaus Petersen", "p - 2201", currentDay(), false);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/belege/${zweiter}`);
+  await page.waitForLoadState("networkidle");
+  const hinweis = page.getByRole("status").filter({ hasText: "Mögliche Dublette" });
+  await expect(hinweis).toContainText("Vom selben Lieferanten gibt es schon einen Beleg mit dieser Rechnungsnummer");
+  // „gebucht“ allein passte auch zu „noch nicht gebucht“
+  await expect(hinweis).toContainText(/119,00\s€, gebucht/);
+
+  // Buchen bleibt möglich; der Dialog nennt die mögliche Dublette
+  await page.getByRole("button", { name: "Bestätigen und buchen", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Mögliche Dublette:");
+  await expect(dialog.getByRole("button", { name: "Buchen", exact: true })).toBeEnabled();
+  await dialog.getByRole("button", { name: "Abbrechen" }).click();
+
+  // Der Link führt zum gebuchten Original; dort steht der Hinweis auf den neuen, noch nicht gebuchten
+  await hinweis.getByRole("link", { name: "Papierhaus Petersen P-2201" }).click();
+  await expect(page).toHaveURL(new RegExp(`/belege/${original}$`));
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("status").filter({ hasText: "Mögliche Dublette" })).toContainText("noch nicht gebucht");
+  // Aufräumen: Die Listen-Tests darunter zählen die Belege
+  await (await import("../src/server/modules/belege/index.ts")).deleteDocument("e2e-storno", zweiter);
 });
 
 test("Belegliste: Status sortiert nach dem angezeigten Status, Storniert und Gebucht stehen je für sich", async ({ browser }) => {
@@ -282,13 +355,9 @@ test("Belegliste: ohne Sortierung ungebuchte zuerst, Spaltenkopf sortiert und ne
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/belege");
   const zeilen = page.locator("a.table-row.document-cols");
-  // Ohne Sortierung stehen ungebuchte Belege oben, auch wenn ihr Datum älter ist (docs/belege.md, „Liste und Status“).
-  // Mehrere ungebuchte Belege sind möglich, deshalb die Reihenfolge prüfen statt den ersten Namen:
-  const texte = await zeilen.allInnerTexts();
-  const altpapier = texte.findIndex((t) => t.includes("Altpapier Ahrens"));
-  const gebuchtL4711 = texte.findIndex((t) => t.includes("L-4711"));
-  expect(altpapier).toBeGreaterThanOrEqual(0);
-  expect(gebuchtL4711).toBeGreaterThan(altpapier);
+  // Ohne Sortierung nach dem Hochladen, der neueste oben, gleich ob gebucht oder nicht (docs/belege.md, „Liste und Status“, #1735)
+  const hochgeladen = (await sql`select id from documents order by uploaded_at desc, id desc`).map((d) => `/belege/${d.id}`);
+  await expect.poll(async () => zeilen.evaluateAll((links) => links.map((a) => a.getAttribute("href")))).toEqual(hochgeladen);
 
   // Die Richtung steht im Namen des Links wie in der Bankliste (BankSortierKopf), damit Screenreader sie vorlesen.
   // Keine festen Namen: in dieser Datei entstehen im Lauf mehrere Belege, teils mit gleichem Lieferanten (R-2 steht zu
@@ -386,11 +455,11 @@ test("Belegliste: Lieferant sortiert nach dem angezeigten Text, ohne Lieferant n
   expect(aufsteigend(namen), namen.join(" | ")).toBe(true);
 });
 
-test("Belegliste: Kategorie sortiert nach dem angezeigten Namen, nicht nach dem Schlüssel", async ({ browser }) => {
-  // Entwürfe, das Jahr ist weiter oben abgeschlossen. Schlüssel „beratung“ vor „buchfuehrung“, angezeigt
-  // „Buchführung und Steuerberatung“ vor „Rechts- und Beratungskosten“
+test("Belegliste: Kategorie sortiert nach dem angezeigten Text mit Kontonummer, nicht nach Schlüssel oder Name", async ({ browser }) => {
+  // Entwürfe, das Jahr ist weiter oben abgeschlossen. Schlüssel und Name stellen „beratung“ vor „telefon“, angezeigt
+  // „4920 · Telefon“ vor „4950 · Rechts- und Beratungskosten“ (SKR04 6805 vor 6825)
   await receipt(browser, "Kanzlei Klar", "K-1", currentDay(), false, "beratung");
-  await receipt(browser, "Steuerbüro Stark", "K-2", currentDay(), false, "buchfuehrung");
+  await receipt(browser, "Telefonwerk Thal", "K-2", currentDay(), false, "telefon");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/belege?sort=kategorie&dir=auf");
   await expect(page.locator("a.table-row.document-cols").filter({ hasText: "Rechts- und Beratungskosten" })).toHaveCount(1);

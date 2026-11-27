@@ -4,12 +4,12 @@
  * sperren, Beleg anlegen, nächsten Termin weiterrücken. Je Vorlage und Periode entsteht höchstens ein Beleg (eindeutiger
  * Index documents_recurring_period), auch nach einem Neustart oder bei zwei gleichzeitigen Läufen.
  */
-import { dauerbelegFaellig, dauerbelegPeriode, dauerbelegSummen, documentOpen, folgeTermin, type RecurringInterval } from "@haben/core";
+import { dauerbelegFaellig, dauerbelegPeriode, dauerbelegSummen, documentOpen, folgeTermin } from "@haben/core";
 import { and, eq, lte } from "drizzle-orm";
 import { z } from "zod";
 import { withActor } from "../../db/actor.ts";
 import { db, schema, type Tx } from "../../db/index.ts";
-import { INTERNAL_ERROR, userMessage } from "../../errors.ts";
+import { reportInternalError, userMessage } from "../../errors.ts";
 import { allocateIn } from "../bank/index.ts";
 import { DauerbelegError, type Dauerbeleg } from "./dauerbelege.ts";
 import { bookDocumentIn } from "./documents.ts";
@@ -38,7 +38,11 @@ function noteFor(vorlage: Dauerbeleg, termin: string): string {
   const { filename, sha256 } = contractOf(vorlage);
   const lines = [
     `Aus Dauerbeleg „${vorlage.name}“, Termin ${deutsch(termin)}. Beleg: ${filename} (SHA-256 ${sha256.slice(0, 12)}…).`,
-    vorlage.taxShown ? "" : "Das Dokument weist keine Umsatzsteuer aus; ohne Steuerausweis keine Vorsteuer.",
+    vorlage.kleinbetrag
+      ? "Kleinbetragsrechnung (§ 33 UStDV): Der Vertrag nennt Endbetrag und Steuersatz, mit dem Zahlungsbeleg die Rechnung über diesen Termin; Vorsteuer aus der Aufteilung (§ 35 Abs. 1 UStDV)."
+      : vorlage.taxShown
+        ? ""
+        : "Das Dokument weist keine Umsatzsteuer aus; ohne Steuerausweis keine Vorsteuer.",
     vorlage.note,
   ];
   return lines.filter(Boolean).join("\n");
@@ -63,7 +67,7 @@ async function insertBeleg(tx: Tx, vorlage: Dauerbeleg, termin: string): Promise
       note: noteFor(vorlage, termin),
       ...totals,
       recurringDocumentId: vorlage.id,
-      recurringPeriod: dauerbelegPeriode(termin),
+      recurringPeriod: dauerbelegPeriode(termin, vorlage.recurrence),
     })
     .onConflictDoNothing({ target: [schema.documents.recurringDocumentId, schema.documents.recurringPeriod] })
     .returning({ id: schema.documents.id });
@@ -87,7 +91,7 @@ async function runTermin(id: string, heute: string): Promise<{ created: boolean 
       return null;
     }
     const created = await insertBeleg(tx, vorlage, termin);
-    const nextDate = folgeTermin(termin, { intervalMonths: vorlage.intervalMonths as RecurringInterval, anchorDay: vorlage.anchorDay });
+    const nextDate = folgeTermin(termin, vorlage);
     const ended = vorlage.endDate !== null && nextDate > vorlage.endDate;
     await tx
       .update(schema.recurringDocuments)
@@ -99,8 +103,7 @@ async function runTermin(id: string, heute: string): Promise<{ created: boolean 
 
 function describe(error: unknown): string {
   const message = userMessage(error);
-  if (message === undefined) console.error("Dauerbeleg:", error);
-  return message ?? INTERNAL_ERROR;
+  return message ?? reportInternalError("Dauerbeleg", error);
 }
 
 /** Legt für alle fälligen Termine Belege an; verpasste Termine mit ihrem Datum */
@@ -141,12 +144,21 @@ export async function bookAndAllocateDauerbeleg(actor: string, input: z.infer<ty
     // Sperren wie bei jeder Zuordnung: erst der Umsatz, dann der Beleg, beides vor dem ersten Schreiben (Audit-Kette)
     await tx.select({ id: schema.bankTransactions.id }).from(schema.bankTransactions).where(eq(schema.bankTransactions.id, input.transactionId)).for("update");
     const [doc] = await tx
-      .select({ status: schema.documents.status, gross: schema.documents.gross, recurringDocumentId: schema.documents.recurringDocumentId })
+      .select({
+        status: schema.documents.status,
+        gross: schema.documents.gross,
+        recurringDocumentId: schema.documents.recurringDocumentId,
+        reverseCharge: schema.documents.reverseCharge,
+      })
       .from(schema.documents)
       .where(eq(schema.documents.id, input.documentId))
       .for("update");
     if (!doc?.recurringDocumentId) throw new DauerbelegError("Der Beleg stammt nicht aus einem Dauerbeleg.");
-    if (doc.status !== "gebucht") await bookDocumentIn(tx, input.documentId);
+    if (doc.status !== "gebucht") {
+      // Selbst geschuldete Steuer nur über die Rückfrage der Belegseite: Nur sie prüft bei § 13b EU und Erwerb die USt-IdNr. beim BZSt (#1568, #1595)
+      if (doc.reverseCharge) throw new DauerbelegError("Belege mit § 13b oder innergemeinschaftlichem Erwerb buchst du auf der Belegseite.");
+      await bookDocumentIn(tx, input.documentId);
+    }
     await allocateIn(tx, { kind: "document", transactionId: input.transactionId, documentId: input.documentId, amount: documentOpen(doc.gross, 0) });
   });
 }

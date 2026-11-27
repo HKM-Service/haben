@@ -3,14 +3,15 @@ import type postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
 import { EricGeprueftClient } from "../../test-eric.ts";
+import { kleinunternehmerStand } from "../auswertungen/test-umsatz-stand.ts";
 
 /** Zusammenfassende Meldung (§ 18a UStG): Zeilen aus den Rechnungen, Vorprüfung, Übermittlung, Berichtigung, Sperre, Fristen */
 describe.skipIf(!testDatabaseUrl)("Zusammenfassende Meldung (Postgres)", () => {
   let zm: typeof import("./zm.ts");
   let figures: typeof import("./vat-figures.ts");
-  let invoices: typeof import("../rechnungen/invoices.ts");
+  let invoices: typeof import("../rechnungen/index.ts");
   let contacts: typeof import("../stammdaten/contacts.ts");
-  let bank: typeof import("../bank/bank.ts");
+  let bank: typeof import("../bank/index.ts");
   let fristen: typeof import("../finanzamt/fristen.ts");
   let crypto: typeof import("../../crypto.ts");
   let sql: postgres.Sql;
@@ -21,18 +22,21 @@ describe.skipIf(!testDatabaseUrl)("Zusammenfassende Meldung (Postgres)", () => {
   let abgleich: typeof import("../auswertungen/abgleich.ts");
 
   beforeAll(async () => {
+    // Abgeschaltet ist die Vorprüfung wie vor der Bestätigung beim BZSt (#1385); die prüft zm-bestaetigung.test.ts
+    process.env.HABEN_EVATR = "off";
     sql = await setupTestDb();
     zm = await import("./zm.ts");
     abgleich = await import("../auswertungen/abgleich.ts");
     figures = await import("./vat-figures.ts");
-    invoices = await import("../rechnungen/invoices.ts");
+    invoices = await import("../rechnungen/index.ts");
     contacts = await import("../stammdaten/contacts.ts");
-    bank = await import("../bank/bank.ts");
+    bank = await import("../bank/index.ts");
     fristen = await import("../finanzamt/fristen.ts");
     crypto = await import("../../crypto.ts");
   }, 30_000);
 
   afterAll(async () => {
+    delete process.env.HABEN_EVATR;
     await sql?.end();
   });
 
@@ -85,7 +89,18 @@ describe.skipIf(!testDatabaseUrl)("Zusammenfassende Meldung (Postgres)", () => {
       exemptionReason: "",
       lines: [{ description: "Beratung", quantity: 1000, unit: "Psch." as const, unitPrice: net, taxRate: treatment === "regulaer" ? 1900 : 0 }],
     });
-    return invoices.finalizeInvoice(actor, draft.id);
+    return invoices.finalizeInvoice(actor, draft.id, kleinunternehmerStand);
+  }
+
+  /**
+   * Vor #1433 ließ sich eine Rechnung mit Reverse Charge mit jeder USt-IdNr. festschreiben. So eine nachstellen: mit gültiger
+   * Nummer festschreiben, dann die alte am festgeschriebenen Kunden setzen (am Festschreibe-Trigger vorbei)
+   */
+  async function festgeschriebenVor1433(invoiceId: string, ustId: string) {
+    await sql.begin(async (tx) => {
+      await tx`set local session_replication_role = replica`;
+      await tx`update invoices set buyer = jsonb_set(buyer, '{ustId}', to_jsonb(${ustId}::text)) where id = ${invoiceId}`;
+    });
   }
 
   /** Wie ERiC: kein simulierter Client, damit die Echtübermittlung durchgeht; jedes XML geht durch das echte Plugin, wenn da */
@@ -149,7 +164,7 @@ describe.skipIf(!testDatabaseUrl)("Zusammenfassende Meldung (Postgres)", () => {
     const b = await rechnung("2026-09-11", 100_000, { name: "Lumière SARL", land: "FR", ustId: "FR12345678901" });
     await invoices.cancelInvoice(actor, a.id, "2026-10-05");
     const korrektur = await invoices.createCorrection(actor, b.id, "2026-10-06");
-    await invoices.finalizeInvoice(actor, korrektur.id);
+    await invoices.finalizeInvoice(actor, korrektur.id, kleinunternehmerStand);
     await rechnung("2026-11-02", 500_000, { name: "Nordlicht AB", land: "SE", ustId: "SE123456789001" });
     const c = await rechnung("2026-10-20", 100_000, { name: "Nordlicht AB", land: "SE", ustId: "SE123456789001" });
     await bank.writeOff(actor, { kind: "skonto", invoiceId: c.id, date: "2026-11-03", amount: 2_000 });
@@ -220,7 +235,7 @@ describe.skipIf(!testDatabaseUrl)("Zusammenfassende Meldung (Postgres)", () => {
   it("Vorprüfung: eigene USt-IdNr., USt-IdNr. der Kunden und Abgleich mit Kz 21", async () => {
     await setCompany("SKR03", "soll", "DE123456789");
     kunden.clear();
-    await rechnung("2026-07-10", 100_000, { name: "Bergwerk AG", land: "CH", ustId: "CH123456789" });
+    await festgeschriebenVor1433((await rechnung("2026-07-10", 100_000, { name: "Bergwerk AG", land: "CH" })).id, "CH123456789");
     const issues = (await zm.zmOverview(q3)).issues;
     expect(issues.filter((i) => i.tone === "error").map((i) => i.text)).toEqual([
       expect.stringContaining("DE123456789 ist ungültig"),
@@ -251,9 +266,10 @@ describe.skipIf(!testDatabaseUrl)("Zusammenfassende Meldung (Postgres)", () => {
   it("eine im selben Quartal stornierte Rechnung ohne gültige USt-IdNr. sperrt die Meldung nicht", async () => {
     await setCompany("SKR03", "soll");
     kunden.clear();
-    // Versehentlich mit britischer USt-IdNr. festgeschrieben, im selben Quartal storniert: nichts davon ist zu melden, und die
-    // festgeschriebene Rechnung lässt sich nicht mehr ändern
-    const falsch = await rechnung("2026-07-10", 100_000, { name: "London Ltd", land: "GB", ustId: "GB123456789" });
+    // Vor #1433 versehentlich mit britischer USt-IdNr. festgeschrieben, im selben Quartal storniert: nichts davon ist zu melden,
+    // und die festgeschriebene Rechnung lässt sich nicht mehr ändern
+    const falsch = await rechnung("2026-07-10", 100_000, { name: "London Ltd", land: "GB" });
+    await festgeschriebenVor1433(falsch.id, "GB123456789");
     await invoices.cancelInvoice(actor, falsch.id, "2026-07-11");
     await rechnung("2026-07-12", 100_000);
     const overview = await zm.zmOverview(q3);
@@ -262,6 +278,43 @@ describe.skipIf(!testDatabaseUrl)("Zusammenfassende Meldung (Postgres)", () => {
     const result = await zm.submitZm(actor, liveClient(), { kind: "validate", period: q3 });
     expect(result.ok, result.message).toBe(true);
   }, 60_000);
+
+  // #1433: Was die Meldung sperren würde oder dem Aufbau des Landes widerspricht, fällt schon beim Festschreiben auf, solange
+  // sich die Nummer noch berichtigen lässt (§ 14a Abs. 1 Satz 3 UStG, Art S in der ZM)
+  it("Reverse Charge: das Festschreiben sperrt eine USt-IdNr. im falschen Aufbau, ohne EU-Kennzeichen oder aus Nordirland", async () => {
+    await setCompany("SKR04", "ist");
+    kunden.clear();
+    const gesperrt = [
+      { land: "AT", ustId: "ATU1234", text: "ATU1234: eine USt-IdNr. aus Österreich hat nach AT ein U und acht Ziffern" },
+      { land: "CH", ustId: "CHE-123.456.789 MWST", text: "CHE123456789MWST: kein Länderkennzeichen eines anderen EU-Mitgliedstaats" },
+      { land: "GB", ustId: "XI123456789", text: "XI123456789: nordirische USt-IdNr. nur bei Lieferungen, nicht bei sonstigen Leistungen" },
+    ];
+    for (const { land, ustId, text } of gesperrt) {
+      await expect(rechnung("2026-07-10", 100_000, { name: `Kunde ${land}`, land, ustId })).rejects.toThrow(`Noch nicht bereit: ${text}.`);
+    }
+    expect(await sql`select 1 from invoices where status <> 'draft'`).toHaveLength(0);
+    await rechnung("2026-07-10", 100_000, { ustId: "ATU12345678" });
+    expect((await zm.zmOverview(q3)).zeilen).toEqual([{ ustId: "ATU12345678", art: "S", betrag: 100_000 }]);
+  }, 60_000);
+
+  // Storno und Korrektur übernehmen den Kunden der Rechnung (finalizeDraft: corrects.buyer) und lassen sich an der Nummer nicht
+  // berichtigen; sonst bliebe eine vor #1433 festgeschriebene Leistung in Kz 21 und in der ZM stehen
+  it.each(["Storno", "Korrektur"] as const)(
+    "Reverse Charge: %s einer vor #1433 mit CHE… festgeschriebenen Rechnung geht",
+    async (weg) => {
+      await setCompany("SKR03", "soll");
+      kunden.clear();
+      const alt = await rechnung("2026-07-10", 100_000, { name: "Bergwerk AG", land: "CH" });
+      await festgeschriebenVor1433(alt.id, "CHE123456789MWST");
+      const gutschrift =
+        weg === "Storno"
+          ? await invoices.cancelInvoice(actor, alt.id, "2026-07-20")
+          : await invoices.finalizeInvoice(actor, (await invoices.createCorrection(actor, alt.id, "2026-07-20")).id, kleinunternehmerStand);
+      expect(gutschrift.buyer?.ustId).toBe("CHE123456789MWST");
+      expect((await zm.zmOverview(q3)).zeilen).toEqual([]);
+    },
+    60_000,
+  );
 
   it("ein Quartal, dessen Umsätze sich im Quartal aufheben, hat keine offene Frist", async () => {
     await setCompany("SKR03", "soll");

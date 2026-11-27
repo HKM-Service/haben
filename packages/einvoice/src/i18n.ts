@@ -54,7 +54,6 @@ export const TEXTS = {
     validUntil: "Gültig bis",
     servicePeriod: "Leistungszeitraum",
     serviceDate: "Leistungsdatum",
-    serviceDateDefault: "entspricht Rechnungsdatum",
     customerNumber: "Kundennummer",
     supplierNumber: "Lieferantennummer",
     leitwegId: "Leitweg-ID",
@@ -75,6 +74,8 @@ export const TEXTS = {
     },
     planAbschlag: (n: number, label: string, share: string | null, quote: string, date: string) =>
       `${n}. ${label}${share ? ` ${share}` : ""} gemäß Angebot ${quote} vom ${date}`,
+    planAbschlagTeil: (description: string, arbeit: boolean) =>
+      `${description}, Anteil ${arbeit ? "Arbeits-, Maschinen- und Fahrtkosten" : "Material und Sonstiges"}`,
     inclVat: (label: string) => `${label} (inkl. USt)`,
     included: "darin enthalten",
     includedNet: (rate?: string) => (rate ? `Netto ${rate}` : "Netto"),
@@ -116,11 +117,24 @@ export const TEXTS = {
     },
     page: (n: string, total: string) => `Seite ${n} von ${total}`,
     date: (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`,
+    /** Zeitraum kurz, damit er im Infoblock in eine Zeile passt: 01.–30.09.2026, 15.09.–14.10.2026, sonst beide Daten voll */
+    period: (from: string, to: string) => {
+      const tag = (iso: string) => `${iso.slice(8, 10)}.`;
+      const monat = (iso: string) => `${iso.slice(5, 7)}.`;
+      const ende = `${tag(to)}${monat(to)}${to.slice(0, 4)}`;
+      if (from.slice(0, 7) === to.slice(0, 7)) return `${tag(from)}–${ende}`;
+      if (from.slice(0, 4) === to.slice(0, 4)) return `${tag(from)}${monat(from)}–${ende}`;
+      return `${tag(from)}${monat(from)}${from.slice(0, 4)} – ${ende}`;
+    },
     money: (cents: Cents) => formatEuro(cents),
     rate: (rate: number) => formatRate(rate),
     quantity: (quantity: Millis, unit: string) => `${formatQuantity(quantity)} ${unit}`,
     note: (treatment: TaxTreatment, reason?: string | null) => treatmentNote(treatment, reason),
     // § 14b Abs. 1 Satz 5 mit Satz 3 UStG: zwei Jahre ab Schluss des Ausstellungsjahres; § 34a UStDV begründet keine pauschale Pflicht für KU.
+    // § 35a Abs. 5 Satz 2 EStG; BMF vom 09.11.2016 (BStBl I S. 1213) Rz. 39 f.: Anteil aus der Rechnung ermittelbar
+    arbeitskosten: (amount: string, inclVat: boolean, beforeDeductions: boolean) =>
+      `${beforeDeductions ? "In der gesamten Leistung vor Abzug der Abschlagsrechnungen sind" : "Darin sind"} Arbeits-, Maschinen- und Fahrtkosten von ${amount}${inclVat ? " inkl. USt" : ""} enthalten (§ 35a EStG).`,
+    arbeitskostenRest: (abschlaege: string, rest: string) => `Davon entfallen ${abschlaege} auf die Abschlagsrechnungen und ${rest} auf diese Rechnung.`,
     propertyRetention:
       "Bei steuerpflichtigen Grundstücksleistungen für den privaten Bereich sind diese Rechnung, ein Zahlungsbeleg oder eine andere beweiskräftige Unterlage zwei Jahre aufzubewahren (§ 14b Abs. 1 Satz 5 UStG). Die Frist beginnt mit dem Schluss des Kalenderjahres der Rechnungsausstellung.",
     countryLocale: "de",
@@ -152,7 +166,6 @@ export const TEXTS = {
     validUntil: "Valid until",
     servicePeriod: "Service period",
     serviceDate: "Date of service",
-    serviceDateDefault: "same as invoice date",
     customerNumber: "Customer number",
     supplierNumber: "Supplier number",
     leitwegId: "Leitweg ID",
@@ -173,6 +186,8 @@ export const TEXTS = {
     },
     planAbschlag: (n: number, label: string, share: string | null, quote: string, date: string) =>
       `${n}. ${label}${share ? ` ${share}` : ""} as per quote ${quote} of ${date}`,
+    planAbschlagTeil: (description: string, arbeit: boolean) =>
+      `${description}, share of ${arbeit ? "labour, machinery and travel costs" : "materials and other costs"}`,
     inclVat: (label: string) => `${label} (incl. VAT)`,
     included: "included",
     includedNet: (rate?: string) => (rate ? `Net ${rate}` : "Net"),
@@ -219,6 +234,15 @@ export const TEXTS = {
         .map((part) => (part.type === "month" && part.value === "Sep" ? "Sept" : part.value))
         .join("");
     },
+    /** Period kept short to fit one line: 1–30 Sept 2026, 15 Sept – 14 Oct 2026, otherwise both dates in full */
+    period(from: string, to: string) {
+      const full = [this.date(from), this.date(to)];
+      const [d1, m1, y1] = full[0]!.split(" ");
+      const [, m2, y2] = full[1]!.split(" ");
+      if (y1 === y2 && m1 === m2) return `${d1}–${full[1]}`;
+      if (y1 === y2) return `${d1} ${m1} – ${full[1]}`;
+      return `${full[0]} – ${full[1]}`;
+    },
     money: (cents: Cents) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "EUR" }).format(cents / 100),
     rate: (rate: number) => `${rate / 100} %`,
     quantity: (quantity: Millis, unit: string) => {
@@ -228,6 +252,9 @@ export const TEXTS = {
       return `${new Intl.NumberFormat("en-GB", { maximumFractionDigits: 3 }).format(value)} ${value === 1 ? one : many}`;
     },
     note: (treatment: TaxTreatment, reason?: string | null) => (treatment === "regulaer" ? null : reason?.trim() || EN_NOTES[treatment]),
+    arbeitskosten: (amount: string, inclVat: boolean, beforeDeductions: boolean) =>
+      `${beforeDeductions ? "The total work before deducting the advance invoices includes" : "This includes"} labour, machinery and travel costs of ${amount}${inclVat ? " incl. VAT" : ""} (§ 35a EStG).`,
+    arbeitskostenRest: (abschlaege: string, rest: string) => `Of this, ${abschlaege} relates to the advance invoices and ${rest} to this invoice.`,
     propertyRetention:
       "For taxable property-related services supplied for private use, this invoice, proof of payment or other supporting document must be retained for two years (§ 14b(1), sentence 5 UStG). The period starts at the end of the calendar year in which the invoice was issued.",
     countryLocale: "en",

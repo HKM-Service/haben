@@ -1,4 +1,4 @@
-import { computeInvoiceTotals, formatEuro, RECURRING_INTERVALS, type RecurringInterval } from "@haben/core";
+import { computeInvoiceTotals, formatEuro, recurrenceLabel } from "@haben/core";
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { InvoiceTabs } from "../../../../components/InvoiceTabs.tsx";
 import { useServerFn } from "@tanstack/react-start";
@@ -33,8 +33,10 @@ function RecurringPage() {
     <>
       <div className="page-head">
         <div>
-          <div className="eyebrow">Verkauf</div>
-          <h1>Rechnungen</h1>
+          <div className="eyebrow">
+            <Link to="/rechnungen">Rechnungen</Link> › Wiederkehrend
+          </div>
+          <h1>Wiederkehrende Rechnungen</h1>
         </div>
         <div className="actions">
           {due > 0 && (
@@ -51,10 +53,14 @@ function RecurringPage() {
       <NoticeBanner notice={notice} />
       <section className="card" aria-label="Vorlagen">
         {items.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>
-            Noch keine Vorlage. Für Monatspauschalen, Wartungsverträge oder Hosting legt Haben die Rechnung zu jedem Termin automatisch an, als Entwurf oder
-            gleich festgeschrieben.
-          </p>
+          <>
+            <p className="muted" style={{ margin: 0 }}>
+              Hier stehen die Vorlagen, aus denen Haben zu jedem Termin eine Rechnung anlegt, etwa für Monatspauschalen, Wartungsverträge oder Hosting.
+            </p>
+            <Link to="/rechnungen/wiederkehrend/neu" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
+              Neue Vorlage
+            </Link>
+          </>
         ) : (
           <div className="table">
             <div className="table-row head recurring-cols">
@@ -73,7 +79,7 @@ function RecurringPage() {
                   </div>
                 </div>
                 <div>{contactName}</div>
-                <div className="small">{RECURRING_INTERVALS[recurring.intervalMonths as RecurringInterval]}</div>
+                <div className="small">{recurrenceLabel(recurring.recurrence)}</div>
                 <div className="small">{recurring.active ? formatDate(recurring.nextDate) : "–"}</div>
                 <div className="num">
                   {formatEuro(

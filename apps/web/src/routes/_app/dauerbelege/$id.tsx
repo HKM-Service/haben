@@ -1,4 +1,4 @@
-import { formatEuro, type RecurringInterval } from "@haben/core";
+import { formatEuro } from "@haben/core";
 import { Link, createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -22,22 +22,16 @@ const STATUS_TEXT = {
   beendet: "Beendet: Es entstehen keine Belege mehr. Die angelegten bleiben, wie sie sind.",
 } as const;
 
+type Vorlage = Awaited<ReturnType<typeof getDauerbelegDetail>>["vorlage"];
+
 function DauerbelegDetailPage() {
   const { vorlage, belege, termine, sevdesk, suppliers, categories, kleinunternehmer } = Route.useLoaderData();
   const { rechtsform } = Route.useRouteContext();
   const router = useRouter();
-  const navigate = useNavigate();
   const save = useServerFn(saveDauerbeleg);
-  const changeStatus = useServerFn(changeDauerbelegStatus);
-  const remove = useServerFn(removeDauerbeleg);
   const { busy, notice, run } = useAction();
-  const [confirming, setConfirming] = useState<"loeschen" | "beenden" | null>(null);
-
-  const status = (aktion: "pausieren" | "fortsetzen" | "beenden", done: string) =>
-    run(async () => {
-      await changeStatus({ data: { id: vorlage.id, aktion } });
-      await router.invalidate();
-    }, done);
+  // Das Formular meldet ungespeicherte Änderungen; Pausieren, Fortsetzen und Beenden fragen dann erst nach (#1805)
+  const [dirty, setDirty] = useState(false);
 
   const initial: DauerbelegValues = {
     name: vorlage.name,
@@ -50,8 +44,9 @@ function DauerbelegDetailPage() {
     privateShare: vorlage.privateShare,
     amounts: vorlage.amounts.map((a) => ({ ...a, taxRate: a.taxRate as 1900 | 700 | 0 })),
     taxShown: vorlage.taxShown,
+    kleinbetrag: vorlage.kleinbetrag,
     note: vorlage.note,
-    intervalMonths: vorlage.intervalMonths as RecurringInterval,
+    recurrence: vorlage.recurrence,
     nextDate: vorlage.nextDate,
     endDate: vorlage.endDate,
     dueDays: vorlage.dueDays,
@@ -59,61 +54,7 @@ function DauerbelegDetailPage() {
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <div className="eyebrow">
-            <Link to="/dauerbelege">Dauerbelege</Link> › Vorlage
-          </div>
-          <h1>{vorlage.name}</h1>
-        </div>
-        <div className="actions">
-          {vorlage.status === "aktiv" && (
-            <button type="button" className="btn" disabled={busy} onClick={() => status("pausieren", "Pausiert.")}>
-              Pausieren
-            </button>
-          )}
-          {vorlage.status === "pausiert" && (
-            <button type="button" className="btn" disabled={busy} onClick={() => status("fortsetzen", "Fortgesetzt.")}>
-              Fortsetzen
-            </button>
-          )}
-          {vorlage.status !== "beendet" && (
-            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => setConfirming("beenden")}>
-              Beenden
-            </button>
-          )}
-          {belege.length === 0 && (
-            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => setConfirming("loeschen")}>
-              Löschen
-            </button>
-          )}
-        </div>
-      </div>
-      <ConfirmDialog
-        open={confirming === "beenden"}
-        title={`${vorlage.name} beenden?`}
-        confirmLabel="Beenden"
-        danger
-        onConfirm={() => status("beenden", "Beendet.")}
-        onClose={() => setConfirming(null)}
-      >
-        <p>Beenden ist endgültig: Es entstehen keine Belege mehr, auch nicht nach einer Änderung. Vorübergehend anhalten geht mit Pausieren.</p>
-      </ConfirmDialog>
-      <ConfirmDialog
-        open={confirming === "loeschen"}
-        title={`${vorlage.name} löschen?`}
-        confirmLabel="Vorlage löschen"
-        danger
-        onConfirm={() =>
-          run(async () => {
-            await remove({ data: vorlage.id });
-            await navigate({ to: "/dauerbelege" });
-          })
-        }
-        onClose={() => setConfirming(null)}
-      >
-        <p>Die Vorlage wird endgültig entfernt. Das lässt sich nicht rückgängig machen.</p>
-      </ConfirmDialog>
+      <DauerbelegKopf vorlage={vorlage} ohneBelege={belege.length === 0} dirty={dirty} busy={busy} run={run} />
       {vorlage.lastError && (
         <div className="banner" role="alert">
           {vorlage.lastError}
@@ -133,7 +74,8 @@ function DauerbelegDetailPage() {
           </section>
         ) : (
           <DauerbelegForm
-            key={String(vorlage.updatedAt)}
+            // Mit Millisekunden: String(Date) endet bei der Sekunde, zwei Aktionen in derselben Sekunde ließen das Formular stehen
+            key={vorlage.updatedAt.toISOString()}
             initial={initial}
             suppliers={suppliers}
             categories={categories}
@@ -142,11 +84,12 @@ function DauerbelegDetailPage() {
             isNew={false}
             withoutFile={!vorlage.sha256}
             busy={busy}
+            onDirtyChange={setDirty}
             submitLabel="Speichern"
             onSubmit={(values, file) =>
               run(async () => {
                 await save({ data: dauerbelegFormData(vorlage.id, values, file) });
-                await router.invalidate();
+                await router.invalidate({ sync: true });
               }, "Gespeichert. Die Änderung gilt für künftige Belege.")
             }
           />
@@ -212,6 +155,120 @@ function DauerbelegDetailPage() {
           </section>
         </div>
       </div>
+    </>
+  );
+}
+
+type StatusAktion = "pausieren" | "fortsetzen" | "beenden";
+
+const STATUS_AKTION = {
+  pausieren: { done: "Pausiert.", verlust: "Beim Pausieren" },
+  fortsetzen: { done: "Fortgesetzt.", verlust: "Beim Fortsetzen" },
+  beenden: { done: "Beendet.", verlust: "Beim Beenden" },
+} as const;
+
+const verlust = (aktion: StatusAktion) => `Das Formular hat ungespeicherte Änderungen. ${STATUS_AKTION[aktion].verlust} gehen sie verloren.`;
+
+/**
+ * Kopf der Seite: Pausieren, Fortsetzen, Beenden und Löschen. Beenden und Löschen fragen immer nach, Pausieren und
+ * Fortsetzen nur bei ungespeicherten Änderungen, die der Neuaufbau des Formulars verwirft (#1805). Löschen nennt sie
+ * nicht: Mit der Vorlage ist auch das Formular weg.
+ */
+function DauerbelegKopf({
+  vorlage,
+  ohneBelege,
+  dirty,
+  busy,
+  run,
+}: {
+  vorlage: Vorlage;
+  ohneBelege: boolean;
+  dirty: boolean;
+  busy: boolean;
+  run: ReturnType<typeof useAction>["run"];
+}) {
+  const router = useRouter();
+  const navigate = useNavigate();
+  const changeStatus = useServerFn(changeDauerbelegStatus);
+  const remove = useServerFn(removeDauerbeleg);
+  const [confirming, setConfirming] = useState<StatusAktion | "loeschen" | null>(null);
+  const wechsel = confirming === "pausieren" || confirming === "fortsetzen" ? confirming : null;
+
+  const status = (aktion: StatusAktion) =>
+    run(async () => {
+      await changeStatus({ data: { id: vorlage.id, aktion } });
+      await router.invalidate({ sync: true });
+    }, STATUS_AKTION[aktion].done);
+  const pausierenOderFortsetzen = (aktion: "pausieren" | "fortsetzen") => (dirty ? setConfirming(aktion) : status(aktion));
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">
+            <Link to="/dauerbelege">Dauerbelege</Link> › Vorlage
+          </div>
+          <h1>{vorlage.name}</h1>
+        </div>
+        <div className="actions">
+          {vorlage.status === "aktiv" && (
+            <button type="button" className="btn" disabled={busy} onClick={() => pausierenOderFortsetzen("pausieren")}>
+              Pausieren
+            </button>
+          )}
+          {vorlage.status === "pausiert" && (
+            <button type="button" className="btn" disabled={busy} onClick={() => pausierenOderFortsetzen("fortsetzen")}>
+              Fortsetzen
+            </button>
+          )}
+          {vorlage.status !== "beendet" && (
+            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => setConfirming("beenden")}>
+              Beenden
+            </button>
+          )}
+          {ohneBelege && (
+            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => setConfirming("loeschen")}>
+              Löschen
+            </button>
+          )}
+        </div>
+      </div>
+      <ConfirmDialog
+        open={wechsel !== null}
+        title={`${vorlage.name} ${wechsel}?`}
+        confirmLabel={`Trotzdem ${wechsel}`}
+        danger
+        onConfirm={() => wechsel && status(wechsel)}
+        onClose={() => setConfirming(null)}
+      >
+        <p>{wechsel && verlust(wechsel)}</p>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={confirming === "beenden"}
+        title={`${vorlage.name} beenden?`}
+        confirmLabel="Beenden"
+        danger
+        onConfirm={() => status("beenden")}
+        onClose={() => setConfirming(null)}
+      >
+        <p>Beenden ist endgültig: Es entstehen keine Belege mehr, auch nicht nach einer Änderung. Vorübergehend anhalten geht mit Pausieren.</p>
+        {dirty && <p>{verlust("beenden")}</p>}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={confirming === "loeschen"}
+        title={`${vorlage.name} löschen?`}
+        confirmLabel="Vorlage löschen"
+        danger
+        onConfirm={() =>
+          run(async () => {
+            await remove({ data: vorlage.id });
+            await navigate({ to: "/dauerbelege" });
+          })
+        }
+        onClose={() => setConfirming(null)}
+      >
+        <p>Die Vorlage wird endgültig entfernt. Das lässt sich nicht rückgängig machen.</p>
+      </ConfirmDialog>
     </>
   );
 }

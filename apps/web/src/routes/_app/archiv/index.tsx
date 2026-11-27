@@ -10,6 +10,7 @@ import { OrderDocuments } from "../../../components/archiv/OrderDocuments.tsx";
 import { getDatevBookings, getLegacyVouchers, getMigration, getOrderDocuments } from "../../../server/functions/archive.ts";
 import { getLegacyVatReports } from "../../../server/functions/sevdesk-voranmeldungen.ts";
 import styles from "../../../styles/archiv.css?url";
+import { menueGruppe } from "../../../lib/menue-gruppe.ts";
 
 const searchSchema = z.object({
   ansicht: z.optional(z.enum(["umzug", "belege", "auftraege", "voranmeldungen", "buchungen", "dateien"])),
@@ -19,6 +20,8 @@ const searchSchema = z.object({
   suche: z.optional(z.string().check(z.maxLength(100))),
   ohneDatei: z.optional(z.boolean()),
   ohneBeleg: z.optional(z.boolean()),
+  /** Eigene Gruppe „Aufladung ohne Bezug“ neben den Buchungen ohne passenden Beleg (#1356) */
+  aufladung: z.optional(z.boolean()),
   seite: z.optional(z.int().check(z.minimum(0))),
   /** Stichtag der Übernahme offener Posten (letzter Tag der alten Buchhaltung) */
   stichtag: z.optional(z.string().check(z.regex(/^\d{4}-\d{2}-\d{2}$/))),
@@ -51,7 +54,7 @@ export const Route = createFileRoute("/_app/archiv/")({
     }
     if (view === "buchungen") {
       const bookings = await getDatevBookings({
-        data: { year, search: deps.suche ?? "", unmatched: deps.ohneBeleg ?? false, page: deps.seite ?? 0 },
+        data: { year, search: deps.suche ?? "", unmatched: deps.ohneBeleg ?? false, aufladung: deps.aufladung ?? false, page: deps.seite ?? 0 },
       });
       return { view, year, years, migration, bookings } as const;
     }
@@ -77,7 +80,7 @@ function ArchivePage() {
     <>
       <div className="page-head">
         <div>
-          <div className="eyebrow">Altbestand · unveränderlich archiviert</div>
+          <div className="eyebrow">{menueGruppe("/archiv")}</div>
           <h1>Archiv</h1>
         </div>
         <nav className="archive-tabs" aria-label="Bereich wählen">
@@ -96,6 +99,9 @@ function ArchivePage() {
           ))}
         </nav>
       </div>
+      <p className="muted small" style={{ margin: 0, maxWidth: 760 }}>
+        Der Altbestand aus deinem früheren Programm, unveränderlich archiviert.
+      </p>
       {data.view === "umzug" && <Migration data={data.migration} />}
       {data.view === "belege" && <LegacyVouchers year={data.year} years={data.years} rows={data.vouchers} search={search} />}
       {data.view === "auftraege" && <OrderDocuments year={data.year} years={data.years} rows={data.orders} search={search} />}

@@ -10,7 +10,7 @@ describe.skipIf(!testDatabaseUrl)("Teilabzug der Vorsteuer (Postgres, #433)", ()
   let cancellation: typeof import("./cancellation.ts");
   let vat: typeof import("../umsatzsteuer/vat-figures.ts");
   let reports: typeof import("../auswertungen/reports.ts");
-  let bank: typeof import("../bank/bank.ts");
+  let bank: typeof import("../bank/index.ts");
   const actor = "teilabzug-test";
   let seq = 0;
 
@@ -20,7 +20,7 @@ describe.skipIf(!testDatabaseUrl)("Teilabzug der Vorsteuer (Postgres, #433)", ()
     cancellation = await import("./cancellation.ts");
     vat = await import("../umsatzsteuer/vat-figures.ts");
     reports = await import("../auswertungen/reports.ts");
-    bank = await import("../bank/bank.ts");
+    bank = await import("../bank/index.ts");
   }, 30_000);
   afterAll(async () => {
     await sql?.end();
@@ -218,7 +218,7 @@ describe.skipIf(!testDatabaseUrl)("Teilabzug der Vorsteuer (Postgres, #433)", ()
     const id = await draft({ vorsteuerAnteil: 5_000, amounts: [{ taxRate: 1900, net: 10_000, tax: 1_900, vorsteuerAnteil: 2_500 }] });
     await documents.bookDocument(actor, id);
     const api = await import("../api/documents.ts");
-    const schema = await import("../api/schemas.ts");
+    const schema = await import("../api/belege-schemas.ts");
     const response = await api.getDocumentHandler({ actor, params: { id }, query: {}, body: null, baseUrl: "http://localhost:3000", today: "2026-10-05" });
     expect(response.status).toBe(200);
     expect(schema.documentSchema.parse(response.body)).toMatchObject({

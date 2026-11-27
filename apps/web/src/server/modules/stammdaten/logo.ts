@@ -4,7 +4,7 @@ import { logoFormat, type Logo } from "@haben/einvoice";
 import { eq } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { withActor } from "../../db/actor.ts";
-import { db, schema } from "../../db/index.ts";
+import { db, schema, type Tx } from "../../db/index.ts";
 
 /** Firmenlogo für den Briefkopf von Rechnungen, Angeboten und Mahnungen */
 
@@ -24,6 +24,7 @@ export async function logoInfo(): Promise<{ format: "png" | "jpg"; sha256: strin
   return row ?? null;
 }
 
+/** Prüft ein Logo und liefert die Werte zum Speichern; für das Firmenlogo (putLogo) und das einer Marke (brand-assets.ts) */
 export function prepareLogo(data: Uint8Array) {
   if (data.length === 0) throw new LogoError("Die Datei ist leer.");
   if (data.length > MAX_LOGO_BYTES) throw new LogoError("Das Logo darf höchstens 1 MB groß sein.");
@@ -33,13 +34,16 @@ export function prepareLogo(data: Uint8Array) {
 }
 
 export async function saveLogo(actor: string, data: Uint8Array): Promise<void> {
+  await withActor(actor, (tx) => putLogo(tx, data));
+}
+
+/** saveLogo in der Transaktion des Aufrufers */
+export async function putLogo(tx: Tx, data: Uint8Array): Promise<void> {
   const values = prepareLogo(data);
-  await withActor(actor, (tx) =>
-    tx
-      .insert(schema.companyLogo)
-      .values({ id: 1, ...values })
-      .onConflictDoUpdate({ target: schema.companyLogo.id, set: values }),
-  );
+  await tx
+    .insert(schema.companyLogo)
+    .values({ id: 1, ...values })
+    .onConflictDoUpdate({ target: schema.companyLogo.id, set: values });
 }
 
 export async function removeLogo(actor: string): Promise<void> {

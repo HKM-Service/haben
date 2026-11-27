@@ -1,6 +1,8 @@
 import type postgres from "postgres";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { captureLog } from "../../log.ts";
 import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
+import { kleinunternehmerStand } from "../auswertungen/test-umsatz-stand.ts";
 
 describe.skipIf(!testDatabaseUrl)("REST-API /api/v1 (Postgres)", () => {
   let api: typeof import("./index.ts");
@@ -70,6 +72,71 @@ describe.skipIf(!testDatabaseUrl)("REST-API /api/v1 (Postgres)", () => {
     issueDate: `${year}-03-02`,
     lines: [{ description: "Keramikbecher handgemacht", quantity: 2000, unit: "Stk.", unitPrice: 2_400, taxRate: 1900 }],
     ...extra,
+  });
+
+  it("schreibt einen unerwarteten Fehler mit seiner Fehler-ID unter api ins Log (#1860)", async () => {
+    const { API_ROUTES } = await import("./routes.ts");
+    const t = await token(["kontakte:lesen"]);
+    const endpunkt = vi.spyOn(API_ROUTES.find((r) => r.method === "GET" && r.path === "/kontakte")!, "handler").mockRejectedValue(new Error("kaputt"));
+    const { lines, restore } = captureLog("error");
+    try {
+      const response = await call(t, "GET", "/kontakte");
+      expect(response.status).toBe(500);
+      expect(lines).toEqual([expect.objectContaining({ component: "api", msg: "Unerwarteter Fehler in der REST-API" })]);
+      expect(response.json!.error!.message).toBe(`Interner Fehler (Fehler-ID ${lines[0]!.errorId}). Details stehen im Server-Log.`);
+    } finally {
+      restore();
+      endpunkt.mockRestore();
+    }
+  });
+
+  describe("Wiederkehrende Rechnungen", () => {
+    const path = "/rechnungen/wiederkehrend";
+    const vorlage = (contactId: unknown) => ({
+      name: "Monatlicher Service",
+      contactId,
+      nextDate: `${year}-01-31`,
+      recurrence: "P1M",
+      lines: draft().lines,
+    });
+
+    it("legt eine Vorlage pausiert an und liefert einen Link zur Prüfung", async () => {
+      const t = await token(["kontakte:schreiben", "rechnungen:vorlagen-anlegen"]);
+      const contact = await call(t, "POST", "/kontakte", kunde);
+      const response = await call(t, "POST", path, vorlage(contact.json!.id));
+      expect(response.status).toBe(201);
+      const id = response.json!.id as string;
+      const url = `http://localhost:3000/rechnungen/wiederkehrend/${id}`;
+      expect(response.json).toEqual({ id, active: false, url });
+      expect(response.headers.get("location")).toBe(url);
+      const saved = await rechnungen.getRecurring(id);
+      expect(saved?.recurring).toMatchObject({
+        ...vorlage(contact.json!.id),
+        active: false,
+        mode: "entwurf",
+        sendByMail: false,
+        anchorDay: 31,
+      });
+      expect(saved?.invoices).toEqual([]);
+    });
+
+    it("nimmt wöchentliche Intervalle an und lehnt unbekannte ab", async () => {
+      const t = await token(["kontakte:schreiben", "rechnungen:vorlagen-anlegen"]);
+      const contact = await call(t, "POST", "/kontakte", kunde);
+      const weekly = await call(t, "POST", path, { ...vorlage(contact.json!.id), recurrence: "P1W" });
+      expect(weekly.status).toBe(201);
+      expect((await rechnungen.getRecurring(weekly.json!.id as string))?.recurring.recurrence).toBe("P1W");
+      expect((await call(t, "POST", path, { ...vorlage(contact.json!.id), recurrence: "P5W" })).status).toBe(400);
+    });
+
+    it("verlangt das Vorlagenrecht und lehnt die Aktivierung per API ab", async () => {
+      const draftToken = await token(["rechnungen:entwuerfe"]);
+      const write = await token(["rechnungen:vorlagen-anlegen"]);
+      const body = vorlage("00000000-0000-4000-8000-000000000000");
+      expect((await call(draftToken, "POST", path, body)).status).toBe(403);
+      expect((await call(write, "POST", path, { ...body, active: true })).status).toBe(400);
+      expect((await call(write, "POST", path, body)).status).toBe(422);
+    });
   });
 
   describe("Anmeldung und Rechte", () => {
@@ -293,14 +360,14 @@ describe.skipIf(!testDatabaseUrl)("REST-API /api/v1 (Postgres)", () => {
       expect((await call(t, "PATCH", url, { paymentMethod: "ueberweisung" })).json).toMatchObject({ paidVia: null, paidOn: null });
       expect((await call(t, "PATCH", url, paid)).status).toBe(200);
 
-      const final = await rechnungen.finalizeInvoice(actor, invoice.id);
+      const final = await rechnungen.finalizeInvoice(actor, invoice.id, kleinunternehmerStand);
       expect(final.xml).toContain("<ram:TotalPrepaidAmount>57.12</ram:TotalPrepaidAmount>");
       expect((await call(t, "GET", url)).json).toMatchObject({ ...paid, status: "final", listStatus: "offen", open: 5_712, paid: 0 });
       const [seal] = await sql`select columns from seals where table_name = 'invoices' and row_id = ${invoice.id}`;
       expect(seal!.columns.invoices).toEqual(expect.arrayContaining(["paid_via", "paid_on"]));
       await expect(sql`update invoices set paid_via = 'geändert' where id = ${invoice.id}`).rejects.toThrow(/festgeschrieben/);
       const correction = await rechnungen.createCorrection(actor, final.id, today);
-      expect(await rechnungen.finalizeInvoice(actor, correction.id)).toMatchObject({ kind: "korrektur", paidOn: null, paidVia: null });
+      expect(await rechnungen.finalizeInvoice(actor, correction.id, kleinunternehmerStand)).toMatchObject({ kind: "korrektur", paidOn: null, paidVia: null });
       expect(await rechnungen.cancelInvoice(actor, final.id, today)).toMatchObject({ kind: "storno", paidOn: null, paidVia: null });
     }, 30_000);
 
@@ -329,6 +396,24 @@ describe.skipIf(!testDatabaseUrl)("REST-API /api/v1 (Postgres)", () => {
       expect(patched.lines).toEqual([expect.objectContaining({ itemNumber: "ET-1042" })]);
       const plain = schemas.invoiceSchema.parse((await call(t, "POST", "/rechnungen", draft())).json);
       expect(plain.lines).toEqual([expect.objectContaining({ itemNumber: "" })]);
+    });
+
+    it("liest und schreibt das Kennzeichen Arbeits-, Maschinen- und Fahrtkosten je Position und am Artikel (#712)", async () => {
+      const t = await token(["rechnungen:entwuerfe", "artikel:schreiben"]);
+      const material = { description: "Rauchwarnmelder", quantity: 1000, unit: "Stk.", unitPrice: 3_100, taxRate: 1900 };
+      const montage = { ...material, description: "Montage", unitPrice: 800, arbeitskosten: true };
+      const created = await call(t, "POST", "/rechnungen", draft({ lines: [material, montage] }));
+      expect(created.status).toBe(201);
+      const invoice = schemas.invoiceSchema.parse(created.json);
+      expect(invoice.lines.map((l) => l.arbeitskosten)).toEqual([false, true]);
+      const patched = schemas.invoiceSchema.parse((await call(t, "PATCH", `/rechnungen/${invoice.id}`, { note: "Danke" })).json);
+      expect(patched.lines.map((l) => l.arbeitskosten)).toEqual([false, true]);
+      const artikel = await call(t, "POST", "/artikel", { description: "Montage", unit: "Stk.", unitPrice: 800, taxRate: 1900, arbeitskosten: true });
+      expect(artikel.status).toBe(201);
+      expect(artikel.json).toMatchObject({ arbeitskosten: true });
+      expect((await call(t, "PATCH", `/artikel/${(artikel.json as { id: string }).id}`, { arbeitskosten: false })).json).toMatchObject({
+        arbeitskosten: false,
+      });
     });
 
     it("nimmt Format und Sprache ohne Angabe vom Kontakt wie der Rechnungseditor", async () => {
@@ -461,7 +546,7 @@ describe.skipIf(!testDatabaseUrl)("REST-API /api/v1 (Postgres)", () => {
       expect((await call(t, "PATCH", `/rechnungen/${created.id}`, { externalId: "778" })).status).toBe(400);
 
       // Festschreiben bleibt ein Klick in Haben
-      const final = await rechnungen.finalizeInvoice(actor, created.id as string);
+      const final = await rechnungen.finalizeInvoice(actor, created.id as string, kleinunternehmerStand);
       const read = await call(t, "GET", `/rechnungen/${created.id}`);
       expect(read.status).toBe(200);
       expect(schemas.invoiceSchema.parse(read.json)).toMatchObject({
@@ -620,8 +705,12 @@ describe.skipIf(!testDatabaseUrl)("REST-API /api/v1 (Postgres)", () => {
       const doc = response.json as { openapi: string; paths: Record<string, Record<string, { security: { token: string[] }[] }>> };
       expect(doc.openapi).toBe("3.1.0");
       expect(Object.keys(doc.paths).sort()).toEqual([
+        "/angebote",
+        "/angebote/{id}",
         "/artikel",
         "/artikel/{id}",
+        "/bankimporte",
+        "/bankquellen",
         "/belege",
         "/belege/{id}",
         "/kontakte",
@@ -629,10 +718,15 @@ describe.skipIf(!testDatabaseUrl)("REST-API /api/v1 (Postgres)", () => {
         "/leistungen",
         "/leistungen/{id}",
         "/rechnungen",
+        "/rechnungen/wiederkehrend",
+        "/rechnungen/wiederkehrend/{id}",
         "/rechnungen/{id}",
       ]);
       expect(doc.paths["/rechnungen"]!.post!.security).toEqual([{ token: ["rechnungen:entwuerfe"] }]);
+      expect(doc.paths["/rechnungen/wiederkehrend"]!.post!.security).toEqual([{ token: ["rechnungen:vorlagen-anlegen"] }]);
       expect(doc.paths["/leistungen"]!.post!.security).toEqual([{ token: ["leistungen:schreiben"] }]);
+      expect(doc.paths["/angebote"]!.get!.security).toEqual([{ token: ["angebote:lesen"] }]);
+      expect(doc.paths["/bankimporte"]!.post!.security).toEqual([{ token: ["bank:importieren"] }]);
     });
   });
 });

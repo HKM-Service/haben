@@ -19,10 +19,13 @@ export {
   inputTaxForPeriod,
   listDocuments,
   MAX_DOCUMENT_SIZE,
-  runExtraction,
+  queueExtraction,
+  resumeExtractionQueue,
   updateDocument,
   uploadDocument,
 } from "./documents.ts";
+export { duplicateDocument } from "./duplizieren.ts";
+export { belegeMitGleicherNummer, type GleicheNummer } from "./gleiche-nummer.ts";
 export { searchBelege, searchDocuments, type DocumentHit, type RecurringDocumentHit } from "./search.ts";
 export { type Lieferant, supplierCategory, supplierPayment } from "./vorschlaege.ts";
 export {
@@ -35,10 +38,12 @@ export {
   type DocumentCancellation,
 } from "./cancellation.ts";
 export { extractionAvailable, extractionSettings } from "./extraction.ts";
+export { loadExtractionLimits, queueOverview, type QueueOverview } from "./extraction-queue.ts";
 export { supplierSuggestion, type SupplierSuggestion } from "./lieferantenvorschlag.ts";
 export { loadSplits, splitsByDocument, type DocumentSplit } from "./splits.ts";
 export { belegZeilen } from "./belegbuchung.ts";
 export { supplierDocuments } from "./lieferant-belege.ts";
+export { pdfPageTexts } from "./pdf-seitentext.ts";
 export { documentReferenceSchema, type DocumentReference } from "./external-reference.ts";
 export { documentNavigation, type DocumentNavigation } from "./navigation.ts";
 export {

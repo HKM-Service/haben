@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ExtractionConfig } from "./extraction-config.ts";
 import { extractWithOpenAiCompatible, parseExtraction } from "./extraction-openai.ts";
+import { openGate } from "./extraction-limits.ts";
 import type { Extraction } from "./extraction-schema.ts";
 import type { PdfToImages } from "./pdf-pages.ts";
 import type { PdfToPageTexts } from "./pdf-seitentext.ts";
@@ -80,7 +81,7 @@ describe("OpenAI-kompatibler Dienst", () => {
     kind: "jpeg" | "pdf" | "heic" = "jpeg",
     pdfToImages = noPdf,
     pdfToText: PdfToPageTexts = noText,
-  ) => extractWithOpenAiCompatible({ ...config, ...overrides }, bytes, kind, { fetch, pdfToImages, pdfToText });
+  ) => extractWithOpenAiCompatible({ ...config, ...overrides }, bytes, kind, openGate, { fetch, pdfToImages, pdfToText });
 
   describe("Text der PDF-Seiten (#329)", () => {
     const images = vi.fn(async () => ({ pages: [new Uint8Array([1]), new Uint8Array([2])], truncated: false }));
@@ -163,6 +164,44 @@ describe("OpenAI-kompatibler Dienst", () => {
   it("sendet den Schlüssel nur, wenn einer gesetzt ist, als Bearer", async () => {
     await extract({ apiKey: "geheim-123" });
     expect(service.requests[0]!.headers.authorization).toBe("Bearer geheim-123");
+  });
+
+  it("ordnet Anfragen an OpenRouter öffentlich Haben zu, ohne die URL der Instanz zu senden", async () => {
+    const routedFetch: typeof fetch = (_url, init) => fetch(`${service.baseUrl}/chat/completions`, init);
+    await extractWithOpenAiCompatible({ ...config, endpoint: "https://openrouter.ai/api/v1/chat/completions", apiKey: "geheim-123" }, JPEG, "jpeg", openGate, {
+      fetch: routedFetch,
+      pdfToImages: noPdf,
+      pdfToText: noText,
+    });
+    expect(service.requests[0]!.headers["http-referer"]).toBe("https://haben.app");
+    expect(service.requests[0]!.headers["x-openrouter-title"]).toBe("Haben");
+    expect(service.requests[0]!.headers.authorization).toBe("Bearer geheim-123");
+  });
+
+  it("ordnet OpenRouter allein anhand des Hostnamens zu, unabhängig vom Protokoll", async () => {
+    const routedFetch: typeof fetch = (_url, init) => fetch(`${service.baseUrl}/chat/completions`, init);
+    await extractWithOpenAiCompatible({ ...config, endpoint: "http://openrouter.ai/api/v1/chat/completions" }, JPEG, "jpeg", openGate, {
+      fetch: routedFetch,
+      pdfToImages: noPdf,
+      pdfToText: noText,
+    });
+    expect(service.requests[0]!.headers["http-referer"]).toBe("https://haben.app");
+    expect(service.requests[0]!.headers["x-openrouter-title"]).toBe("Haben");
+  });
+
+  it("sendet die OpenRouter-Zuordnung weder an andere Dienste noch an ähnlich benannte Hosts", async () => {
+    await extract();
+    expect(service.requests[0]!.headers["http-referer"]).toBeUndefined();
+    expect(service.requests[0]!.headers["x-openrouter-title"]).toBeUndefined();
+
+    const routedFetch: typeof fetch = (_url, init) => fetch(`${service.baseUrl}/chat/completions`, init);
+    await extractWithOpenAiCompatible({ ...config, endpoint: "https://openrouter.ai.example.com/api/v1/chat/completions" }, JPEG, "jpeg", openGate, {
+      fetch: routedFetch,
+      pdfToImages: noPdf,
+      pdfToText: noText,
+    });
+    expect(service.requests[1]!.headers["http-referer"]).toBeUndefined();
+    expect(service.requests[1]!.headers["x-openrouter-title"]).toBeUndefined();
   });
 
   it("nimmt zusätzliche Body-Felder aus EXTRACTION_EXTRA_BODY mit, etwa reasoning_effort", async () => {
@@ -297,7 +336,9 @@ describe("Umleitungen des Dienstes", () => {
         input: "bild",
         extraBody: {},
       };
-      const error = await extractWithOpenAiCompatible(config, JPEG, "jpeg", { fetch, pdfToImages: noPdf, pdfToText: noText }).catch((e: unknown) => e);
+      const error = await extractWithOpenAiCompatible(config, JPEG, "jpeg", openGate, { fetch, pdfToImages: noPdf, pdfToText: noText }).catch(
+        (e: unknown) => e,
+      );
       expect(received).toEqual([]);
       expect(error).toMatchObject({ reason: "umleitung" });
       expect((error as Error).message).not.toContain("geheim");
@@ -332,7 +373,9 @@ describe("Meldungen des Dienstes", () => {
     };
     for (const status of [400, 500]) {
       service.reply(() => ({ status, body: { error: { message: "upstream rejected Authorization: Bearer geheim-123" } } }));
-      const error = await extractWithOpenAiCompatible(config, JPEG, "jpeg", { fetch, pdfToImages: noPdf, pdfToText: noText }).catch((e: unknown) => e);
+      const error = await extractWithOpenAiCompatible(config, JPEG, "jpeg", openGate, { fetch, pdfToImages: noPdf, pdfToText: noText }).catch(
+        (e: unknown) => e,
+      );
       expect((error as Error).message).toMatch(new RegExp(`HTTP ${status}`));
       expect((error as Error).message).not.toContain("geheim-123");
     }

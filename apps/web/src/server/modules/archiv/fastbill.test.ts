@@ -37,6 +37,9 @@ const base = {
   SERVICE_PERIOD_END: "0000-00-00 00:00:00",
   DELIVERY_DATE: "0000-00-00 00:00:00",
   PAYMENTS: [],
+  // Bankverbindung des Kunden, wie invoice.get sie mitliefert (erfunden)
+  BANK_IBAN: "DE02120300000000202051",
+  BANK_ACCOUNT_OWNER: "Muster GmbH",
 };
 
 const OUTGOING = [
@@ -176,7 +179,15 @@ function fakeFastbill(server: Server): typeof fetch {
       return json({ REQUEST: body, RESPONSE: { ERRORS: ["Login Error: Wrong API KEY or user credentials."] } }, 401);
     const page = (key: string, items: unknown[]) => json({ REQUEST: body, RESPONSE: { [key]: body.OFFSET === 0 ? items : [] } });
     if (body.SERVICE === "customer.get") return page("CUSTOMERS", CUSTOMERS);
+    // Ansprechpartner prüft fastbill-kunden.test.ts; hier gibt es keine
+    if (body.SERVICE === "contact.get") return page("CONTACTS", []);
     if (body.SERVICE === "expense.get") return page("EXPENSES", EXPENSES);
+    // Vorlagen wiederkehrender Rechnungen prüft fastbill-vorlagen.test.ts; hier gibt es keine
+    if (body.SERVICE === "recurring.get") return page("INVOICES", []);
+    // Angebote prüft fastbill-angebote.test.ts; hier gibt es keine
+    if (body.SERVICE === "estimate.get") return page("ESTIMATES", []);
+    // Einnahmen prüft fastbill-einnahmen.test.ts; hier gibt es keine
+    if (body.SERVICE === "revenue.get") return page("REVENUES", []);
     if (body.SERVICE === "invoice.get") {
       if (body.FILTER.TYPE === "outgoing") return page("INVOICES", OUTGOING);
       if (body.FILTER.TYPE === "credit") return page("INVOICES", CREDITS);
@@ -188,7 +199,7 @@ function fakeFastbill(server: Server): typeof fetch {
 
 describe.skipIf(!testDatabaseUrl)("Umzug aus FastBill (Postgres)", () => {
   let fastbill: typeof import("./fastbill.ts");
-  let lexoffice: typeof import("./lexoffice.ts");
+  let lexoffice: typeof import("./lexoffice.ts") & typeof import("./umzug-abgleich.ts");
   let importPkg: typeof import("@haben/import");
   let sql: postgres.Sql;
   let server: Server;
@@ -197,7 +208,7 @@ describe.skipIf(!testDatabaseUrl)("Umzug aus FastBill (Postgres)", () => {
   beforeAll(async () => {
     sql = await setupTestDb();
     fastbill = await import("./fastbill.ts");
-    lexoffice = await import("./lexoffice.ts");
+    lexoffice = { ...(await import("./lexoffice.ts")), ...(await import("./umzug-abgleich.ts")) };
     importPkg = await import("@haben/import");
   }, 30_000);
 
@@ -230,8 +241,8 @@ describe.skipIf(!testDatabaseUrl)("Umzug aus FastBill (Postgres)", () => {
     expect(run).toMatchObject({ status: "fertig", source: "fastbill" });
     // Die Ausgabe 8002 wartet auf ihren Beleg, statt ohne Datei ins Archiv zu kommen
     expect(run!.progress).toMatchObject({ contacts: 2, listed: 6, imported: 5, skipped: 0, files: 5, failed: [], fastbillWaiting: 1 });
-    // Kunden, drei Durchläufe Rechnungen, Ausgaben; die Prüfung beim Speichern hat einen eigenen Client, PDFs zählen nicht
-    expect(run!.progress.fastbillCalls).toHaveLength(5);
+    // Kunden, Ansprechpartner, drei Durchläufe Rechnungen, Ausgaben, Einnahmen, Vorlagen, Angebote; die Prüfung beim Speichern hat einen eigenen Client, PDFs zählen nicht
+    expect(run!.progress.fastbillCalls).toHaveLength(9);
     // Entwürfe werden gar nicht abgefragt
     expect(server.calls.filter((c) => c.service === "invoice.get").map((c) => c.filter)).toEqual([
       { TYPE: "outgoing" },
@@ -363,7 +374,7 @@ describe.skipIf(!testDatabaseUrl)("Umzug aus FastBill (Postgres)", () => {
     await fastbill.startFastbillImport(actor, { wait: true });
     const run = await fastbill.latestFastbillImport();
     expect(run!.progress).toMatchObject({ contacts: 0, imported: 0, skipped: 6, failed: [], fastbillWaiting: 0 });
-    expect(run!.progress.fastbillCalls!.length).toBe(before.length + 5);
+    expect(run!.progress.fastbillCalls!.length).toBe(before.length + 9);
     const [count] = await sql`select count(*)::int as n from lexoffice_vouchers where source = 'fastbill'`;
     expect(count!.n).toBe(7);
   });
@@ -400,6 +411,11 @@ describe.skipIf(!testDatabaseUrl)("Umzug aus FastBill (Postgres)", () => {
     await fastbill.startFastbillImport(actor, { wait: true });
     const run = await fastbill.latestFastbillImport();
     expect(run).toMatchObject({ status: "fehler", error: "Login-E-Mail oder API-Schlüssel falsch" });
+  });
+
+  it("legt die Bankverbindung des Kunden nicht ins unveränderliche Archiv (#1540)", async () => {
+    const rows = await sql`select lexoffice_id from lexoffice_vouchers where source = 'fastbill' and (raw ? 'BANK_IBAN' or raw ? 'BANK_ACCOUNT_OWNER')`;
+    expect(rows.map((r) => r.lexoffice_id)).toEqual([]);
   });
 
   it("legt die DOCUMENT_URL (Link mit eigenem Schlüssel) nicht ins unveränderliche Archiv", async () => {

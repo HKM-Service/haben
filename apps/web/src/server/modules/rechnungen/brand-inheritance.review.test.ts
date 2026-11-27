@@ -8,7 +8,7 @@ type Source = { kind: SourceKind; id: string };
 const sourceKinds: SourceKind[] = ["Angebot", "Vorlage", "Korrektur"];
 
 describe.skipIf(!testDatabaseUrl)("Markenvererbung ohne ausdrückliche Profilauswahl (Postgres)", () => {
-  let invoices: typeof import("./invoices.ts");
+  let invoices: typeof import("./index.ts");
   let quotes: typeof import("./quotes.ts");
   let recurring: typeof import("./recurring.ts");
   let brands: typeof import("../stammdaten/brand-profiles.ts");
@@ -30,7 +30,7 @@ describe.skipIf(!testDatabaseUrl)("Markenvererbung ohne ausdrückliche Profilaus
 
   beforeAll(async () => {
     sql = await setupTestDb();
-    invoices = await import("./invoices.ts");
+    invoices = await import("./index.ts");
     quotes = await import("./quotes.ts");
     recurring = await import("./recurring.ts");
     brands = await import("../stammdaten/brand-profiles.ts");
@@ -63,7 +63,7 @@ describe.skipIf(!testDatabaseUrl)("Markenvererbung ohne ausdrückliche Profilaus
         active: true,
         taxTreatment: "regulaer",
         exemptionReason: "",
-        intervalMonths: 1,
+        recurrence: "P1M",
         nextDate: "2026-10-02",
         endDate: null,
         servicePeriod: "vorher",
@@ -124,6 +124,14 @@ describe.skipIf(!testDatabaseUrl)("Markenvererbung ohne ausdrückliche Profilaus
     await changeDefault();
 
     expect((await inheritedDraft(from, null)).brandProfileId).toBeNull();
+  });
+
+  it("übernimmt in die Kopie einer Rechnung deren Marke, auch eine inzwischen archivierte", async () => {
+    const from = await source("Korrektur", sourceBrand);
+    await changeDefault();
+    await brands.setBrandProfileArchived(actor, sourceBrand, true);
+
+    expect((await invoices.copyInvoice(actor, from.id, "2026-10-05")).brandProfileId).toBe(sourceBrand);
   });
 
   it("verwendet die Standardmarke nur für einen neuen Entwurf ohne Herkunft und ohne ausdrückliche Auswahl", async () => {

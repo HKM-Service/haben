@@ -2,7 +2,8 @@ import { z } from "zod";
 import { TOKEN_SCOPE_LABELS, TOKEN_SCOPES } from "../mcp/index.ts";
 import { API_ROUTES, type ApiRoute } from "./routes.ts";
 import { MAX_DOCUMENT_SIZE } from "../belege/index.ts";
-import { DOCUMENT_MEDIA_TYPES, requestSchemas, responseSchemas } from "./schemas.ts";
+import { DOCUMENT_MEDIA_TYPES } from "./belege-schemas.ts";
+import { requestSchemas, responseSchemas } from "./schemas.ts";
 
 /*
  * OpenAPI-3.1-Beschreibung von /api/v1, erzeugt aus der Tabelle der Endpunkte (routes.ts) und den Zod-Schemas
@@ -18,11 +19,11 @@ const MAX_DOCUMENT_MB = MAX_DOCUMENT_SIZE / 1024 / 1024;
 
 const DESCRIPTION = [
   "Allgemeine Schnittstelle von Haben für eigene Werkzeuge und Automationen. Sie liest und schreibt Kontakte,",
-  "Rechnungsentwürfe und Katalogartikel. Eingangsbelege landen in Haben als „Zu prüfen“. Sie bucht nichts, schreibt nichts",
-  "fest und versendet nichts: Das bleibt wegen GoBD ein Klick in Haben.",
+  "Rechnungs- und Angebotsentwürfe und Katalogartikel. Eingangsbelege landen in Haben als „Zu prüfen“. Sie bucht",
+  "nichts, schreibt nichts fest und versendet nichts: Das bleibt wegen GoBD ein Klick in Haben.",
   "",
   "Anmeldung mit einem API-Token aus Einstellungen → KI-Assistenten und API als `Authorization: Bearer hb_…`. Jeder",
-  "Endpunkt verlangt ein Recht (scope); schreiben schließt lesen ein.",
+  "Endpunkt verlangt das in seiner Beschreibung genannte Recht (scope).",
   "",
   "Geld in ganzen Cent (5712 = 57,12 €), Steuersätze in Basispunkten (1900 = 19 %), Mengen in Tausendsteln (1 Stück = 1000),",
   "Datumsangaben JJJJ-MM-TT. Fehler kommen immer als `{ error: { code, message, issues? } }` mit deutscher Meldung.",
@@ -121,9 +122,11 @@ function buildDocument() {
     tags: [
       { name: "Kontakte", description: "Kunden; versioniert, nicht löschbar" },
       { name: "Rechnungen", description: "Alle Rechnungen lesen, Entwürfe anlegen, ändern und löschen" },
+      { name: "Angebote", description: "Alle Angebote lesen, Entwürfe anlegen, ändern und löschen; festgeschrieben, versendet und abgerechnet wird in Haben" },
       { name: "Belege", description: "Eingangsbelege hochladen und ihren Stand lesen; geprüft und gebucht wird in Haben" },
       { name: "Artikel", description: "Katalogartikel lesen, anlegen und ändern" },
       { name: "Leistungen", description: "Zeiteinträge je Kunde, auch aus Zeiterfassungsprogrammen wie Kimai; abgerechnet wird in Haben" },
+      { name: "Bank", description: "Bankumsätze nach dem Importvertrag in freigegebene Quellen liefern; zugeordnet und gebucht wird in Haben" },
     ],
     paths,
     components: {

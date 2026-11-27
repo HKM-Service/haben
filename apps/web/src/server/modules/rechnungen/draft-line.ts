@@ -4,13 +4,15 @@ import { z } from "zod";
 /**
  * Position mit der mehrzeiligen Beschreibung unter der Bezeichnung; gleich für Rechnung, Angebot und wiederkehrende
  * Rechnung. Eigene Datei ohne weitere Abhängigkeiten: quotes.ts und recurring.ts bauen ihre Schemas beim Laden daraus,
- * auch wenn invoices.ts über einen Importkreis noch nicht fertig geladen ist.
+ * auch wenn ein anderes Modul der Rechnungen über einen Importkreis noch nicht fertig geladen ist.
  */
 export const draftLineSchema = z.object({
   ...invoiceLineInputSchema.shape,
   detail: z.string().trim().max(LINE_DETAIL_MAX).default(""),
   /** Artikelnummer des Verkäufers (BT-155), aus dem Artikel kopiert; so lang wie im Katalog (#388) */
   itemNumber: z.string().trim().max(ITEM_NUMBER_MAX, `Artikelnummer höchstens ${ITEM_NUMBER_MAX} Zeichen`).default(""),
+  /** Arbeits-, Maschinen- und Fahrtkosten (§ 35a EStG); ihr Anteil steht unter den Summen (#712) */
+  arbeitskosten: z.boolean().default(false),
 });
 
 /** Position einer Rechnung mit Positionsrabatt (Prozent oder Betrag im Preismodus); wiederkehrende Rechnungen haben keinen */

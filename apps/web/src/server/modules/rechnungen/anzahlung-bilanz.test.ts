@@ -2,6 +2,7 @@ import { ACCOUNTS } from "@haben/core";
 import type postgres from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
+import { kleinunternehmerStand } from "../auswertungen/test-umsatz-stand.ts";
 
 /**
  * #750: Vor der Leistung kein Erlös (§ 252 Abs. 1 Nr. 4 und 5 HGB), unabhängig vom Umsatzsteuerverfahren.
@@ -62,7 +63,7 @@ describe.skipIf(!testDatabaseUrl)("Anzahlungsbilanzierung bei GmbH und UG (Postg
       advanceType: "anzahlung",
       lines: [{ description: "Anzahlung vor Leistung", quantity: 1000, unit: "Psch.", unitPrice, taxRate: 1900 }],
     });
-    return invoices.finalizeInvoice(actor, draft.id);
+    return invoices.finalizeInvoice(actor, draft.id, kleinunternehmerStand);
   }
 
   async function finalInvoice(advanceId: string, issueDate = "2027-01-20") {
@@ -78,7 +79,7 @@ describe.skipIf(!testDatabaseUrl)("Anzahlungsbilanzierung bei GmbH und UG (Postg
       deducts: [advanceId],
       lines: [{ description: "Gesamtleistung", quantity: 1000, unit: "Psch.", unitPrice: 100_000, taxRate: 1900 }],
     });
-    return invoices.finalizeInvoice(actor, draft.id);
+    return invoices.finalizeInvoice(actor, draft.id, kleinunternehmerStand);
   }
 
   async function revenue(year: number, account: string) {
@@ -105,6 +106,9 @@ describe.skipIf(!testDatabaseUrl)("Anzahlungsbilanzierung bei GmbH und UG (Postg
       await sql`update company set rechtsform = ${form}, kontenrahmen = ${frame}, versteuerung = ${vatMode}`;
       const invoice = await advance();
       await bank.createCashInvoiceEntry(actor, { invoiceId: invoice.id, date: "2026-12-12", amount: 11_900 }, "2026-12-12");
+      expect(await sql`select description from journal_entries where source_type = 'invoice' and source_id = ${invoice.id}`).toContainEqual({
+        description: `Bilanzierung Anzahlung ${invoice.number}`,
+      });
       expect(await revenue(2026, ACCOUNTS[frame].erhalteneAnzahlungen)).toBe(10_000);
       expect(await revenue(2026, ACCOUNTS[frame].erloese[1900])).toBe(0);
       expect((await bank.cashBook(2026)).entries).toHaveLength(1);

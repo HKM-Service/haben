@@ -17,14 +17,17 @@ import { db, schema, type Tx } from "../../db/index.ts";
 import { loadCompany, sellerIssues, type Company, type Contact } from "../stammdaten/index.ts";
 import { isUniqueViolation } from "../../errors.ts";
 import { openBooks, post } from "../buchhaltung/index.ts";
-import { sha256 } from "./invoices.ts";
+import { sha256 } from "./invoice-finalize.ts";
 import { versteuerungIssues } from "./versteuerung-pruefung.ts";
 import { invoicePostingMode, invoiceVatDate } from "./invoice-tax.ts";
 import { InvoiceError } from "./invoice-error.ts";
-import { pruefeUmsatzgrenze } from "./umsatzgrenze.ts";
+import { pruefeUmsatzgrenze, type UmsatzStand } from "./umsatzgrenze.ts";
 import { rebuildInvoiceLines } from "./positionen-nachbilden.ts";
 import { createTakenOverInvoice } from "./rechnung-uebernehmen.ts";
 import { outgoingTaxDetailsSchema } from "./tax-details.ts";
+import { FREMDSYSTEM, fremdNummerSchema, looksLikePdf } from "./fremdsystem.ts";
+import { cancellationProposal } from "./fremdstorno.ts";
+import { isCancellation } from "./fremdstorno-pruefung.ts";
 
 /*
  * Ausgangsrechnung aus einem Fremdsystem übernehmen (#660): Die Rechnung ist dort geschrieben und verschickt worden und
@@ -40,20 +43,12 @@ import { outgoingTaxDetailsSchema } from "./tax-details.ts";
  * https://www.gesetze-im-internet.de/ustg_1980/__13.html, https://www.gesetze-im-internet.de/ustg_1980/__14b.html
  */
 
-/** Herkunft der übernommenen Rechnungen in der externen Referenz (zusammen mit der Nummer eindeutig) */
-const SOURCE = "fremdsystem";
-
 /** Nur Rechnungen: Gutschriften sind in Haben keine Rechnung, negative Beträge also ausgeschlossen */
 const cents = z.number().int().min(0).max(2_147_483_647);
 
 export const foreignInvoiceSchema = z.object({
   /** Nummer aus dem Fremdsystem; sie bleibt unverändert */
-  number: z
-    .string()
-    .trim()
-    .min(1, "Rechnungsnummer fehlt")
-    .max(100)
-    .regex(/^[^\p{Cc}/\x5c]+$/u, "Rechnungsnummer ohne Steuerzeichen, Schrägstrich und Rückstrich"),
+  number: fremdNummerSchema,
   issueDate: z.iso.date(),
   dueDate: z.iso.date(),
   serviceFrom: z.iso.date().nullable().default(null),
@@ -100,10 +95,6 @@ function rebuild(taxes: { rate: number; net: number; tax: number }[], number: st
   );
 }
 
-function looksLikePdf(bytes: Uint8Array): boolean {
-  return new TextDecoder("latin1").decode(bytes.subarray(0, 1024)).includes("%PDF-");
-}
-
 type AdoptInput = z.output<typeof foreignInvoiceSchema>;
 
 /** Was gegen die Übernahme spricht: Firmendaten, Versteuerung, Steuerbehandlung, Umsatzgrenze */
@@ -113,6 +104,7 @@ async function assertAdoptable(
   contact: Contact,
   input: AdoptInput,
   totals: { net: number; taxes: { rate: number }[] },
+  umsatzStand: UmsatzStand,
 ): Promise<void> {
   const issues = [
     ...sellerIssues(company, true).map((issue) => `Firmendaten: ${issue}`),
@@ -123,6 +115,8 @@ async function assertAdoptable(
       sellerUstId: company.ustId,
       buyerUstId: contact.ustId,
       buyerCountry: contact.land,
+      buyerPostalCode: contact.plz,
+      foreignPlace: input.taxDetails?.foreignPlace,
       exemptionReason: input.exemptionReason,
     }),
   ];
@@ -132,6 +126,7 @@ async function assertAdoptable(
     { kind: "rechnung", issueDate: input.issueDate, taxTreatment: input.taxTreatment },
     totals.net,
     company.foundedOn,
+    umsatzStand,
     input.bestaetigt,
   );
 }
@@ -139,8 +134,15 @@ async function assertAdoptable(
 /**
  * Legt die Rechnung festgeschrieben an und bucht sie wie beim Festschreiben einer eigenen Rechnung.
  * Mit `xml` (eingebettetes ZUGFeRD oder XRechnung des Originals) bleibt auch die maschinenlesbare Fassung erhalten.
+ * `umsatzStand` braucht die Rückfrage zur Kleinunternehmergrenze (`kleinunternehmerStand`).
  */
-export async function adoptForeignInvoice(actor: string, raw: ForeignInvoiceInput, pdf: Uint8Array, xml: string | null = null): Promise<{ id: string }> {
+export async function adoptForeignInvoice(
+  actor: string,
+  raw: ForeignInvoiceInput,
+  pdf: Uint8Array,
+  umsatzStand: UmsatzStand,
+  xml: string | null = null,
+): Promise<{ id: string }> {
   const input = foreignInvoiceSchema.parse(raw);
   if (!looksLikePdf(pdf)) throw new InvoiceError("Das Original muss ein PDF sein.");
   if (input.dueDate < input.issueDate) throw new InvoiceError("Das Fälligkeitsdatum liegt vor dem Rechnungsdatum.");
@@ -158,7 +160,7 @@ export async function adoptForeignInvoice(actor: string, raw: ForeignInvoiceInpu
       const company = await openBooks(tx);
       const [contact] = await tx.select().from(schema.contacts).where(eq(schema.contacts.id, input.contactId));
       if (!contact) throw new InvoiceError("Der Kunde fehlt.");
-      await assertAdoptable(tx, company, contact, input, totals);
+      await assertAdoptable(tx, company, contact, input, totals, umsatzStand);
 
       const invoice = await createTakenOverInvoice(tx, {
         company,
@@ -180,7 +182,7 @@ export async function adoptForeignInvoice(actor: string, raw: ForeignInvoiceInpu
         pdf,
         pdfSha256: sha256(pdf),
         xml,
-        origin: { externalSource: SOURCE, externalId: input.number },
+        origin: { externalSource: FREMDSYSTEM, externalId: input.number },
       });
       const id = invoice.id;
 
@@ -225,6 +227,11 @@ export interface ForeignInvoiceProposal {
   buyerName: string | null;
   /** Hinweise zum Prüfen, etwa dass der Verkäufer nicht die eigene Firma ist */
   warnings: string[];
+  /**
+   * Storno einer übernommenen Rechnung (#1900): die Rechnung, auf die sich die Gutschrift mit BT-25 bezieht, und was schon
+   * beim Einlesen gegen die Übernahme spricht (`problem`)
+   */
+  cancels: Awaited<ReturnType<typeof cancellationProposal>>;
 }
 
 /** Liest, was die Datei selbst über die Rechnung sagt; ohne E-Rechnung bleibt der Vorschlag leer */
@@ -241,6 +248,7 @@ export async function foreignInvoiceProposal(file: { bytes: Uint8Array; filename
     contactId: null,
     buyerName: null,
     warnings: [],
+    cancels: null,
   };
   let read: Awaited<ReturnType<typeof readEInvoice>> = null;
   try {
@@ -255,7 +263,13 @@ export async function foreignInvoiceProposal(file: { bytes: Uint8Array; filename
   const sellerUst = invoice.seller.ustId?.replace(/\s/g, "").toUpperCase();
   if (sellerUst && company.ustId && sellerUst !== company.ustId.replace(/\s/g, "").toUpperCase())
     warnings.push(`Die Rechnung nennt die USt-IdNr. ${sellerUst}, in den Firmendaten steht eine andere. Ist es wirklich deine Rechnung?`);
-  if (invoice.isCreditNote) warnings.push("Das ist eine Gutschrift; Haben übernimmt hier nur Rechnungen.");
+  const cancelled = isCancellation(invoice) ? await cancellationProposal(invoice) : null;
+  if (isCancellation(invoice) && !cancelled)
+    warnings.push(
+      invoice.precedingInvoices?.length
+        ? `Das ist eine Gutschrift zu ${invoice.precedingInvoices.map((ref) => ref.number).join(", ")}; eine solche Rechnung aus dem Fremdsystem gibt es in Haben nicht.`
+        : "Das ist eine Gutschrift ohne Bezug auf eine Rechnung (BT-25); Haben übernimmt hier nur Rechnungen und Stornos übernommener Rechnungen.",
+    );
   if (invoice.currency !== "EUR") warnings.push(`Die Rechnung lautet auf ${invoice.currency}; Haben übernimmt hier nur Rechnungen in Euro.`);
   if (invoice.typeCode === PREPAYMENT) warnings.push(PREPAYMENT_TEXT);
   const taxes = groupByRate(invoice.taxes.map((t) => ({ rate: t.rate, net: t.base, tax: t.tax })));
@@ -279,11 +293,17 @@ export async function foreignInvoiceProposal(file: { bytes: Uint8Array; filename
     contactId: matches.length === 1 ? matches[0]!.id : null,
     buyerName,
     warnings,
+    cancels: cancelled,
   };
 }
 
 /** Wie adoptForeignInvoice, mit der E-Rechnung aus der Datei, falls sie eine enthält und lesbar ist */
-export async function adoptForeignInvoiceFile(actor: string, raw: ForeignInvoiceInput, file: { bytes: Uint8Array; filename: string; mimeType: string }) {
+export async function adoptForeignInvoiceFile(
+  actor: string,
+  raw: ForeignInvoiceInput,
+  file: { bytes: Uint8Array; filename: string; mimeType: string },
+  umsatzStand: UmsatzStand,
+) {
   const read = await readEInvoice(file).catch(() => null);
   if (read) {
     // Nur Rechnungen in Euro: Gutschrift und Fremdwährung warnt schon der Vorschlag, hier wird sie abgelehnt
@@ -294,7 +314,7 @@ export async function adoptForeignInvoiceFile(actor: string, raw: ForeignInvoice
     const problem = xmlMismatch(read.invoice, foreignInvoiceSchema.parse(raw));
     if (problem) throw new InvoiceError(`Die E-Rechnung in der Datei passt nicht zu den Angaben: ${problem}. Das Original wird so nicht übernommen.`);
   }
-  return adoptForeignInvoice(actor, raw, file.bytes, read?.xml ?? null);
+  return adoptForeignInvoice(actor, raw, file.bytes, umsatzStand, read?.xml ?? null);
 }
 
 /** Was an der eingebetteten E-Rechnung von den bestätigten Angaben abweicht, oder null; das XML wird mit der Rechnung archiviert und weitergegeben */
