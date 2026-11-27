@@ -32,6 +32,9 @@
 .upload-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr); gap: 12px; align-items: end; }
 @media (max-width: 760px) {
   .data-table { display: block; overflow-x: auto; }
+  /* HKM finanz: In einem eigenen Rahmen (.table-scroll, ScrollBox) scrollt der Rahmen und nimmt dann den Fokus an
+     (WCAG 2.1.1); scrollte die Tabelle darin selbst, bliebe sie ohne Tastaturzugang. Mit Manrope läuft sie am Handy über */
+  .table-scroll > .data-table { display: table; overflow-x: visible; }
   .checks li { grid-template-columns: 22px minmax(0, 1fr); }
   .checks li > :last-child { grid-column: 2; text-align: left; }
   .upload-row { grid-template-columns: minmax(0, 1fr); }
