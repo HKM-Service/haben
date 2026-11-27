@@ -25,7 +25,7 @@ describe.skipIf(!testDatabaseUrl)("Dauerbelege (Postgres)", () => {
   let dauer: typeof import("./dauerbelege.ts");
   let lauf: typeof import("./dauerbelege-lauf.ts");
   let documents: typeof import("./documents.ts");
-  let bank: typeof import("../bank/bank.ts");
+  let bank: typeof import("../bank/index.ts");
   let vat: typeof import("../umsatzsteuer/vat-figures.ts");
   let sql: postgres.Sql;
   const actor = "test-user";
@@ -35,7 +35,7 @@ describe.skipIf(!testDatabaseUrl)("Dauerbelege (Postgres)", () => {
     dauer = await import("./dauerbelege.ts");
     lauf = await import("./dauerbelege-lauf.ts");
     documents = await import("./documents.ts");
-    bank = await import("../bank/bank.ts");
+    bank = await import("../bank/index.ts");
     vat = await import("../umsatzsteuer/vat-figures.ts");
   }, 30_000);
 
@@ -60,7 +60,7 @@ describe.skipIf(!testDatabaseUrl)("Dauerbelege (Postgres)", () => {
     amounts: [{ taxRate: 1900 as const, net: 100_000, tax: 19_000 }],
     taxShown: true,
     note: "",
-    intervalMonths: 1 as const,
+    recurrence: "P1M" as const,
     nextDate: "2026-08-31",
     endDate: null,
     dueDays: 3,
@@ -124,6 +124,8 @@ describe.skipIf(!testDatabaseUrl)("Dauerbelege (Postgres)", () => {
         const [transaction] = await sql`select id from bank_transactions`;
         const detail = (await bank.transactionDetail(transaction!.id as string))!;
         expect(detail.dauerbelege.map((s) => s.item.id).sort()).toEqual(rows.map((r) => r.id).sort());
+        // Ohne § 13b oder Erwerb lässt sich jeder im Abgleich buchen (#1595)
+        expect(detail.dauerbelege.map((s) => s.selfAssessed)).toEqual([false, false, false]);
         const september = rows[1]!.id as string;
         await lauf.bookAndAllocateDauerbeleg(actor, { documentId: september, transactionId: transaction!.id as string });
 
@@ -246,7 +248,7 @@ describe.skipIf(!testDatabaseUrl)("Dauerbelege (Postgres)", () => {
     await expect(dauer.createDauerbeleg(actor, miete({ taxShown: false }), vertrag())).rejects.toThrow(/gesondert ausweist/);
     const versicherung = await dauer.createDauerbeleg(
       actor,
-      miete({ name: "Betriebshaftpflicht", category: "versicherung", taxShown: false, intervalMonths: 12, amounts: [{ taxRate: 0, net: 45_000, tax: 0 }] }),
+      miete({ name: "Betriebshaftpflicht", category: "versicherung", taxShown: false, recurrence: "P1Y", amounts: [{ taxRate: 0, net: 45_000, tax: 0 }] }),
       vertrag("Police"),
     );
     await lauf.runDueDauerbelege("2026-09-01");
@@ -255,6 +257,41 @@ describe.skipIf(!testDatabaseUrl)("Dauerbelege (Postgres)", () => {
     const [{ note }] = (await sql`select note from documents where id = ${beleg!.id}`) as unknown as [{ note: string }];
     expect(note).toMatch(/keine Umsatzsteuer aus/);
   });
+
+  it.each([
+    ["SKR03", "ist", "4964", "1576", "1600"],
+    ["SKR04", "soll", "6837", "1406", "3300"],
+  ] as const)(
+    "%s, %s: Kleinbetragsrechnung, Endbetrag 11,90 € mit 19 % → 10,00 € + 1,90 € Vorsteuer (§ 33, § 35 Abs. 1 UStDV, #1101)",
+    async (kontenrahmen, versteuerung, aufwand, vorsteuer, verb) => {
+      await reset(kontenrahmen, versteuerung);
+      const abo = { name: "Cloud-Abo", category: "software" as const, taxShown: false, kleinbetrag: true, nextDate: "2026-10-15" };
+      const vorlage = await dauer.createDauerbeleg(actor, miete({ ...abo, amounts: [{ taxRate: 1900, net: 1_000, tax: 190 }] }), vertrag("Abo"));
+      await lauf.runDueDauerbelege("2026-10-20");
+      const [beleg] = await belege(vorlage.id);
+      expect(beleg!.gross).toBe(1_190);
+      const [{ note }] = (await sql`select note from documents where id = ${beleg!.id}`) as unknown as [{ note: string }];
+      expect(note).toMatch(/Kleinbetragsrechnung \(§ 33 UStDV\).*§ 35 Abs\. 1 UStDV/);
+      await documents.bookDocument(actor, beleg!.id as string);
+      const lines = await sql`select l.account, l.debit, l.credit from journal_lines l order by l.debit desc, l.account`;
+      expect(lines.map((l) => ({ ...l }))).toEqual([
+        { account: aufwand, debit: 1_000, credit: 0 },
+        { account: vorsteuer, debit: 190, credit: 0 },
+        { account: verb, debit: 0, credit: 1_190 },
+      ]);
+      expect((await vat.computeVatFigures({ year: 2026, month: 10 })).kz66).toBe(190);
+
+      // Über 250 € brutto je Termin keine Kleinbetragsrechnung; Netto und Steuer müssen die Aufteilung sein
+      await expect(dauer.createDauerbeleg(actor, miete({ ...abo, amounts: [{ taxRate: 1900, net: 21_009, tax: 3_992 }] }), vertrag("Groß"))).rejects.toThrow(
+        /§ 33 UStDV/,
+      );
+      await expect(dauer.createDauerbeleg(actor, miete({ ...abo, amounts: [{ taxRate: 1900, net: 1_100, tax: 90 }] }), vertrag("Krumm"))).rejects.toThrow(
+        /§ 35 Abs\. 1 UStDV/,
+      );
+      // Steuerausweis und Kleinbetragsrechnung zugleich lehnt auch die Datenbank ab
+      await expect(sql`update recurring_documents set tax_shown = true where id = ${vorlage.id}`).rejects.toThrow(/recurring_documents_kleinbetrag/);
+    },
+  );
 
   it("ohne Dokument kein Dauerbeleg; nur leere Vorlagen lassen sich löschen, der Vertrag bleibt für die Belege", async () => {
     await reset();
@@ -312,6 +349,71 @@ describe.skipIf(!testDatabaseUrl)("Dauerbelege (Postgres)", () => {
     expect(nachher!.status).toBe("neu");
     expect(await sql`select id from journal_entries`).toHaveLength(0);
   });
+
+  /*
+   * #1595: Wer den Beleg eines Dauerbelegs auf eine selbst geschuldete Steuer umstellt, bucht ihn auf der Belegseite;
+   * nur dort fragt die Rückfrage „Beleg buchen?“ bei § 13b EU und Erwerb die USt-IdNr. beim BZSt ab (#1568). Der Abgleich
+   * schlägt ihn weiter vor, aber nur zum Prüfen.
+   */
+  it.each(["eu", "drittland", "ig_erwerb"] as const)(
+    "Buchen und zuordnen: mit selbst geschuldeter Steuer (%s) nur über die Belegseite",
+    async (reverseCharge) => {
+      await reset();
+      const vorlage = await dauer.createDauerbeleg(actor, miete({ nextDate: "2026-10-31" }), vertrag());
+      await lauf.runDueDauerbelege("2026-11-05");
+      const [beleg] = await belege(vorlage.id);
+      const id = beleg!.id as string;
+      // Auf der Belegseite umgestellt und gespeichert; gezahlt wird nur netto
+      await documents.updateDocument(actor, id, {
+        supplierName: "Hafen Immobilien GmbH",
+        supplierUstId: "IE9777587C",
+        invoiceNumber: "MV-2026-17",
+        documentDate: "2026-10-31",
+        dueDate: "2026-11-03",
+        category: "sonstiges",
+        payment: "bank",
+        note: "",
+        reverseCharge,
+        currency: "EUR",
+        exchangeRate: null,
+        amounts: [{ taxRate: 1900, net: 100_000, tax: 19_000 }],
+      });
+      await bank.importStatement(
+        actor,
+        {
+          bytes: dkbCsv([
+            [
+              "03.11.26",
+              "03.11.26",
+              "Gebucht",
+              "Testfirma",
+              "Hafen Immobilien GmbH",
+              "Miete MV-2026-17",
+              "Ausgang",
+              "DE02100100100006820101",
+              "-1.000,00",
+              "",
+              "",
+              "",
+            ],
+          ]),
+          filename: "konto.csv",
+        },
+        null,
+      );
+      const [transaction] = await sql`select id from bank_transactions`;
+      const detail = (await bank.transactionDetail(transaction!.id as string))!;
+      expect(detail.dauerbelege.map((s) => [s.item.id, s.selfAssessed])).toEqual([[id, true]]);
+
+      await expect(lauf.bookAndAllocateDauerbeleg(actor, { documentId: id, transactionId: transaction!.id as string })).rejects.toThrow(
+        "Belege mit § 13b oder innergemeinschaftlichem Erwerb buchst du auf der Belegseite.",
+      );
+      const [nachher] = await sql`select status from documents where id = ${id}`;
+      expect(nachher!.status).toBe("neu");
+      expect(await sql`select id from journal_entries`).toHaveLength(0);
+      expect(await sql`select id from allocations`).toHaveLength(0);
+    },
+  );
 
   it("jede Änderung an der Vorlage steht im Audit-Log", async () => {
     await reset();

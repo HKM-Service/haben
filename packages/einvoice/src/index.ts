@@ -4,6 +4,7 @@ export { LANGUAGES, texts, type Language } from "./i18n.ts";
 export { embedsInPdf } from "./typst-compiler.ts";
 export {
   asDraft,
+  footerColumns,
   legalLine,
   legalLines,
   logoFormat,
@@ -11,6 +12,7 @@ export {
   renderInvoiceDraftPdf,
   renderInvoicePdf,
   renderJob,
+  layoutTemplate,
   templateInputs,
   type DraftPdf,
 } from "./pdf.ts";
@@ -29,8 +31,8 @@ export {
 } from "./layout-schema.ts";
 export { layoutAnleitung, TYPST_VERSION } from "./layout-anleitung.ts";
 export { fehlendeAngaben, ungenutztePflichtfelder } from "./layout-pflicht.ts";
-export { type GestaltungsHinweis, gestaltungsHinweise, type LayoutJeBeleg, ungenutzteGestaltung } from "./layout-gestaltung.ts";
-export { startvorlage } from "./layout-startvorlage.ts";
+export { type GestaltungsHinweis, gestaltungsHinweise, kenntPflichtangabenFelder, type LayoutJeBeleg, ungenutzteGestaltung } from "./layout-gestaltung.ts";
+export { eingebauteLayoutDateien, eingebautesLayoutAlsDatei, startvorlage, vorlageAlsDatei } from "./layout-startvorlage.ts";
 export { buildQuoteDraftPdf, buildQuotePdf, quotePdfData, type QuoteDocument, type QuoteDocumentLine } from "./quote.ts";
 export { buildConfirmationPdf, buildDeliveryNotePdf, confirmationPdfData, deliveryNotePdfData, type DeliveryNoteDocument } from "./order.ts";
 export { buildSteuerbescheinigungPdf, steuerbescheinigungPdfData, type SteuerbescheinigungDocument } from "./steuerbescheinigung.ts";
@@ -39,6 +41,7 @@ export { buildLohnkontoPdf, lohnkontoPdfData, type LohnkontoDocument } from "./l
 export { buildLstbAusdruckPdf, lstbAusdruckPdfData, type LstbAusdruckDocument } from "./lohnsteuerbescheinigung.ts";
 export { buildDunningDraftPdf, buildDunningPdf, dunningPdfData, type DunningDocument } from "./dunning.ts";
 export { buildHinterlegungPdf, hinterlegungPdfData } from "./hinterlegung.ts";
+export { buildUstidBestaetigungPdf, ustidBestaetigungPdfData, type UstidBestaetigungDocument } from "./ustid-bestaetigung.ts";
 export { buildEInvoice } from "./xml.ts";
 export { validateForFormat } from "./validate.ts";
 export { extractFacturXXml } from "./zugferd.ts";

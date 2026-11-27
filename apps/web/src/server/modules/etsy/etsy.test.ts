@@ -1,5 +1,5 @@
 import type postgres from "postgres";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { EtsyClient, EtsyLedgerEntry } from "@haben/import";
 import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
 
@@ -298,6 +298,37 @@ describe.skipIf(!testDatabaseUrl)("Etsy-Zahlungsverlauf (Postgres)", () => {
     }
   });
 
+  it("zeigt einen Konflikt an der Karte; nach dem Klären übernimmt der nächste Abruf wieder", async () => {
+    // Etsy liefert die Auszahlung vom 20.06. (entry_id 8) mit anderem Betrag: Der Abruf steht, bis der Nutzer klärt
+    imAbruf = [{ ...verlauf[7]!, amount: -3500 }];
+    try {
+      expect((await etsy.syncEtsy(actor, new Date("2023-07-09T10:00:00Z"))).error).toMatch(/Konflikt/);
+      const { konflikte } = await etsy.etsySummary();
+      expect(konflikte).toMatchObject([{ sourceEventId: "8", previous: { amount: -3490 }, delivered: { amount: -3500 } }]);
+
+      const bank = await import("../bank/index.ts");
+      await bank.resolveConflict(actor, { conflictId: konflikte[0]!.id, decision: "keep" });
+      expect((await etsy.etsySummary()).konflikte).toEqual([]);
+      const weiter = await etsy.syncEtsy(actor, new Date("2023-07-10T10:00:00Z"));
+      expect(weiter).toMatchObject({ error: null, added: 0 });
+    } finally {
+      imAbruf = verlauf;
+    }
+  });
+
+  it("nennt Etsy im Hinweis am Umsatz, wenn ein Etsy-Konflikt als weiterer Umsatz übernommen wurde", async () => {
+    imAbruf = [{ ...verlauf[7]!, amount: -3600 }];
+    try {
+      await etsy.syncEtsy(actor, new Date("2023-07-11T10:00:00Z"));
+      const [konflikt] = (await etsy.etsySummary()).konflikte;
+      const bank = await import("../bank/index.ts");
+      const { transactionId } = await bank.resolveConflict(actor, { conflictId: konflikt!.id, decision: "add" });
+      expect(await bank.klaerungView(transactionId!)).toMatchObject({ provider: "etsy", previous: { amount: -3490 } });
+    } finally {
+      imAbruf = verlauf;
+    }
+  });
+
   it("trennt die Verbindung, ohne den Schlüssel zu verlieren", async () => {
     await etsy.disconnectEtsyConnection(actor);
     const stand = await etsy.etsySummary();
@@ -357,5 +388,28 @@ describe.skipIf(!testDatabaseUrl)("Etsy-Zahlungsverlauf (Postgres)", () => {
     const verbunden =
       await sql`select m.source_event_id, t.purpose from import_movements m join bank_transactions t on t.id = m.transaction_id order by m.source_event_id::int`;
     expect(verbunden.map((v) => v.source_event_id)).toEqual(["1", "5", "8"]);
+  });
+
+  it("legt beim Verbinden das Konto für Etsy an, wenn keins da ist, und kein zweites (#1951)", async () => {
+    await leeren(sql)`truncate bank_accounts, import_sources, etsy_connections cascade`;
+    // Der Tausch des Codes gegen Token geht ohne nachgebauten Client über fetch an Etsy
+    const tausch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response(JSON.stringify({ access_token: "gut", refresh_token: "erneuern", expires_in: 3600 })));
+    const verbinden = async () => {
+      await etsy.saveEtsyConnection(actor, { keystring: "abc", sharedSecret: "geheim", fetchFrom: "2023-06" });
+      const state = new URL(await etsy.startEtsyConnection(actor)).searchParams.get("state") ?? "";
+      return etsy.completeEtsyConnection(actor, { state, code: "code" });
+    };
+    try {
+      expect(await verbinden()).toMatchObject({ ok: true });
+      const konten = async () => sql`select name, purpose, provider from bank_accounts`;
+      expect(await konten()).toEqual([{ name: "Etsy", purpose: "zahlungsdienstleister", provider: "etsy" }]);
+      // Neu verbunden: das Konto gibt es schon
+      expect(await verbinden()).toMatchObject({ ok: true });
+      expect(await konten()).toHaveLength(1);
+    } finally {
+      tausch.mockRestore();
+    }
   });
 });

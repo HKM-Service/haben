@@ -3,21 +3,33 @@ import { Link, createFileRoute, notFound, useNavigate } from "@tanstack/react-ro
 import { Fragment } from "react";
 import { z } from "zod/mini";
 import { BalanceChart } from "../../../components/BalanceChart.tsx";
-import { JOURNAL_SOURCE, SaldoBetrag, ZEITRAEUME, lastDayBefore, shortDate, vorgangZurHerkunft } from "../../../components/Ledger.tsx";
+import { JOURNAL_SOURCE, SaldoBetrag, VorgangLink, ZEITRAEUME, lastDayBefore, shortDate, vorgangZurHerkunft } from "../../../components/Ledger.tsx";
 import { formatDate } from "../../../lib/format.ts";
+import { useZielzeile, zielzeile } from "../../../lib/use-zielzeile.ts";
 import { getKontenblatt } from "../../../server/functions/ledger.ts";
 import styles from "../../../styles/auswertungen.css?url";
 import { Field } from "../../../components/Field.tsx";
 
+const datum = z.string().check(z.regex(/^\d{4}-\d{2}-\d{2}$/));
+
+/*
+ * Zeitraum wie in der Saldenliste (jahr, q1–q4, m1–m12) oder von–bis innerhalb eines Jahres, etwa aus der BWA (#1380); den
+ * Rest prüft die Server-Funktion.
+ */
 export const Route = createFileRoute("/_app/konten/$konto")({
   validateSearch: z.object({
     jahr: z.optional(z.int()),
     zeitraum: z.optional(z.string().check(z.regex(/^(jahr|q[1-4]|m([1-9]|1[0-2]))$/))),
+    von: z.optional(datum),
+    bis: z.optional(datum),
   }),
   loaderDeps: ({ search }) => search,
   loader: ({ params, deps }) => {
     if (!/^\d{4,8}$/.test(params.konto)) throw notFound();
-    return getKontenblatt({ data: { account: params.konto, year: deps.jahr ?? currentYear(), period: deps.zeitraum ?? "jahr" } });
+    const vonBis = deps.von && deps.bis ? { von: deps.von, bis: deps.bis } : undefined;
+    return getKontenblatt({
+      data: { account: params.konto, year: vonBis ? Number(vonBis.von.slice(0, 4)) : (deps.jahr ?? currentYear()), period: deps.zeitraum ?? "jahr", vonBis },
+    });
   },
   head: ({ params }) => ({ meta: [{ title: `Konto ${params.konto} · Haben` }], links: [{ rel: "stylesheet", href: styles }] }),
   component: KontenblattPage,
@@ -29,20 +41,24 @@ function SourceLink({
   reversal,
   invoiceId,
   documentId,
+  transactionId,
+  rolle,
 }: {
   type: string;
   id: string;
   reversal: boolean;
   invoiceId: string | null;
   documentId: string | null;
+  transactionId: string | null;
+  rolle: string;
 }) {
   const label = reversal ? "Gegenbuchung" : (JOURNAL_SOURCE[type as keyof typeof JOURNAL_SOURCE] ?? type);
-  const vorgang = vorgangZurHerkunft({ sourceType: type, sourceId: id, invoiceId, documentId });
+  const vorgang = vorgangZurHerkunft({ sourceType: type, sourceId: id, invoiceId, documentId, transactionId });
   if (vorgang)
     return (
-      <Link to={vorgang.to} params={{ id: vorgang.id }}>
+      <VorgangLink vorgang={vorgang} rolle={rolle}>
         {label}
-      </Link>
+      </VorgangLink>
     );
   if (type === "allocation") return <Link to="/bank">{label}</Link>;
   if (type === "pauschale") return <Link to="/pauschalen">{label}</Link>;
@@ -52,16 +68,28 @@ function SourceLink({
 }
 
 function KontenblattPage() {
+  const rolle = Route.useRouteContext().user.role;
   const data = Route.useLoaderData();
   const { konto } = Route.useParams();
   const deps = Route.useSearch();
   const navigate = useNavigate();
   const year = Number(data.from.slice(0, 4));
-  const zeitraum = deps.zeitraum ?? "jahr";
+  const vonBis = deps.von && deps.bis ? { von: deps.von, bis: deps.bis } : null;
+  const zeitraum = vonBis ? "frei" : (deps.zeitraum ?? "jahr");
+  // Links auf andere Konten zeigen denselben Zeitraum
+  const suche = vonBis ? { jahr: year, ...vonBis } : { jahr: year, zeitraum };
   const kr: Kontenrahmen = data.kontenrahmen ?? "SKR03";
   // Ertragskonten aus Sicht des Kontos positiv zeigen, wie in der Saldenliste
   const sign = kontoart(kr, konto, data.saldo) === "ertrag" ? -1 : 1;
-  const multiMonth = !zeitraum.startsWith("m");
+  const multiMonth = vonBis ? vonBis.von.slice(0, 7) !== vonBis.bis.slice(0, 7) : !zeitraum.startsWith("m");
+  const ziel = useZielzeile();
+  // Anker nur an der ersten Zeile einer Buchung, falls sie das Konto mehrmals bebucht
+  const verankert = new Set<string>();
+  const anker = (entryId: string) => {
+    if (verankert.has(entryId)) return undefined;
+    verankert.add(entryId);
+    return `buchung-${entryId}`;
+  };
 
   // Zeilen nach Monat gruppieren, mit Zwischensumme je Monat
   const months = new Map<string, typeof data.zeilen>();
@@ -72,7 +100,7 @@ function KontenblattPage() {
       <div className="page-head">
         <div>
           <div className="eyebrow">
-            <Link to="/konten" search={{ jahr: year, zeitraum }}>
+            <Link to="/konten" search={{ jahr: year, zeitraum: deps.zeitraum ?? "jahr" }}>
               Konten {year}
             </Link>{" "}
             · Kontenblatt
@@ -94,10 +122,18 @@ function KontenblattPage() {
                     {label}
                   </option>
                 ))}
+                {vonBis && (
+                  <option value="frei">
+                    {formatDate(vonBis.von)}–{formatDate(vonBis.bis)}
+                  </option>
+                )}
               </select>
             )}
           </Field>
-          <a className="btn" href={`/api/konten/${year}?zeitraum=${zeitraum}&konto=${konto}`}>
+          <a
+            className="btn"
+            href={vonBis ? `/api/konten/${year}?von=${vonBis.von}&bis=${vonBis.bis}&konto=${konto}` : `/api/konten/${year}?zeitraum=${zeitraum}&konto=${konto}`}
+          >
             CSV
           </a>
         </div>
@@ -172,34 +208,45 @@ function KontenblattPage() {
             </tr>
             {[...months.entries()].map(([month, rows]) => (
               <Fragment key={month}>
-                {rows.map((z, i) => (
-                  <tr key={`${z.entryId}-${i}`}>
-                    <td data-label="Datum">{shortDate(z.date)}</td>
-                    <td data-label="Text">{z.description}</td>
-                    <td className="mono small" data-label="Gegenkonto">
-                      {z.gegenkonten.map((g, j) => (
-                        <span key={g}>
-                          {j > 0 && ", "}
-                          <Link to="/konten/$konto" params={{ konto: g }} search={{ jahr: year, zeitraum }}>
-                            {g}
-                          </Link>
-                        </span>
-                      ))}
-                    </td>
-                    <td className="small" data-label="Herkunft">
-                      <SourceLink type={z.sourceType} id={z.sourceId} reversal={z.reversal} invoiceId={z.invoiceId} documentId={z.documentId} />
-                    </td>
-                    <td className="num" data-label="Soll">
-                      {z.soll ? formatEuro(z.soll) : ""}
-                    </td>
-                    <td className="num" data-label="Haben">
-                      {z.haben ? formatEuro(z.haben) : ""}
-                    </td>
-                    <td className="num" data-label="Saldo">
-                      <SaldoBetrag kontenrahmen={kr} account={konto} saldo={z.saldo} />
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((z, i) => {
+                  const id = anker(z.entryId);
+                  return (
+                    <tr key={`${z.entryId}-${i}`} {...zielzeile(id, ziel)}>
+                      <td data-label="Datum">{shortDate(z.date)}</td>
+                      <td data-label="Text">{z.description}</td>
+                      <td className="mono small" data-label="Gegenkonto">
+                        {z.gegenkonten.map((g, j) => (
+                          <span key={g}>
+                            {j > 0 && ", "}
+                            <Link to="/konten/$konto" params={{ konto: g }} search={suche}>
+                              {g}
+                            </Link>
+                          </span>
+                        ))}
+                      </td>
+                      <td className="small" data-label="Herkunft">
+                        <SourceLink
+                          type={z.sourceType}
+                          id={z.sourceId}
+                          reversal={z.reversal}
+                          invoiceId={z.invoiceId}
+                          documentId={z.documentId}
+                          transactionId={z.transactionId}
+                          rolle={rolle}
+                        />
+                      </td>
+                      <td className="num" data-label="Soll">
+                        {z.soll ? formatEuro(z.soll) : ""}
+                      </td>
+                      <td className="num" data-label="Haben">
+                        {z.haben ? formatEuro(z.haben) : ""}
+                      </td>
+                      <td className="num" data-label="Saldo">
+                        <SaldoBetrag kontenrahmen={kr} account={konto} saldo={z.saldo} />
+                      </td>
+                    </tr>
+                  );
+                })}
                 {multiMonth && (
                   <tr className="subtotal-row">
                     <th scope="row" colSpan={4}>

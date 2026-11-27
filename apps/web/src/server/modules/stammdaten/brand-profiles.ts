@@ -1,4 +1,13 @@
-import { brandProfileInputSchema, designWithDefaults, type BrandProfileInput } from "@haben/core";
+import {
+  activeFooterColumns,
+  brandProfileInputSchema,
+  designWithDefaults,
+  isKapitalgesellschaft,
+  legalAsColumn,
+  legalFooterIssues,
+  type BrandProfileInput,
+  type LetterheadDesign,
+} from "@haben/core";
 import type { Letterhead, Seller } from "@haben/einvoice";
 import { and, asc, eq, getTableColumns, isNull, ne, sql } from "drizzle-orm";
 import { withActor } from "../../db/actor.ts";
@@ -89,7 +98,9 @@ export async function saveBrandProfile(actor: string, id: string | null, raw: Br
     if (current?.archivedAt) throw new BrandProfileError("Bitte die Marke vor dem Bearbeiten wieder aktivieren.");
     const [base] = await tx.select({ settings: table.settings }).from(table).where(eq(table.isDefault, true));
     const { design, ...fields } = input;
-    const values = { ...fields, settings: designWithDefaults({ ...(current?.settings ?? base?.settings), ...design }), updatedAt: new Date() };
+    const settings = brandSettings({ ...mitWirksamerFusszeile(current?.settings ?? base?.settings), ...design });
+    await assertBrandFooter(tx, settings);
+    const values = { ...fields, settings, updatedAt: new Date() };
     const [saved] = id
       ? await tx
           .update(table)
@@ -102,6 +113,33 @@ export async function saveBrandProfile(actor: string, id: string | null, raw: Br
           .returning({ id: table.id });
     return saved!;
   });
+}
+
+/**
+ * Gestaltung einer Marke: Eigene Spalten heißen eigene Fußzeile, null die automatische. Seit #1651 gilt footerColumns nur
+ * mit footerCustom; die Marke übernimmt sonst footerCustom: false aus der Firmenvorgabe, und ihre Spalten kämen nie aufs Blatt
+ */
+function brandSettings(stored: Partial<LetterheadDesign>): LetterheadDesign {
+  const settings = designWithDefaults(stored);
+  return { ...settings, footerCustom: settings.footerColumns !== null };
+}
+
+/** Gespeicherte Gestaltung mit den Spalten, die dort gelten: ausgeschaltete eigene Spalten der Firma erbt eine Marke nicht */
+export function mitWirksamerFusszeile(stored: Partial<LetterheadDesign> | null | undefined): Partial<LetterheadDesign> {
+  if (!stored) return {};
+  return { ...stored, footerColumns: activeFooterColumns(designWithDefaults(stored)) };
+}
+
+/** Wie beim Standardprofil (letterhead.ts): bei GmbH und UG alle Pflichtangaben oder keine, als eigene Spalte höchstens 4 Spalten */
+async function assertBrandFooter(tx: Tx, settings: LetterheadDesign): Promise<void> {
+  const columns = activeFooterColumns(settings);
+  if (!columns) return;
+  const [company] = await tx.select({ rechtsform: schema.company.rechtsform }).from(schema.company);
+  const issues = legalFooterIssues(columns, {
+    kapitalgesellschaft: isKapitalgesellschaft(company?.rechtsform ?? "einzelunternehmen"),
+    legalAsColumn: legalAsColumn(settings),
+  });
+  if (issues.length > 0) throw new BrandProfileError(issues.join(" "));
 }
 
 export async function setBrandProfileArchived(actor: string, id: string, archived: boolean) {
@@ -118,24 +156,33 @@ export async function setBrandProfileArchived(actor: string, id: string, archive
 
 /** Alle Bild- und Gestaltungsdaten stammen aus derselben Profilzeile. */
 export function brandLetterhead(row: BrandProfile): Letterhead {
-  const { accent, layouts, ...options } = designWithDefaults(row.settings);
+  const { accent, layouts, layoutOptions, ...options } = designWithDefaults(row.settings);
   return {
     accent,
     options,
     layoutAssignments: layouts,
+    layoutOptions,
     ...(row.logo && row.logoFormat ? { logo: { data: new Uint8Array(row.logo), format: row.logoFormat } } : {}),
     ...(row.background && row.backgroundFormat ? { background: { data: new Uint8Array(row.background), format: row.backgroundFormat } } : {}),
   };
 }
 
 /** § 14 Abs. 4 Nr. 1 UStG: Der Markenname ergänzt den rechtlichen Aussteller, dessen Name und Anschrift bleiben erhalten.
- * Quelle: https://www.gesetze-im-internet.de/ustg_1980/__14.html */
+ * Quelle: https://www.gesetze-im-internet.de/ustg_1980/__14.html
+ * Mit `keepBank` legt der Beleg sein Zahlungskonto selbst fest; dann gilt das Konto der Marke nicht. Mit `bankOptional`
+ * (Storno, Korrektur: niemand zahlt darauf) gilt ein inzwischen ungültiges Konto der Marke nicht, statt den Beleg zu sperren. */
 export async function brandSeller(
   seller: Seller,
   row: Pick<BrandProfile, "name" | "email" | "phone" | "website" | "bankAccountId">,
   q: Db | Tx = db,
+  { keepBank = false, bankOptional = false }: { keepBank?: boolean; bankOptional?: boolean } = {},
 ): Promise<Seller> {
-  const account = await selectedBank(row.bankAccountId, q);
+  const account = keepBank
+    ? null
+    : await selectedBank(row.bankAccountId, q).catch((error: unknown) => {
+        if (bankOptional && error instanceof BrandProfileError) return null;
+        throw error;
+      });
   return {
     ...seller,
     brand: row.name,

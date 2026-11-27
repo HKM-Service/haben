@@ -1,5 +1,5 @@
 ---
-title: "Umzug aus Lexoffice / Lexware Office ohne Datenverlust"
+title: "Umzug aus Lexoffice / Lexware Office mit Abgleich je Jahr"
 description: >-
   Von Lexware Office (Lexoffice) zu Haben wechseln: Rechnungen, Belege, Kontakte und Buchungen
   übernehmen, unveränderlich archivieren und das Abo kündigen.
@@ -7,7 +7,7 @@ description: >-
 
 # Umzug aus Lexoffice / Lexware Office
 
-Haben übernimmt deinen Bestand aus Lexware Office (früher Lexoffice), damit du das Abo kündigen kannst, ohne Daten zu verlieren. Der Umzug läuft auf der Seite **Archiv** unter „Umzug“, je nach Tarif auf einem von [drei Wegen](#drei-wege). Kommst du aus einem anderen Programm, lies [Umzug aus sevDesk](sevdesk.md), [Umzug aus FastBill](fastbill.md), [Umzug aus BuchhaltungsButler](buchhaltungsbutler.md) oder [Umzug aus Accountable](accountable.md).
+Haben übernimmt deinen Bestand aus Lexware Office (früher Lexoffice), damit du das Abo kündigen kannst; der Abgleich je Jahr zeigt vorher, ob alles da ist. Der Umzug läuft auf der Seite **Archiv** unter „Umzug“, je nach Tarif auf einem von [drei Wegen](#drei-wege). Kommst du aus einem anderen Programm, lies [Umzug aus sevDesk](sevdesk.md), [Umzug aus FastBill](fastbill.md), [Umzug aus BuchhaltungsButler](buchhaltungsbutler.md) oder [Umzug aus Accountable](accountable.md).
 
 <img src="screenshot-archiv.png" alt="Seite Archiv mit den Schritten des Umzugs und dem Abgleich je Geschäftsjahr" width="900">
 
@@ -65,7 +65,7 @@ Ein Wechsel **unter dem Jahr** geht auch, ist aber aufwendiger: Für das laufend
 
 ## Umzug ohne Public API (Tarife S, M und L)
 
-Dieselben Daten holst du über die Web-Oberfläche, die du ohnehin bezahlst: Ein Skript läuft in deinem angemeldeten Lexware Office, liest Kontakte, Rechnungen, Gutschriften und Belege mit Zahlungen, Original-PDF und E-Rechnungs-XML sowie die [Buchungen ohne Beleg](#buchungen-ohne-beleg) und lädt sie als ZIP-Dateien herunter. Haben übernimmt diese Sicherung genauso wie einen Abruf über die API; Schritt 2 bis 5 laufen danach unverändert.
+Deine eigenen Daten holst du für den Umzug über die Web-Oberfläche: Ein Skript läuft in deinem angemeldeten Lexware Office, liest Kontakte, Rechnungen, Gutschriften und Belege mit Zahlungen, Original-PDF und E-Rechnungs-XML sowie die [Buchungen ohne Beleg](#buchungen-ohne-beleg) und lädt sie als ZIP-Dateien herunter. Haben übernimmt diese Sicherung genauso wie einen Abruf über die API; Schritt 2 bis 5 laufen danach unverändert.
 
 ### Sicherung aus der Web-Oberfläche
 
@@ -76,19 +76,21 @@ Dieselben Daten holst du über die Web-Oberfläche, die du ohnehin bezahlst: Ein
 
 Das Skript ändert nichts in Lexware Office. Es ruft nur die Adressen auf, die die Web-Oberfläche beim Anzeigen selbst abfragt, mit kurzen Pausen dazwischen, und schickt nichts an Haben oder sonst wohin: Die Daten landen nur als Download in deinem Browser.
 
-Belege, die das Skript nicht laden konnte, stehen in der ZIP-Datei und nach dem Hochladen in Schritt 2 unter „nicht übernommen“. Lässt du das Skript später noch einmal laufen und lädst die neue Sicherung hoch, überspringt Haben alles, was schon da ist, und holt die fehlenden nach.
+Schritt 2 zeigt unter „Die Sicherung lässt … aus“, wie viele Entwürfe, Angebote, Auftragsbestätigungen, Lieferscheine und sonstige Vorgänge das Skript ausgelassen hat, gezählt über die ganze Sicherung, nicht je ZIP-Teil. Ein Entwurf zählt dabei nur als Entwurf. Sicherungen aus einer älteren Skriptversion enthalten diese Zahlen nicht; Haben übernimmt sie trotzdem, nur ohne den Hinweis.
+
+Belege, die das Skript nicht laden konnte, stehen in der ZIP-Datei und nach dem Hochladen in Schritt 2 unter den offenen Punkten beim Abruf. Lässt du das Skript später noch einmal laufen und lädst die neue Sicherung hoch, überspringt Haben alles, was schon da ist, und holt die fehlenden nach — auch das Original-PDF einer Rechnung und jeden einzelnen fehlenden Anhang eines Belegs.
 
 Buchungen, Bankumsätze, Voranmeldungen und Anlagen holst du wie beim Abruf über die API aus den Exporten (Schritt 4).
 
 ### Darf ich das?
 
-Ja, nach unserer Einschätzung, ohne Gewähr und ohne Rechtsberatung: Du holst deine eigenen Daten mit deiner eigenen Anmeldung, das Skript umgeht keinen Schutz und ändert nichts. Dafür sprechen:
+Wir halten das für zulässig, können es aber nicht zusichern; das ist keine Rechtsberatung. Das Skript ist dafür gedacht, deine eigenen Daten zum Umzug mitzunehmen, nicht für den laufenden Betrieb. Du holst sie mit deiner eigenen Anmeldung, das Skript umgeht keinen Schutz und ändert nichts. Dafür sprechen:
 
 - **EU Data Act** ([Verordnung (EU) 2023/2854](https://eur-lex.europa.eu/eli/reg/2023/2854/oj), Art. 23 ff., seit 12. September 2025): Anbieter von Cloud- und Software-Diensten dürfen den Wechsel zu einem anderen Dienst und die Mitnahme deiner Daten nicht behindern.
 - **Datenübertragbarkeit** ([Art. 20 DSGVO](https://eur-lex.europa.eu/eli/reg/2016/679/oj)), soweit die Daten dich als Person betreffen, etwa als Einzelunternehmer.
 - **Aufbewahrungspflicht** ([§ 147 AO](https://www.gesetze-im-internet.de/ao_1977/__147.html)): Du musst Rechnungen, Belege und Buchungen zehn Jahre vorlegen können, auch nach der Kündigung.
 
-Lies trotzdem die AGB deines Anbieters; sie gelten zwischen dir und ihm. Haben gehört nicht zu Lexware oder FastBill und wird von ihnen weder unterstützt noch geprüft. Lexware, Lexoffice und FastBill sind Marken ihrer Inhaber.
+Lies trotzdem die AGB deines Anbieters; sie gelten zwischen dir und ihm. Haben gehört nicht zu den Anbietern, aus denen es Daten übernimmt, und wird von ihnen weder unterstützt noch geprüft; ihre Namen sind Marken ihrer Inhaber.
 
 ### Was die Web-Oberfläche anders liefert
 
@@ -113,7 +115,6 @@ Unterschiede zur Public API:
 - **Steuer je Position:** Die Belegansicht nennt je Position nur Betrag und Steuersatz. Haben rechnet die Steuer daraus (aus dem Bruttobetrag herausgerechnet bzw. auf den Nettobetrag aufgeschlagen, kaufmännisch gerundet). Bei mehreren Positionen kann das im Cent von Lexware Office abweichen; maßgeblich bleibt der Bruttobetrag des Belegs.
 - **Schlussrechnungen:** Haben nimmt den geforderten Betrag (`claimed…`), in dem die Abschläge schon abgezogen sind.
 - **Zahlungsarten:** „Sonstige Zahlung“ (`partPaymentOther`) zählt wie `manualPayment` der Public API als Entgelt.
-- **Angebote, Aufträge, Lieferscheine und Entwürfe** lädt das Skript nicht.
 - **Buchungen ohne Beleg** kommen nur über das Skript, siehe unten.
 - Die Originalantworten liegen im übernommenen Beleg unter `web`, zum Nachweis.
 
@@ -163,8 +164,10 @@ Haben liest nur. Es legt in Lexware Office nichts an und ändert nichts. Nach de
 „Alles abrufen“ startet den Abruf im Hintergrund. Du kannst die Seite verlassen; der Fortschritt aktualisiert sich alle zwei Sekunden. Der Abruf läuft in drei Phasen:
 
 1. **Kontakte:** alle Kontakte mit Name, Rolle (Kunde, Lieferant oder beides; ohne Rolle als Kunde), Kunden- und Lieferantennummer, Rechnungsadresse (sonst Lieferadresse), erster E-Mail-Adresse und USt-IdNr. Archivierte Kontakte werden in Haben archiviert angelegt.
-2. **Belegliste:** alle Ausgangsrechnungen, Gutschriften und Abschlagsrechnungen aus dem Rechnungsmodul sowie alle Einnahme- und Ausgabebelege samt Gutschriften aus der Buchhaltung, archiviert und nicht archiviert. Entwürfe bleiben draußen.
+2. **Belegliste:** alle Ausgangsrechnungen, Gutschriften und Abschlagsrechnungen aus dem Rechnungsmodul sowie alle Einnahme- und Ausgabebelege samt Gutschriften aus der Buchhaltung, archiviert und nicht archiviert. Entwürfe bleiben draußen; Schritt 2 nennt ihre Zahl unter „Übergangen, kein Beleg“.
 3. **Belege und Dateien:** je Beleg die Details, der Zahlungsstatus mit den einzelnen Zahlungen, das Original-PDF, bei E-Rechnungen das XML und bei Buchhaltungsbelegen alle angehängten Dateien. Die Kategorien aus Lexware Office kommen mit ihrem Namen dazu.
+
+Der Fortschritt unter **Dateien** zählt sowohl beim API-Abruf als auch beim ZIP-Import die neu an Belegen gespeicherten Dateien. Dazu gehören auch Dateien, die Haben an bereits archivierte Belege anhängt.
 
 Die Antwort der API wird je Beleg vollständig gespeichert, zum Nachweis. Beträge rechnet Haben in Cent um; maßgeblich sind Brutto und Steuer des Belegs, Netto ergibt sich daraus. Bei Schlussrechnungen rechnet Haben die verrechneten Abschläge je Steuersatz heraus, die Beträge entsprechen also dem geforderten Restbetrag. Die Abschlagsrechnungen sind eigene Belege; so zählen ihre Umsätze und Steuern im Abgleich und bei den offenen Posten nicht doppelt. Das gilt für Belege, die mit dieser Version abgerufen werden; schon gespeicherte Belege bleiben unverändert.
 
@@ -180,6 +183,7 @@ Die API erlaubt etwa zwei Anfragen pro Sekunde. Haben hält zwischen zwei Anfrag
 - Wird der Server während des Abrufs neu gestartet, markiert Haben den Lauf nach drei Minuten ohne Fortschritt als abgebrochen. Auch dann setzt „Erneut abrufen“ fort.
 - Ist der Schlüssel ungültig oder fehlt die Berechtigung (Tarif gewechselt), bricht der Lauf mit Fehlermeldung ab.
 - Schlägt ein einzelner Beleg fehl, läuft der Abruf weiter. Die fehlgeschlagenen Belege stehen mit Nummer und Fehlermeldung in einer aufklappbaren Liste; der nächste Abruf versucht sie erneut.
+- Kommt nur eine Datei eines Belegs nicht (PDF, XML der E-Rechnung oder ein Anhang), legt Haben den Beleg trotzdem an und vermerkt die Datei am Beleg ([Dateistand](sevdesk.md#dateistand)). Der nächste Abruf holt sie nach; meldet Lexware Office dann ohne Fehler kein XML, ist nichts mehr offen. Fehlt das PDF einer Rechnung, das XML ihrer E-Rechnung oder eine Datei eines Ausgabebelegs, lässt er sich bis dahin in Schritt 3 nicht übernehmen.
 
 Der Schritt ist erledigt, wenn ein Lauf fertig ist und die Liste der fehlgeschlagenen Belege leer ist.
 
@@ -251,6 +255,9 @@ Die Zahlung muss in Haben ankommen: Ruft Haben die Bank erst ab einem späteren 
 | Umsatzsteuer an das Finanzamt | Die Zahlung im Bankabgleich als „Umsatzsteuer an das Finanzamt“ zuordnen (eine Sondervorauszahlung als „Sondervorauszahlung (Dauerfristverlängerung)“), siehe oben |
 | Betrag nicht positiv | Gutschriften werden nicht übernommen |
 | keine Datei aus Lexoffice | Erst die Datei in Lexware Office anhängen und erneut abrufen |
+| XML der E-Rechnung fehlt | Erneut abrufen; bei der Sicherung das Skript noch einmal laufen lassen und die neue Sicherung hochladen |
+| Datei fehlt in der Sicherung | Eine neue Sicherung mit der fehlenden Datei importieren |
+| Datei erwartet, Abruf aus Lexware Office fehlgeschlagen | Im Umzug **Erneut abrufen** wählen |
 
 Warum eine Teilzahlung vor dem Stichtag sperrt: Die Rechnung in Haben trägt den Betrag des Original-PDFs, und offen ist in Haben, was keine Zahlung im Bankabgleich deckt. Für die Zahlung vor dem Stichtag gibt es in Haben keinen Bankumsatz. Sie als Ausbuchung zu erfassen, minderte die Umsatzsteuer wie eine Änderung der Bemessungsgrundlage (§ 17 Abs. 1 UStG), obwohl das Entgelt gezahlt ist. Eine Teilzahlung nach dem Stichtag sperrt nicht: Am Stichtag war der ganze Betrag offen, und die Zahlung kommt in Haben an.
 
@@ -288,7 +295,7 @@ Haben erkennt einen Buchungsstapel am Inhalt, auch wenn du eine andere Art gewä
 
 Ein [KI-Assistent](ki-assistenten.md#voranmeldungen-aus-lexware-office-vergleichen) liest die Salden je Konto und Monat und die einzelnen Buchungen über die Werkzeuge `lexoffice_konten` und `lexoffice_buchungen`.
 
-Unter **DATEV-Buchungen** siehst du die Zeilen je Jahr, durchsuchbar nach Text, Belegfeld und Konto, mit dem Filter „Nur ohne passenden Beleg“, und darunter die Umsätze je Konto. Enthält Belegfeld 1 keine einzige Ziffer (etwa den Namen eines Zahlungsdienstleisters in einer Zahlungszeile), trägt kein Beleg das Feld als Nummer und findet die Buchung auch sonst keinen Beleg, ist sie kein offener Punkt: Sie bleibt sichtbar, erscheint nicht im Filter „Nur ohne passenden Beleg“ und zählt im Abgleich unter „ohne Belegnummer“, wie ein leeres Feld, solange die Zeile einen Beleg braucht (nicht Privat, Geldtransit oder Vortrag). Dort, wo eine Steuerautomatik greift, sind die Beträge brutto; die Steuer ist nicht auf ein Steuerkonto aufgeteilt.
+Unter **DATEV-Buchungen** siehst du die Zeilen je Jahr, durchsuchbar nach Text, Belegfeld und Konto, mit zwei Filtern, „Nur ohne passenden Beleg“ und „Aufladung ohne Bezug“ (siehe [Bank](bank.md#aufladung-eines-guthabens)), und darunter die Umsätze je Konto. Eine Zeile, deren Buchungstext mit „Aufladung Guthaben“ beginnt und deren Belegfeld 1 leer ist, steht unter „Aufladung ohne Bezug“ und nicht unter „Nur ohne passenden Beleg“: Für die Aufladung gibt es keine Rechnung, und den Bezug zu der späteren Rechnung setzt Haben noch nicht. Trägt eine solche Zeile eine Belegnummer, ist sie ein offener Punkt wie jede andere und bleibt im Filter „Nur ohne passenden Beleg“, bis ein Beleg sie trägt; findet sie ihren Beleg, steht sie in keinem der beiden Filter. Enthält Belegfeld 1 keine einzige Ziffer (etwa den Namen eines Zahlungsdienstleisters in einer Zahlungszeile), trägt kein Beleg das Feld als Nummer und findet die Buchung auch sonst keinen Beleg, ist sie kein offener Punkt: Sie bleibt sichtbar, erscheint nicht im Filter „Nur ohne passenden Beleg“ und zählt im Abgleich unter „ohne Belegnummer“, wie ein leeres Feld, solange die Zeile einen Beleg braucht (nicht Privat, Geldtransit oder Vortrag). Dort, wo eine Steuerautomatik greift, sind die Beträge brutto; die Steuer ist nicht auf ein Steuerkonto aufgeteilt.
 
 ### Abschluss aus dem DATEV-Stapel (GmbH und UG)
 
@@ -382,7 +389,7 @@ Aufgeklappt zeigt jede Karte eine Tabelle je Monat, berechnet aus den abgerufene
 | Kz 86 | Bemessungsgrundlage (netto) der Umsätze zu 7 % |
 | Kz 66 | Vorsteuer aus Ausgabebelegen und Buchungen ohne Beleg nach Belegdatum |
 | Kz 21, 41, 43, 45, 60, 87 | Sonderfälle nach der Steuerart der Rechnung in Lexware Office (siehe unten); die Spalte erscheint nur, wenn im Jahr etwas drinsteht |
-| Steuerfrei | Rechnungen mit Steuerart „steuerfrei“: Kz 48, wenn sie nach § 4 Nr. 8–28 UStG steuerfrei sind, bei Kleinunternehmern gar nicht gemeldet |
+| Steuerfrei | Rechnungen mit Steuerart „steuerfrei“: Kz 48, wenn sie nach § 4 Nr. 8–29 UStG steuerfrei sind; als Kleinunternehmer ab 2025 ebenfalls Kz 48, vorher gar nicht gemeldet ([Umsätze ohne Steuer](umsatzsteuer.md#umsätze-ohne-steuer-kz-21-41-43-45-und-48)) |
 | OSS | Fernverkäufe und elektronische Dienstleistungen ins EU-Ausland über das OSS-Verfahren; gehören nicht in die Voranmeldung |
 | Andere Sätze | Umsätze zu 0 % und Altsätzen (16 %, 5 %) sowie unbekannte Steuerarten, nur zur Information |
 

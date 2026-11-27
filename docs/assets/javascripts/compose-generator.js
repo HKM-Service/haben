@@ -148,6 +148,7 @@ export const envBlocks = (cfg) => [
       ["AWS_SECRET_ACCESS_KEY", cfg.backupMode === "s3" ? PLATZHALTER : ""],
       ["BACKUP_TIME", cfg.backupTime],
       ["RESTORE_CHECK_DAYS", cfg.restoreCheckDays],
+      ["RCLONE_CONFIG", ""],
     ],
   },
   {
@@ -194,7 +195,7 @@ const overrideServices = (cfg) => {
   const add = (service, ...lines) => services.set(service, [...(services.get(service) ?? []), ...lines]);
 
   if (cfg.registry !== "dockerhub" || cfg.imageTag !== "latest") {
-    const prefix = cfg.registry === "ghcr" ? "ghcr.io/firsttris" : "tristanteu";
+    const prefix = cfg.registry === "ghcr" ? "ghcr.io/speicherstadt" : "tristanteu";
     const images = { db: "haben-db", app: "haben", backup: "haben-backup", restore: "haben-backup" };
     for (const [service, image] of Object.entries(images)) add(service, `image: ${prefix}/${image}:${yamlScalar(cfg.imageTag)}`);
   }
@@ -223,11 +224,11 @@ export const overrideFile = (cfg) => {
   return `${lines.join("\n")}\n`;
 };
 
-/** Befehle für den ersten Start wie in docs/installation.md, „Docker Compose“. @param {boolean} withOverride */
+/** Startschritte wie in docs/installation.md, aber Download wie die Generator-Vorlagen von main. @param {boolean} withOverride */
 export const startCommands = (withOverride) =>
   [
     "mkdir haben && cd haben",
-    "curl -O https://raw.githubusercontent.com/firsttris/haben/main/deploy/compose.yml",
+    "curl -O https://raw.githubusercontent.com/Speicherstadt/haben/main/deploy/compose.yml",
     withOverride ? "# .env und compose.override.yml aus dem Generator hier ablegen" : "# .env aus dem Generator hier ablegen",
     "chmod 600 .env",
     "docker compose up -d --wait db",

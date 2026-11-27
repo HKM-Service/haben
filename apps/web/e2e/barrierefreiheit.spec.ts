@@ -1,19 +1,21 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { fristenOeffnen } from "./einrichtung.ts";
 import { ANONYMOUS, chunks, currentYear, fakeEigeneSeite, firstLink, SESSION, USER } from "./daten.ts";
 
 /**
  * Barrierefreiheit und Tastaturbedienung, mit den Daten und der Sitzung aus app.spec.ts (Projekt „mit-daten“ in
- * playwright.config.ts). axe-core prüft jede Seite gegen WCAG 2.2 AA und die Best Practices von axe, die
- * Farbkontraste zusätzlich in allen übrigen Themes. Die Tastaturtests melden sich ohne Maus an, springen mit dem
+ * playwright.config.ts). axe-core prüft jede Seite gegen WCAG 2.2 AA und die Best Practices von axe, nur im
+ * Theme Wald (Standard im Original), die Farbkontraste zusätzlich im Standard HKM hell und dunkel; die übrigen Farben prüft
+ * src/lib/theme-kontrast.test.ts an den Tokens. Die Tastaturtests melden sich ohne Maus an, springen mit dem
  * Sprunglink zum Inhalt und tabben durch die Seiten: Jedes Element mit Fokus muss einen sichtbaren Rahmen haben.
  * Jede Seite ist ein eigener Test, damit sie sich auf die Worker verteilen; geschrieben wird nichts.
  */
 
 test.use({ storageState: SESSION });
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
-/** Jede Farbe hell und dunkel, als „Farbe“ oder „Farbe:dunkel“ (withTheme) */
-const THEMES = ["hkm", "wald", "ozean", "pflaume", "graphit", "hkm:dunkel", "wald:dunkel", "ozean:dunkel", "pflaume:dunkel", "graphit:dunkel"];
+/** Das Standard-Theme hell und dunkel (withTheme); die übrigen Farben prüft src/lib/theme-kontrast.test.ts */
+const THEMES = ["hkm", "hkm:dunkel"];
 
 const YEAR = currentYear();
 
@@ -40,17 +42,23 @@ const PAGES = [
   "/anlagen/neu",
   "/csv-import?art=anlagen",
   "/bank",
+  // Geführte Einrichtung eines Zahlungsdienstleisters (#1951), Schritt 1
+  "/bank/verbinden/stripe",
+  "/bank/verbindungen",
   "/kasse",
   "/darlehen",
   "/umsatzsteuer",
   // Quartal, das nicht zum eingestellten Zeitraum passt: mit Hinweis und gesperrtem Senden
   `/umsatzsteuer/${YEAR}-Q1`,
-  // Zusammenfassende Meldung, hier leer; mit der Leistung ins EU-Ausland und der Testübermittlung prüft sie belege-steuern.spec.ts
+  // Zusammenfassende Meldung, hier leer; mit der Leistung ins EU-Ausland und der Testübermittlung prüft sie belege-steuern-erklaerungen.spec.ts
   `/umsatzsteuer/zm/${YEAR + 1}-Q1`,
   `/jahreserklaerung/${YEAR}`,
   "/finanzamt",
   "/fristen",
   "/auswertungen",
+  "/auswertungen/bwa?zeitraum=jahr&zeile=erloese",
+  "/auswertungen/liquiditaet?horizont=12m",
+  "/auswertungen/bwa?zeitraum=jahr&leer=1",
   "/buchungen",
   "/buchungen/neu",
   `/abschluss/${YEAR - 1}`,
@@ -90,16 +98,19 @@ const PAGES = [
   "/steuerberatung",
 ];
 
-/** Für die übrigen Themes: Seiten, auf denen zusammen jede Art von Link, Knopf, Hinweis und Tabelle vorkommt */
+/** Für den dunklen Modus: Seiten, auf denen zusammen jede Art von Link, Knopf, Hinweis und Tabelle vorkommt */
 const THEME_PAGES = [
   "/",
   "/rechnungen",
   "/rechnungen/neu",
   "/bank",
+  "/bank/verbindungen",
   "/buchungen",
   `/konten/1200?jahr=${YEAR}`,
   "/fristen",
   "/auswertungen",
+  "/auswertungen/bwa?zeitraum=jahr",
+  "/auswertungen/liquiditaet",
   `/jahreserklaerung/${YEAR}`,
   "/archiv",
   "/einstellungen?bereich=elster",
@@ -134,6 +145,14 @@ async function tabTo(p: Page, name: string, max = 80) {
     if (label === name || label.endsWith(`\n${name}`)) return;
   }
   throw new Error(`„${name}“ ist mit Tab nicht erreichbar`);
+}
+
+/** Klappt die einklappbaren Abschnitte der Firmendaten auf (#1253); Felder in zugeklappten Abschnitten sind nicht sichtbar */
+async function firmaAufklappen(page: Page) {
+  for (const abschnitt of await page.locator("form[aria-labelledby=company-heading] details").all()) {
+    if (!(await abschnitt.evaluate((d) => (d as HTMLDetailsElement).open))) await abschnitt.locator("summary").click();
+    await expect(abschnitt).toHaveAttribute("open", "");
+  }
 }
 
 async function open(p: Page, path: string) {
@@ -186,6 +205,8 @@ for (const group of chunks(PAGES, GROUP)) {
     await withTheme(page, "wald");
     for (const path of group) {
       await open(page, path);
+      // axe prüft Zugeklapptes nicht: Zeitraum und Dauerfristverlängerung der Voranmeldung stehen unter „Fristen und Zeitraum ändern“
+      if (/^\/umsatzsteuer\/\d{4}-/.test(path)) await fristenOeffnen(page);
       expect.soft(await axe(page), path).toEqual([]);
     }
   });
@@ -206,7 +227,7 @@ for (const theme of THEMES.filter((t) => t !== "wald")) {
 /** Seiten mit mehrzeiligen Feldern, Auswahlen und Eingaben; in dunklen Themes malt der Browser Felder ohne eigene Farbe grau */
 const FIELD_PAGES = ["/rechnungen/neu", "/dauerbelege/neu", "/anlagen/neu", "/finanzamt", "/einstellungen", "/einstellungen?bereich=email"];
 
-/** Sichtbare Felder, deren Hintergrund nicht die Theme-Fläche ist; berechnete Kennzahlen sind absichtlich transparent */
+/** Sichtbare Felder, deren Hintergrund nicht die Theme-Fläche ist */
 function fieldsOffSurface(p: Page) {
   return p.evaluate(() => {
     const probe = document.createElement("div");
@@ -216,7 +237,7 @@ function fieldsOffSurface(p: Page) {
     probe.remove();
     return [...document.querySelectorAll<HTMLElement>("main input, main select, main textarea")]
       .filter((el) => !["checkbox", "radio", "hidden", "file", "range", "color"].includes((el as HTMLInputElement).type))
-      .filter((el) => el.getClientRects().length > 0 && !el.closest(".search-box") && !el.matches(".kz-row input:read-only"))
+      .filter((el) => el.getClientRects().length > 0 && !el.closest(".search-box"))
       .filter((el) => getComputedStyle(el).backgroundColor !== surface)
       .map(
         (el) =>
@@ -237,19 +258,19 @@ for (const theme of THEMES.filter((t) => t.endsWith(":dunkel"))) {
     }
   });
 
-  // Die Kennzahlen der Voranmeldung sind erst nach „Manuell überschreiben“ Eingabefelder (Review #364)
+  // Die Kennzahlen der Voranmeldung sind erst nach „Werte von Hand ändern“ Eingabefelder (Review #364)
   test(`Kennzahlen der Voranmeldung auf der Theme-Fläche im Theme ${theme}`, async ({ page }) => {
     await withTheme(page, theme);
     let path = "";
     for (const candidate of [`/umsatzsteuer/${YEAR}-Q1`, `/umsatzsteuer/${YEAR}-03`, `/umsatzsteuer/${YEAR - 1}-03`, `/umsatzsteuer/${YEAR + 1}-03`]) {
       await open(page, candidate);
-      if (await page.getByRole("button", { name: "Manuell überschreiben" }).count()) {
+      if (await page.getByRole("button", { name: /^Werte von Hand ändern/ }).count()) {
         path = candidate;
         break;
       }
     }
-    expect(path, "Voranmeldung zum manuellen Überschreiben").not.toBe("");
-    await page.getByRole("button", { name: "Manuell überschreiben" }).click();
+    expect(path, "Voranmeldung zum Ändern von Hand").not.toBe("");
+    await page.getByRole("button", { name: /^Werte von Hand ändern/ }).click();
     await expect(page.locator(".kz-row input").first()).toBeVisible();
     expect(await fieldsOffSurface(page), `${path}: Felder ohne Theme-Fläche`).toEqual([]);
   });
@@ -517,6 +538,7 @@ for (const group of chunks(PAGES, GROUP)) {
 
 test("Kontrollkästchen mit Hinweis: Der Name ist nur die Beschriftung, der Hinweis die Beschreibung, der Text schaltet um", async ({ page }) => {
   await open(page, "/einstellungen");
+  await firmaAufklappen(page);
   const faelle = [
     { name: "Kleinunternehmer nach § 19 UStG", hinweis: /^Rechnungen ohne Umsatzsteuer, keine Voranmeldung/ },
     { name: "Tageskurs statt USt-Umrechnungskurs (vom Finanzamt gestattet)", hinweis: /^Ohne Gestattung rechnet Haben Fremdwährung/ },
@@ -544,6 +566,7 @@ test.describe("Kontrollkästchen mit Hinweis am Handy", () => {
   test("Die Zeile mit dem Kästchen ist mindestens 44px hoch", async ({ page }) => {
     // Am Handy zeigt /einstellungen nur die Liste der Bereiche
     await open(page, "/einstellungen?bereich=firma");
+    await firmaAufklappen(page);
     for (const name of [
       "Kleinunternehmer nach § 19 UStG",
       "Tageskurs statt USt-Umrechnungskurs (vom Finanzamt gestattet)",
@@ -558,6 +581,7 @@ test.describe("Kontrollkästchen mit Hinweis am Handy", () => {
 
 test("Kontrollkästchen mit Hinweis: Der Hinweis fluchtet mit dem Text der Beschriftung", async ({ page }) => {
   await open(page, "/einstellungen");
+  await firmaAufklappen(page);
   for (const name of [
     "Kleinunternehmer nach § 19 UStG",
     "Tageskurs statt USt-Umrechnungskurs (vom Finanzamt gestattet)",
@@ -576,6 +600,7 @@ test("Kontrollkästchen mit Hinweis: Der Hinweis fluchtet mit dem Text der Besch
 
 test("Kontrollkästchen mit Hinweis am Desktop: Die Zeile ist nur so hoch wie der Text", async ({ page }) => {
   await open(page, "/einstellungen");
+  await firmaAufklappen(page);
   for (const name of [
     "Kleinunternehmer nach § 19 UStG",
     "Tageskurs statt USt-Umrechnungskurs (vom Finanzamt gestattet)",
@@ -589,6 +614,7 @@ test("Kontrollkästchen mit Hinweis am Desktop: Die Zeile ist nur so hoch wie de
 
 test("Kontrollkästchen mit Hinweis: Ein Klick auf den Hinweis schaltet nicht um", async ({ page }) => {
   await open(page, "/einstellungen");
+  await firmaAufklappen(page);
   const name = "Tageskurs statt USt-Umrechnungskurs (vom Finanzamt gestattet)";
   const kasten = page.getByRole("checkbox", { name, exact: true });
   const vorher = await kasten.isChecked();
@@ -621,21 +647,19 @@ test("Rechnungsart: Der Hinweis erscheint nur bei Abschlags- und Schlussrechnung
   await expect(art).toHaveAccessibleDescription("");
 });
 
-test("Feld in einer Zeile: „Konto“ steht links neben der Auswahl, nicht darüber", async ({ page }) => {
-  await open(page, "/bank");
-  const feld = page.locator(".field-inline", { has: page.getByLabel("Konto", { exact: true }) });
-  const name = await feld.locator(".field-label").boundingBox();
-  const auswahl = await feld.locator("select").boundingBox();
-  if (!name || !auswahl) throw new Error("Feld „Konto“ ohne Fläche");
-  expect(name.x + name.width, "Name links vom Feld").toBeLessThanOrEqual(auswahl.x);
-  expect(Math.abs(name.y + name.height / 2 - (auswahl.y + auswahl.height / 2)), "auf einer Höhe").toBeLessThan(12);
-});
+/** Eingeklappte Abschnitte aufklappen, etwa „Google Play und App Store“ auf der Seite Verbindungen (#1951); ein offener fällt aus der Auswahl */
+async function alleAufklappen(page: Page) {
+  const zu = page.locator("details:not([open]) > summary");
+  while ((await zu.count()) > 0) await zu.first().click();
+}
 
 /** Seiten mit dem Dateiwähler `FilePicker`; der Knopf daneben ist nur ein `span`, der Klick muss den Dialog selbst öffnen */
 const FILE_PICKER_PAGES = [
   "/dauerbelege/neu",
   "/csv-import?art=kontakte",
   "/einstellungen?bereich=bank",
+  // Google Play und App Store (#1951 aus den Einstellungen hierher)
+  "/bank/verbindungen",
   "/einstellungen?bereich=elster",
   "/archiv",
   "/archiv/auftrag/723bf34b-f8ab-48f0-b391-656af4b72a96",
@@ -644,6 +668,7 @@ const FILE_PICKER_PAGES = [
 test("Dateiwähler: Ein Klick auf „Datei wählen“ öffnet an jeder Stelle den Dialog und der Feldname benennt das Feld", async ({ page }) => {
   for (const path of FILE_PICKER_PAGES) {
     await open(page, path);
+    await alleAufklappen(page);
     const pickers = page.locator(".file-picker");
     expect(await pickers.count(), `${path} hat einen Dateiwähler`).toBeGreaterThan(0);
     for (let i = 0; i < (await pickers.count()); i++) {
@@ -668,6 +693,7 @@ test("Dateiwähler: Der zugängliche Name enthält den sichtbaren Feldnamen (Lab
   };
   for (const path of FILE_PICKER_PAGES) {
     await open(page, path);
+    await alleAufklappen(page);
     await pruefen(path);
   }
   // Accountable hat einen eigenen Upload, den die Seite erst nach der Wahl der Quelle zeigt
@@ -699,13 +725,13 @@ test("Kennzahlen der Voranmeldung am Handy: Bezeichnung über die volle Breite, 
   let gefunden = false;
   for (const candidate of [`/umsatzsteuer/${YEAR}-Q1`, `/umsatzsteuer/${YEAR}-03`, `/umsatzsteuer/${YEAR - 1}-03`, `/umsatzsteuer/${YEAR + 1}-03`]) {
     await open(page, candidate);
-    if (await page.getByRole("button", { name: "Manuell überschreiben" }).count()) {
+    if (await page.getByRole("button", { name: /^Werte von Hand ändern/ }).count()) {
       gefunden = true;
       break;
     }
   }
-  expect(gefunden, "Voranmeldung zum manuellen Überschreiben").toBe(true);
-  await page.getByRole("button", { name: "Manuell überschreiben" }).click();
+  expect(gefunden, "Voranmeldung zum Ändern von Hand").toBe(true);
+  await page.getByRole("button", { name: /^Werte von Hand ändern/ }).click();
   await expect(page.locator(".kz-row input").first()).toBeVisible();
 
   const probleme = await page.evaluate(() => {
@@ -738,7 +764,7 @@ test("Kennzahlen der Voranmeldung am Handy: Bezeichnung über die volle Breite, 
   expect(await axe(page), "axe am Handy").toEqual([]);
 });
 
-test("Befehlspalette: Strg+K, Tastatursteuerung, Fokus-Rückgabe und axe in allen Themes sowie am Handy", async ({ page }) => {
+test("Befehlspalette: Strg+K, Tastatursteuerung, Fokus-Rückgabe und axe hell, dunkel und am Handy", async ({ page }) => {
   await withTheme(page, "wald");
   await open(page, "/");
 
@@ -795,4 +821,29 @@ test("Befehlspalette: Strg+K, Tastatursteuerung, Fokus-Rückgabe und axe in alle
   await expect(alle).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
   expect(await axe(page), "Befehlspalette am Handy").toEqual([]);
+});
+
+/* Review #1470: Die Aufklappköpfe (`.est-block > summary`) der Jahreserklärung am Handy: Titel und Kurztext überlappen nicht und ragen nicht aus ihrer Box */
+test("Jahreserklärung am Handy: Titel und Kurztext im Aufklappkopf überlappen nicht", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(`/jahreserklaerung/${YEAR}`);
+  await page.waitForLoadState("networkidle");
+  const fehler = await page.evaluate(() =>
+    [...document.querySelectorAll(".est-block > summary")].flatMap((summary) => {
+      const kinder = [...summary.children] as HTMLElement[];
+      const probleme: string[] = [];
+      for (const kind of kinder)
+        if (kind.scrollWidth > kind.clientWidth + 1) probleme.push(`${kind.textContent}: Text ragt aus der Box (${kind.scrollWidth} > ${kind.clientWidth})`);
+      const boxen = kinder.map((k) => k.getBoundingClientRect());
+      for (let i = 0; i < boxen.length; i++)
+        for (let j = i + 1; j < boxen.length; j++) {
+          const a = boxen[i];
+          const b = boxen[j];
+          if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1)
+            probleme.push(`${kinder[i].textContent} überlappt ${kinder[j].textContent}`);
+        }
+      return probleme;
+    }),
+  );
+  expect(fehler).toEqual([]);
 });

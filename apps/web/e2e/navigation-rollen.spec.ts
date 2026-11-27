@@ -15,7 +15,7 @@ async function navigationLaden(page: Page, theme = "wald", mode = "light", einge
   await page.setContent(
     `<html data-theme="${theme}" data-mode="${mode}"${eingeklappt ? ' data-nav="collapsed"' : ""}><style>${css}</style><body><div class="shell"><nav class="nav">
       <a class="brand" href="#"><span class="brand-text">Haben<span class="brand-firma">Muster GmbH</span></span></a>
-      <button type="button" class="btn btn-icon nav-search-btn"><span class="nav-search-label">Schnellsuche</span><span class="kuerzel nav-kbd"><kbd>Strg</kbd><kbd>K</kbd></span></button>
+      <button type="button" class="btn btn-icon nav-search-btn"><span class="nav-search-label">Suche</span><span class="kuerzel nav-kbd"><kbd>Strg</kbd><kbd>K</kbd></span></button>
       <div class="nav-body">${links}<div class="nav-spacer"></div><div class="nav-foot${eingeklappt ? " nav-foot-rail" : ""}"><a class="nav-link" href="#">Abmelden</a></div></div>
     </nav><main class="main"></main></div></body></html>`,
   );
@@ -64,16 +64,17 @@ test("auch zwischen 860 und 861 Pixel Breite rollt die Navigation bis zum Fuß",
     const page = await (await browser.newContext({ viewport: null, deviceScaleFactor: undefined })).newPage();
     await navigationLaden(page);
     await page.mouse.move(100, 300);
-    await page.mouse.wheel(0, 5000);
-    // mouse.wheel wartet nicht, bis Chromium gerollt hat (das geschieht erst in einem späteren Frame), deshalb messen, bis der Fuß sichtbar ist
+    // mouse.wheel wartet nicht, bis Chromium gerollt hat (das geschieht erst in einem späteren Frame), deshalb messen, bis der Fuß sichtbar ist.
+    // Vor jeder Messung erneut drehen: Ein einzelnes Rad direkt nach dem Laden setzte Chromium in der CI unter Last manchmal nicht um, gerollt war dann nichts
     await expect
-      .poll(() =>
-        page.evaluate(() => {
+      .poll(async () => {
+        await page.mouse.wheel(0, 5000);
+        return page.evaluate(() => {
           const breite = document.documentElement.getBoundingClientRect().width;
           const links = [...document.querySelectorAll<HTMLElement>(".nav-body .nav-link")];
           return { zwischen: breite > 860 && breite < 861, abmeldenSichtbar: links.at(-1)!.getBoundingClientRect().bottom <= innerHeight };
-        }),
-      )
+        });
+      })
       .toEqual({ zwischen: true, abmeldenSichtbar: true });
   } finally {
     await browser.close();

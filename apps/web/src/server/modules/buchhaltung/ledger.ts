@@ -14,7 +14,7 @@ import { z } from "zod";
 import { loadCompany, type Company } from "../stammdaten/index.ts";
 import { db, schema, type Tx } from "../../db/index.ts";
 import { loadOwnAccountParents, refreshOwnAccountNames } from "../eigene-konten/index.ts";
-import { accountName, verrechnungQuellen } from "./journal.ts";
+import { accountName, herkunftVerweise } from "./journal.ts";
 import { UserError } from "../../errors.ts";
 
 /*
@@ -261,6 +261,7 @@ export interface Kontenblatt {
     reversal: boolean;
     invoiceId: string | null;
     documentId: string | null;
+    transactionId: string | null;
   })[];
   soll: Cents;
   haben: Cents;
@@ -300,9 +301,8 @@ export async function kontenblatt(account: string, { from, to }: LedgerRange): P
         .where(inArray(l.entryId, [...new Set(lines.map((x) => x.entryId))]))
     : [];
 
-  // Verrechnungsbuchungen (#786, #877): Die Herkunft führt auf dem Kontenblatt genauso auf Beleg bzw. Rechnung wie im Journal
-  const verrechnungIds = [...new Set(lines.filter((x) => x.sourceType === "verrechnung").map((x) => x.sourceId))];
-  const { belege: verrechnungBelege, rechnungen: verrechnungRechnungen } = await verrechnungQuellen(verrechnungIds);
+  // Die Herkunft führt auf dem Kontenblatt genauso auf Beleg, Rechnung oder Umsatz wie im Journal
+  const herkunft = await herkunftVerweise(lines);
 
   const vortrag = await openingBalances(yearStart(from));
   const eroeffnung = Number(opening?.saldo ?? 0) + (vortrag.balances.get(account) ?? 0);
@@ -314,8 +314,7 @@ export async function kontenblatt(account: string, { from, to }: LedgerRange): P
       sourceType: x.sourceType,
       sourceId: x.sourceId,
       reversal: x.reversesId !== null,
-      invoiceId: verrechnungRechnungen.get(x.sourceId) ?? null,
-      documentId: verrechnungBelege.get(x.sourceId) ?? null,
+      ...herkunft(x),
       date: x.date,
       description: x.description,
       gegenkonten: [...new Set(others.filter((o) => o.entryId === x.entryId && o.account !== account).map((o) => o.account))],
@@ -342,6 +341,19 @@ export const ledgerPeriodSchema = z
   .string()
   .regex(/^(jahr|q[1-4]|m([1-9]|1[0-2]))$/)
   .default("jahr");
+
+/**
+ * Zeitraum von–bis, beide Tage eingeschlossen, innerhalb eines Jahres: das Kontenblatt für genau den Zeitraum einer Zeile
+ * der BWA (#1380). Die Eröffnung des Kontenblatts zählt ab Jahresbeginn, deshalb nicht über den Jahreswechsel.
+ */
+export const ledgerVonBisSchema = z
+  .object({ von: z.iso.date(), bis: z.iso.date() })
+  .refine((r) => r.von <= r.bis, "Der Zeitraum endet vor seinem Beginn")
+  .refine((r) => r.von.slice(0, 4) === r.bis.slice(0, 4), "Von und bis liegen im selben Jahr");
+
+export function ledgerRangeVonBis({ von, bis }: { von: string; bis: string }): LedgerRange {
+  return { from: von, to: new Date(Date.parse(`${bis}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10) };
+}
 
 /** Zeitraum aus Jahr und optional Monat oder Quartal */
 export function ledgerRange(year: number, period?: string): LedgerRange {

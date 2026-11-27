@@ -61,7 +61,7 @@ Cloud-Dienste wie Lexware Office übermitteln in deinem Auftrag mit ihrem eigene
 2. **Oder von Hand:** das Paket z. B. nach `/opt/eric` entpacken (darin `lib/libericapi.so` und `lib/plugins/`) und `ERIC_HOME` setzen. Beides steht in [ERiC einbinden](installation-anbindungen.md#eric-einbinden).
 3. **Hersteller-ID eintragen.** Die eigene Hersteller-ID aus dem ELSTER-Entwicklerbereich ([siehe oben](#was-du-brauchst)) als `ELSTER_HERSTELLER_ID` (fünf Ziffern) eintragen. Seit ERiC 39.4 ist die frühere Test-Hersteller-ID `74931` gesperrt (Entwicklerhandbuch, Kap. 10.1.1); ERiC lehnt ohne eigene ID schon das Prüfen ab („Bitte verwenden Sie Ihre eigene Hersteller-ID auch für Testfälle“). Ohne ERiC laufen Prüfen und Testübermittlung weiter simuliert.
 4. **Datenschutzhinweise bestätigen.** Unter **Einstellungen › ELSTER › ERiC** die Datenschutzhinweise der Finanzverwaltung lesen und bestätigen. Der ERiC-Lizenzvertrag verlangt das vor der ersten Nutzung; ohne Bestätigung lehnt Haben jeden Aufruf von ERiC ab. Die Bestätigung gilt für die Installation und steht im Änderungsprotokoll.
-5. **Zertifikat hochladen.** Die `.pfx`-Datei aus deinem Konto mit Anmeldeart Zertifikatsdatei ([siehe oben](#zertifikatsdatei-statt-elster-secure)) unter **Einstellungen › ELSTER › ELSTER-Zertifikat** hochladen (höchstens 64 KB). Haben speichert die Datei AES-256-GCM-verschlüsselt in der Datenbank. Trägst du „Gültig bis“ ein, warnt die Übersicht 30 Tage vor Ablauf. Ein neues Zertifikat ersetzt das alte.
+5. **Zertifikat hochladen.** Die `.pfx`-Datei aus deinem Konto mit Anmeldeart Zertifikatsdatei ([siehe oben](#zertifikatsdatei-statt-elster-secure)) unter **Einstellungen › ELSTER › ELSTER-Zertifikat** hochladen (höchstens 64 KB). Haben speichert die Datei AES-256-GCM-verschlüsselt in der Datenbank. Gibst du die PIN dazu an, liest Haben das Ablaufdatum aus der Datei und verwirft die PIN danach; ohne PIN oder wenn Haben die Datei damit nicht lesen kann, trägst du „Gültig bis“ selbst ein. Mit Datum warnt die Übersicht 30 Tage vor Ablauf. Ein neues Zertifikat ersetzt das alte.
 6. **Formate prüfen.** Unter **Einstellungen › ELSTER › ERiC** lässt **Formate mit ERiC prüfen** ERiC alle Nachrichten von Belegabruf, Berechtigung und Postfach gegen seine Schemas prüfen, ohne etwas zu senden. Diese Formate stammen aus freien Projekten (erica, viking) statt aus der amtlichen Jahresdokumentation; die Prüfung zeigt sofort, ob eine Version oder ein Feldname nicht mehr passt. Bemängelt ERiC etwas, bitte die Meldungen als Issue melden.
 7. **Nur prüfen.** Auf der Seite einer Voranmeldung lässt „Nur prüfen“ ERiC die Daten auf Plausibilität prüfen. Dafür braucht es weder Zertifikat noch PIN.
 8. **Testübermittlung.** Mit gesetztem Haken „Nur Testübermittlung“, PIN und „Prüfen und testweise senden“. Die Testübermittlung läuft mit deiner Hersteller-ID und dem Testmerker `700000004`; der ELSTER-Server nimmt sie an, leitet sie aber nicht an das Finanzamt weiter. Die Anmeldung bleibt ein Entwurf. Erst danach den Haken „Nur Testübermittlung“ entfernen.
@@ -83,9 +83,11 @@ ERiC 45.1.5.0 ist ein BETA-Release: Damit gehen nur Testübermittlungen mit Test
 | Was | ab ERiC |
 | --- | --- |
 | Voranmeldung, Dauerfristverlängerung und Sondervorauszahlung 2027, Kapitalertragsteuer-Anmeldung 2027, Anlage EÜR und Einkommensteuer 2026 | 45 |
-| Sonstige Nachricht als Echtfall (Version 22) | 43.5 |
+| Sonstige Nachricht und Antrag auf Anpassung der Vorauszahlungen als Echtfall (Version 22) | 43.5 |
 | E-Bilanz ohne rechtsformfremde Angaben | jede; ERiC prüft das ab 43.5 |
 | Postfach und Belegabruf (Datenabholung Version 32) | 43.4 |
+
+Den Firmennamen samt Anschrift im Kopf jeder Übermittlung und im Datenlieferanten von Voranmeldung, Dauerfristverlängerung und Lohnsteuer-Anmeldung lässt ELSTER nur im Zeichensatz der Datenarten zu. Gedankenstriche und Mittelpunkte („Mustermann IT · Max Mustermann“) schreibt Haben dort als `-`, typografische Anführungszeichen als `"` und `'`; bis Version 0.14 lehnte ERiC eine Übermittlung mit solchen Zeichen im Firmennamen ab. Mehr unter [Finanzamt](finanzamt.md#verlauf).
 
 Mit dem Mindestversionswechsel im April sperrt ELSTER die Versionen 43 und 44 für den Versand (ERiC-Entwicklerhandbuch, Kap. 2.3); bis dahin brauchst du die 45.
 

@@ -1,5 +1,5 @@
 {
-  "id": "68c3b047-44d6-4e4d-ae59-e1359b3e3dc4",
+  "id": "11d8bc6a-1600-41a0-b154-55cfac8b5ede",
   "prevId": "658c037d-888a-4d63-b715-f2802f1dceab",
   "version": "7",
   "dialect": "postgresql",
@@ -505,7 +505,7 @@
         },
         "allocations_kategorie": {
           "name": "allocations_kategorie",
-          "value": "case when \"allocations\".\"kind\"::text = 'kategorie' then \"allocations\".\"category\" is not null and \"allocations\".\"tax_rate\" is not null else \"allocations\".\"category\" is null and \"allocations\".\"tax_rate\" is null end"
+          "value": "case when \"allocations\".\"kind\"::text in ('kategorie', 'aufladung') then \"allocations\".\"category\" is not null and \"allocations\".\"tax_rate\" is not null else \"allocations\".\"category\" is null and \"allocations\".\"tax_rate\" is null end"
         },
         "allocations_loan": {
           "name": "allocations_loan",
@@ -8938,12 +8938,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "brand_profile_id": {
-          "name": "brand_profile_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "buyer": {
           "name": "buyer",
           "type": "jsonb",
@@ -9293,19 +9287,6 @@
           "tableTo": "quotes",
           "columnsFrom": [
             "quote_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "invoices_brand_profile_id_letterhead_profiles_id_fk": {
-          "name": "invoices_brand_profile_id_letterhead_profiles_id_fk",
-          "tableFrom": "invoices",
-          "tableTo": "letterhead_profiles",
-          "columnsFrom": [
-            "brand_profile_id"
           ],
           "columnsTo": [
             "id"
@@ -11172,96 +11153,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "default_for_new": {
-          "name": "default_for_new",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "website": {
-          "name": "website",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "bank_account_id": {
-          "name": "bank_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intro": {
-          "name": "intro",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "logo": {
-          "name": "logo",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "logo_format": {
-          "name": "logo_format",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "logo_hash": {
-          "name": "logo_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "background": {
-          "name": "background",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "background_format": {
-          "name": "background_format",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "background_hash": {
-          "name": "background_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp with time zone",
@@ -11286,71 +11177,13 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "letterhead_profiles_brand_default": {
-          "name": "letterhead_profiles_brand_default",
-          "columns": [
-            {
-              "expression": "default_for_new",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"letterhead_profiles\".\"default_for_new\"",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "letterhead_profiles_brand_name": {
-          "name": "letterhead_profiles_brand_name",
-          "columns": [
-            {
-              "expression": "lower(\"name\")",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "not \"letterhead_profiles\".\"is_default\" and \"letterhead_profiles\".\"archived_at\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
-      "foreignKeys": {
-        "letterhead_profiles_bank_account_id_bank_accounts_id_fk": {
-          "name": "letterhead_profiles_bank_account_id_bank_accounts_id_fk",
-          "tableFrom": "letterhead_profiles",
-          "tableTo": "bank_accounts",
-          "columnsFrom": [
-            "bank_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "letterhead_profiles_brand_default_active": {
-          "name": "letterhead_profiles_brand_default_active",
-          "value": "not \"letterhead_profiles\".\"default_for_new\" or (not \"letterhead_profiles\".\"is_default\" and \"letterhead_profiles\".\"archived_at\" is null)"
-        },
-        "letterhead_profiles_logo_pair": {
-          "name": "letterhead_profiles_logo_pair",
-          "value": "num_nonnulls(\"letterhead_profiles\".\"logo\", \"letterhead_profiles\".\"logo_format\", \"letterhead_profiles\".\"logo_hash\") in (0, 3)"
-        },
-        "letterhead_profiles_background_pair": {
-          "name": "letterhead_profiles_background_pair",
-          "value": "num_nonnulls(\"letterhead_profiles\".\"background\", \"letterhead_profiles\".\"background_format\", \"letterhead_profiles\".\"background_hash\") in (0, 3)"
-        },
         "letterhead_profiles_accent": {
           "name": "letterhead_profiles_accent",
           "value": "\"letterhead_profiles\".\"settings\" ->> 'accent' ~ '^#[0-9A-Fa-f]{6}$'"
@@ -14655,12 +14488,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "brand_profile_id": {
-          "name": "brand_profile_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "buyer": {
           "name": "buyer",
           "type": "jsonb",
@@ -14847,19 +14674,6 @@
           "tableTo": "contact_persons",
           "columnsFrom": [
             "contact_person_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "quotes_brand_profile_id_letterhead_profiles_id_fk": {
-          "name": "quotes_brand_profile_id_letterhead_profiles_id_fk",
-          "tableFrom": "quotes",
-          "tableTo": "letterhead_profiles",
-          "columnsFrom": [
-            "brand_profile_id"
           ],
           "columnsTo": [
             "id"
@@ -15220,12 +15034,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "brand_profile_id": {
-          "name": "brand_profile_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "active": {
           "name": "active",
           "type": "boolean",
@@ -15405,19 +15213,6 @@
         }
       },
       "foreignKeys": {
-        "recurring_invoices_brand_profile_id_letterhead_profiles_id_fk": {
-          "name": "recurring_invoices_brand_profile_id_letterhead_profiles_id_fk",
-          "tableFrom": "recurring_invoices",
-          "tableTo": "letterhead_profiles",
-          "columnsFrom": [
-            "brand_profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "recurring_invoices_contact_id_contacts_id_fk": {
           "name": "recurring_invoices_contact_id_contacts_id_fk",
           "tableFrom": "recurring_invoices",
@@ -19570,7 +19365,8 @@
         "zinsertrag",
         "darlehen",
         "kategorie",
-        "spende"
+        "spende",
+        "aufladung"
       ]
     },
     "public.bundesland": {

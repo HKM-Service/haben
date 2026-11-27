@@ -6,11 +6,13 @@ import {
   invoicePaymentPosting,
   totalsFromTaxes,
 } from "@haben/core";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { schema, type Tx } from "../../db/index.ts";
 import { openBooks, post } from "../buchhaltung/index.ts";
-import { loadAdvanceVatPlan } from "./advance-vat-plan.ts";
+import { loadAdvanceVatPlan, refundOnly } from "./advance-vat-plan.ts";
 import { invoiceTaxReader } from "./invoice-tax.ts";
+
+type Invoice = typeof schema.invoices.$inferSelect;
 
 /** Betroffene Anzahlung oder die in einer Schlussrechnung abgezogenen neuen Anzahlungen. */
 async function affectedAdvances(tx: Tx, invoiceId: string) {
@@ -18,13 +20,33 @@ async function affectedAdvances(tx: Tx, invoiceId: string) {
   if (!invoice) return [];
   const original = await invoiceTaxReader(tx).original(invoice);
   // KU hat keine Anzahlungs-USt, benötigt bei GmbH/UG aber denselben Bilanzierungsanschluss.
-  if (original.advanceType === "anzahlung" && original.id) return [{ id: original.id }];
+  if (
+    original.id &&
+    (original.advanceType === "anzahlung" || (original.variant === null && (original.advanceAccounting === "deferred" || original.status === "draft")))
+  )
+    return [{ id: original.id }];
   const referenced = await tx
     .selectDistinct({ invoice: schema.invoices })
     .from(schema.invoiceLines)
     .innerJoin(schema.invoices, eq(schema.invoices.id, schema.invoiceLines.deductionOf))
     .where(and(eq(schema.invoiceLines.invoiceId, invoiceId), eq(schema.invoices.advanceType, "anzahlung")));
-  return referenced.map(({ invoice }) => invoice);
+  // Normale Buchungen, aber Storno oder Korrektur mit Rückgewährregel: Zahlung, Rückzahlung und Festschreiben der
+  // Korrektur ändern, wie viel Steuer bis zur Rückzahlung gehalten wird (advance-vat-plan.ts, „refund“). Abgezogene
+  // Anzahlungen einer Schlussrechnung bleiben daneben betroffen.
+  const refund =
+    original.id && original.status === "final" && refundOnly(original as Invoice) && (invoice.kind !== "rechnung" || (await flaggedChain(tx, original.id)))
+      ? [{ id: original.id }]
+      : [];
+  return [...referenced.map(({ invoice }) => invoice), ...refund];
+}
+
+async function flaggedChain(tx: Tx, originalId: string): Promise<boolean> {
+  const rows = await tx.execute(sql`with recursive chain as (
+    select id, reduction_rule from invoices where (corrects_id = ${originalId} or (variant is null and replaces_invoice_id = ${originalId})) and status = 'final'
+    union select i.id, i.reduction_rule from invoices i join chain c on i.corrects_id = c.id or (i.variant is null and i.replaces_invoice_id = c.id)
+      where i.status = 'final'
+  ) select 1 from chain where reduction_rule is not null limit 1`);
+  return [...rows].length > 0;
 }
 
 /** Vor dem ersten Audit-Schreibzugriff; Zahlungen und Schlussrechnung rechnen unter derselben Rechnungssperre. */
@@ -75,17 +97,20 @@ export async function withAdvanceVatChange<T>(tx: Tx, invoiceId: string | null, 
       if (!lines.length) continue;
       await post(tx, books, {
         date,
-        description: `Umsatzsteuer Anzahlung ${after.original.number}`,
+        description: after.kind === "refund" ? `Umsatzsteuer bis zur Rückzahlung ${after.original.number}` : `Umsatzsteuer Anzahlung ${after.original.number}`,
         sourceType: "invoice",
         sourceId: original.id,
         // Nur Steuerumbuchung, Bank/Kasse und Forderung bleiben in der normalen Zahlungsbuchung.
         lines,
       });
     }
+    const { kind, variant, advanceType, number } = after.original;
+    const balanceDescription =
+      kind === "rechnung" && variant === null && advanceType === null ? `Erlösabgrenzung Rechnung ${number}` : `Bilanzierung Anzahlung ${number}`;
     for (const { date, lines } of balanceChanges) {
       await post(tx, books, {
         date,
-        description: `Bilanzierung Anzahlung ${after.original.number}`,
+        description: balanceDescription,
         sourceType: "invoice",
         sourceId: original.id,
         lines,

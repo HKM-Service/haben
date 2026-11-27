@@ -5,12 +5,12 @@ import { useRef, useState, type FormEvent } from "react";
 import { z } from "zod/mini";
 import { FilePicker } from "../../components/FilePicker.tsx";
 import { NoticeBanner } from "../../components/NoticeBanner.tsx";
-import { ScrollTable } from "../../components/ScrollTable.tsx";
 import { useAction } from "../../lib/use-action.ts";
 import { previewCsvImportFn, runCsvImportFn } from "../../server/functions/csv-import.ts";
 import { getFastbillArticlesCsv } from "../../server/functions/fastbill.ts";
 import styles from "../../styles/auswertungen.css?url";
 import { Field } from "../../components/Field.tsx";
+import { type Choice, type Choices, NameChoice } from "../../components/CsvNameChoice.tsx";
 import { Status, type StatusLook } from "../../components/Status.tsx";
 
 type Kind = "kontakte" | "artikel" | "anlagen";
@@ -19,7 +19,11 @@ type Settings = { encoding: "auto" | "utf-8" | "windows-1252"; delimiter: "auto"
 
 export const Route = createFileRoute("/_app/csv-import")({
   // quelle=fastbill: Artikel aus dem Umzug aus FastBill statt aus einer Datei (docs/fastbill.md#artikel)
-  validateSearch: z.object({ art: z.optional(z.enum(["kontakte", "artikel", "anlagen"])), quelle: z.optional(z.enum(["fastbill"])) }),
+  validateSearch: z.object({
+    art: z.optional(z.enum(["kontakte", "artikel", "anlagen"])),
+    quelle: z.optional(z.enum(["fastbill"])),
+    stichtag: z.optional(z.iso.date()),
+  }),
   head: () => ({ meta: [{ title: "CSV-Import · Haben" }], links: [{ rel: "stylesheet", href: styles }] }),
   component: CsvImportPage,
 });
@@ -49,9 +53,10 @@ const STATUS: Record<Preview["rows"][number]["status"], StatusLook> = {
 const SHOWN_ROWS = 200;
 
 function CsvImportPage() {
-  const { art, quelle } = Route.useSearch();
+  const { art, quelle, stichtag } = Route.useSearch();
   const kind: Kind = art ?? "kontakte";
   const meta = KINDS.find((k) => k.kind === kind)!;
+  const initialCutoff = kind === "anlagen" ? stichtag : undefined;
   return (
     <>
       <div className="page-head">
@@ -79,22 +84,22 @@ function CsvImportPage() {
         {INTRO[kind]}
       </p>
       {/* Neu aufbauen beim Wechsel der Art: Zuordnung und Vorschau gehören zur Art */}
-      <CsvImport key={kind} kind={kind} fastbill={kind === "artikel" && quelle === "fastbill"} />
+      <CsvImport key={`${kind}:${initialCutoff ?? ""}`} kind={kind} fastbill={kind === "artikel" && quelle === "fastbill"} initialCutoff={initialCutoff} />
     </>
   );
 }
 
-function CsvImport({ kind, fastbill }: { kind: Kind; fastbill: boolean }) {
+function CsvImport({ kind, fastbill, initialCutoff }: { kind: Kind; fastbill: boolean; initialCutoff: string | undefined }) {
   const meta = KINDS.find((k) => k.kind === kind)!;
   const previewFn = useServerFn(previewCsvImportFn);
   const importFn = useServerFn(runCsvImportFn);
   const fastbillFn = useServerFn(getFastbillArticlesCsv);
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [settings, setSettings] = useState<Settings>({ encoding: "auto", delimiter: "auto", stichtag: `${currentYear()}-01-01` });
+  const [settings, setSettings] = useState<Settings>({ encoding: "auto", delimiter: "auto", stichtag: initialCutoff ?? `${currentYear()}-01-01` });
   const [preview, setPreview] = useState<Preview | null>(null);
-  // DATEV-Stammdaten: Zeilen, deren Vorschlag an einen vorhandenen Kontakt bestätigt ist
-  const [confirm, setConfirm] = useState<ReadonlySet<number>>(new Set());
+  // DATEV-Stammdaten: je Vorschlag (erste Zeile) die Wahl; fehlt die Zeile, wird sie übersprungen
+  const [choices, setChoices] = useState<Choices>(new Map());
   const { busy, notice, setNotice, run } = useAction();
   // Die Vorschau gilt nur für die Einstellungen, mit denen sie gerechnet ist; der Import schickt die aktuellen
   const changeSettings = (patch: Partial<Settings>) => {
@@ -111,7 +116,8 @@ function CsvImport({ kind, fastbill }: { kind: Kind; fastbill: boolean }) {
       delimiter: settings.delimiter,
       mapping,
       stichtag: kind === "anlagen" ? settings.stichtag : null,
-      confirm: [...confirm],
+      confirm: [...choices].flatMap(([line, choice]) => (choice === "zuordnen" ? [line] : [])),
+      createNew: [...choices].flatMap(([line, choice]) => (choice === "neu" ? [line] : [])),
     };
     form.set("options", JSON.stringify(options));
     return fn({ data: form });
@@ -120,7 +126,7 @@ function CsvImport({ kind, fastbill }: { kind: Kind; fastbill: boolean }) {
   const showPreview = (chosen: File, mapping: Record<string, number | null> | null) =>
     void run(async () => {
       setPreview((await send(previewFn, chosen, mapping)) as Preview);
-      setConfirm(new Set());
+      setChoices(new Map());
     });
 
   const onSubmit = (event: FormEvent) => {
@@ -141,7 +147,7 @@ function CsvImport({ kind, fastbill }: { kind: Kind; fastbill: boolean }) {
       const chosen = new File([csv], filename, { type: "text/csv" });
       setFile(chosen);
       setPreview((await send(previewFn, chosen, null)) as Preview);
-      setConfirm(new Set());
+      setChoices(new Map());
       setNotice({ tone: "info", text: `${count} Artikel aus FastBill geholt. Prüf die Vorschau; übernommen wird erst mit dem Knopf darunter.` });
     });
 
@@ -220,7 +226,7 @@ function CsvImport({ kind, fastbill }: { kind: Kind; fastbill: boolean }) {
       {preview && file && (
         <>
           {preview.source === "csv" && <MappingCard preview={preview} busy={busy} onChange={(mapping) => showPreview(file, mapping)} />}
-          <PreviewCard preview={preview} busy={busy} meta={meta} onImport={onImport} confirm={confirm} onConfirm={setConfirm} />
+          <PreviewCard preview={preview} busy={busy} meta={meta} onImport={onImport} choices={choices} onChoose={setChoices} />
         </>
       )}
     </div>
@@ -265,24 +271,24 @@ function PreviewCard({
   busy,
   meta,
   onImport,
-  confirm,
-  onConfirm,
+  choices,
+  onChoose,
 }: {
   preview: Preview;
   busy: boolean;
   meta: (typeof KINDS)[number];
   onImport: () => void;
-  confirm: ReadonlySet<number>;
-  onConfirm: (confirm: ReadonlySet<number>) => void;
+  choices: Choices;
+  onChoose: (choices: Choices) => void;
 }) {
   const { counts } = preview;
   const proposals = counts.zuordnen ?? 0;
-  const taken = counts.neu + confirm.size;
-  const toggle = (line: number, checked: boolean) => {
-    const next = new Set(confirm);
-    if (checked) next.add(line);
+  const taken = counts.neu + choices.size;
+  const choose = (line: number, choice: Choice | null) => {
+    const next = new Map(choices);
+    if (choice) next.set(line, choice);
     else next.delete(line);
-    onConfirm(next);
+    onChoose(next);
   };
   const order = { fehler: 0, zuordnen: 1, dublette: 2, neu: 3 } as const;
   const rows = [...preview.rows].sort((a, b) => order[a.status] - order[b.status] || a.line - b.line);
@@ -308,15 +314,17 @@ function PreviewCard({
           {preview.problem}
         </div>
       )}
-      <ScrollTable className="report-table">
+      <table className="report-table stack-table csv-preview">
         <thead>
           <tr>
             <th scope="col" className="num">
               Zeile
             </th>
             <th scope="col">{meta.singular}</th>
-            <th scope="col">Ergebnis</th>
             <th scope="col">Hinweis</th>
+            <th scope="col" className="csv-status">
+              Ergebnis
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -324,30 +332,33 @@ function PreviewCard({
             <tr key={row.line}>
               <td className="num">{row.lines.join(", ")}</td>
               <td style={{ overflowWrap: "anywhere" }}>{row.title}</td>
-              <td>
-                <Status tone={STATUS[row.status].tone} emphasis={STATUS[row.status].emphasis}>
-                  {STATUS[row.status].text}
-                </Status>
-              </td>
               <td className="small" style={{ overflowWrap: "anywhere" }}>
-                <span id={`csv-hint-${row.line}`}>{row.message ?? ""}</span>
-                {row.status === "zuordnen" && (
+                {row.message && <span id={`csv-hint-${row.line}`}>{row.message}</span>}
+                {row.status === "zuordnen" && !row.canCreate && (
                   <label className="checkbox" style={{ overflowWrap: "normal", hyphens: "auto" }}>
                     <input
                       type="checkbox"
-                      checked={confirm.has(row.line)}
+                      checked={choices.get(row.line) === "zuordnen"}
                       disabled={busy}
                       aria-describedby={`csv-hint-${row.line}`}
-                      onChange={(e) => toggle(row.line, e.target.checked)}
+                      onChange={(e) => choose(row.line, e.target.checked ? "zuordnen" : null)}
                     />
                     Bestätigen
                   </label>
                 )}
+                {row.status === "zuordnen" && row.canCreate && (
+                  <NameChoice line={row.line} title={row.title} value={choices.get(row.line) ?? null} busy={busy} onChange={(c) => choose(row.line, c)} />
+                )}
+              </td>
+              <td className="csv-status">
+                <Status tone={STATUS[row.status].tone} emphasis={STATUS[row.status].emphasis}>
+                  {STATUS[row.status].text}
+                </Status>
               </td>
             </tr>
           ))}
         </tbody>
-      </ScrollTable>
+      </table>
       {rows.length > shown.length && (
         <p className="small muted" style={{ margin: 0 }}>
           Weitere {rows.length - shown.length} neue Zeilen sind nicht aufgeführt.

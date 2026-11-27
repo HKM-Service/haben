@@ -7,7 +7,7 @@ description: >-
 
 # Rechnungen und E-Rechnung
 
-Haben schreibt Ausgangsrechnungen als E-Rechnung: ZUGFeRD (PDF/A-3 mit eingebettetem XML, Profil EN 16931) oder XRechnung 3.0 in CII- oder UBL-Syntax. Eine Rechnung ist zuerst ein Entwurf, den du beliebig ändern kannst. Mit dem Festschreiben bekommt sie ihre Nummer, PDF und XML werden erzeugt, sie wird gebucht und ist danach unveränderlich.
+Haben schreibt Ausgangsrechnungen als E-Rechnung: ZUGFeRD (PDF/A-3 mit eingebettetem XML, Profil EN 16931) oder XRechnung 3.0 in CII- oder UBL-Syntax. Eine Rechnung ist zuerst ein Entwurf, den du beliebig ändern kannst. Mit dem Festschreiben bekommt sie ihre Nummer, PDF und XML werden erzeugt, sie wird gebucht, und sie ist danach unveränderlich. Gebucht wird dabei nicht jede Rechnung, etwa eine Anzahlungsanforderung von GmbH und UG: Sie bleibt bis zur Schlussleistung ohne Buchungssatz ([Abschlags- und Schlussrechnung](#abschlags--und-schlussrechnung)).
 
 <img src="screenshot-rechnung.png" alt="Rechnungseditor mit Kunde, Leistungszeitraum, Positionen und Live-Vorschau der Rechnung rechts daneben" width="900">
 
@@ -17,23 +17,25 @@ Bevor du die erste Rechnung festschreibst, brauchst du:
 
 - **Firmendaten** unter Einstellungen: Firmenname, Anschrift, E-Mail-Adresse, IBAN und Steuernummer oder USt-IdNr. Fehlt etwas, zeigt der Editor oben „Vor dem Festschreiben: …“ mit einem Link „Firmendaten ergänzen“. Siehe [einrichtung.md](einrichtung.md).
 - **Einen Kontakt** für den Kunden (siehe [Kontakte](kontakte.md)).
-- Für XRechnung zusätzlich eine **Telefonnummer** in den Firmendaten und beim Kunden eine **E-Mail-Adresse oder Leitweg-ID**.
+- Für XRechnung zusätzlich eine **Telefonnummer** in den Firmendaten und beim Kunden eine **E-Mail-Adresse** oder **Leitweg-ID**; die Leitweg-ID steht im Kontakt unter **Weitere Angaben**.
 
 ## So gehst du vor
+
+Um eine Rechnung anzulegen, schalte **Rechnungen schreiben** unter [Einstellungen › Bereiche](einrichtung.md#bereiche-ausblenden) ein.
 
 1. Unter **Rechnungen** auf **Neue Rechnung** klicken.
 2. **Kunde** wählen: Das Feld sucht beim Tippen nach Name, Kundennummer und Ort (Serienrechnungen haben dieselbe Auswahl; bei Textbausteinen bedeutet ein leeres Feld „für alle Kunden“); Pfeiltasten und Enter wählen einen Treffer, Escape schließt die Liste. Ohne Auswahl bleibt der bisherige Kunde, ein geleertes Feld nimmt ihn weg. Hat der Kontakt ein Standardformat, wird es übernommen; hat er eine Leitweg-ID und kein Standardformat, stellt Haben auf XRechnung 3.0 (CII) um. Fehlt der Kunde noch, legst du ihn über den letzten Eintrag der Trefferliste an: **Neuen Kontakt anlegen**, oder nach dem Tippen **„…“ als neuen Kunden anlegen** mit dem getippten Namen. Beides geht, ohne den Entwurf zu verlassen: Im Dialog ist die Rolle **Kunde** angehakt, nach dem Speichern ist er gewählt, und die Eingaben im Entwurf bleiben stehen, auch wenn du abbrichst. Gibt es schon einen Kontakt mit derselben USt-IdNr., weist der Dialog darauf hin: Ist er ein Kunde und nicht archiviert, kannst du ihn wählen, statt eine Dublette anzulegen; sonst verweist der Hinweis auf den Kontakt, um dort die Rolle zu ergänzen oder ihn wiederherzustellen. Das gilt ebenso im Angebot.
 3. **Rechnungsdatum** und **Zahlungsziel in Tagen** (0 bis 120) eintragen. Darunter steht das errechnete Fälligkeitsdatum (siehe [Fälligkeit](rechnungen-zahlung.md#fälligkeit)). Vorgabe für das Zahlungsziel ist der Wert aus den Firmendaten.
    Optional **Skonto**: je Stufe Satz und Frist in Tagen, vorbelegt vom Kunden oder aus den Firmendaten (siehe [Skonto](rechnungen-zahlung.md#skonto)).
-4. Optional **Leistung von** und **Leistung bis**. Ohne Angabe gilt das Rechnungsdatum als Leistungsdatum; ist nur ein Tag angegeben oder sind beide gleich, erscheint auf der Rechnung „Leistungsdatum“, sonst „Leistungszeitraum“. Bei einem Zeitraum übernimmt Haben im XML die Kundenanschrift als Lieferanschrift mit Lieferland. Eine abweichende Lieferanschrift kennt Haben nicht.
+4. Optional **Leistung von** und **Leistung bis**. Sind beide leer, steht auf der Rechnung das Rechnungsdatum als Leistungsdatum. Ist nur ein Tag angegeben oder sind beide gleich, erscheint auf der Rechnung „Leistungsdatum“, sonst „Leistungszeitraum“. Bei einem Zeitraum übernimmt Haben im XML die Kundenanschrift als Lieferanschrift mit Lieferland. Eine abweichende Lieferanschrift kennt Haben nicht. Was ein eingetragener Tag bei einer Zahlung vor der Leistung für die Umsatzsteuer bedeutet, steht unter [Vorauszahlung auf normale Rechnungen](#vorauszahlung-auf-normale-rechnungen).
    Optional **Bestellnummer**, **Eigene Auftragsnummer** und **Lieferscheinnummer** (siehe [Bestellnummer, Auftrag und Lieferschein](#bestellnummer-auftrag-und-lieferschein)).
-5. **E-Rechnungsformat** prüfen.
+5. **E-Rechnungsformat** prüfen (siehe [Format wählen](#format-wählen)).
 6. Unter **Umsatzsteuer** die steuerliche Behandlung wählen, im Normalfall „Regulär“ (siehe [Umsatzsteuer auf der Rechnung](#umsatzsteuer-auf-der-rechnung)).
 7. Unter **Preise** wählen, ob die Einzelpreise netto oder brutto inklusive Umsatzsteuer gelten (siehe [Netto- oder Bruttopreise](#nettopreise-oder-bruttopreise)). Vorgabe ist netto.
-8. Optional eine **Einleitung über den Positionen** eintragen (Kopftext, bis 2000 Zeichen), etwa Rahmenvertrag oder Anrede; Bestell-, Auftrags- und Lieferscheinnummer haben eigene Felder. Vorbelegt ist die Einleitung der [Standardmarke](einrichtung.md#markenprofile); ist sie leer oder keine Standardmarke gewählt, gilt die Standard-Einleitung für Rechnungen aus den [Firmendaten](einrichtung.md#firmendaten). **Textbaustein einfügen** übernimmt einen gespeicherten Kopftext (siehe [Textbausteine](#textbausteine)).
+8. Optional eine **Einleitung über den Positionen** eintragen (Kopftext, bis 2000 Zeichen), etwa Rahmenvertrag oder Anrede; Bestell-, Auftrags- und Lieferscheinnummer haben eigene Felder. Vorbelegt ist sie mit dem [Standard-Kopftext für Rechnungen](#standard-je-belegart), der Hinweis mit dem Standard-Fußtext, wenn es sie gibt. **Textbaustein einfügen** übernimmt einen gespeicherten Kopftext (siehe [Textbausteine](#textbausteine)).
 9. **Positionen** erfassen: Beschreibung, Menge, Einheit, Einzelpreis und Steuersatz. Mit **+ Position hinzufügen** kommt eine weitere Zeile dazu; sie übernimmt Einheit und Steuersatz der letzten Zeile.
 10. Optional einen **Hinweis auf der Rechnung** eintragen (Fußtext unter den Summen, bis 2000 Zeichen), auch aus einem Textbaustein. Für private Grundstücksleistungen darunter den [Aufbewahrungshinweis](#aufbewahrungshinweis-bei-grundstücksleistungen) einschalten.
-11. **Entwurf speichern** oder direkt **Festschreiben**. Das Festschreiben fragt in einem Dialog nach und nennt Nummer, Kunde und Betrag; erst **Festschreiben** dort führt es aus. Liegt das Rechnungsdatum vor dem der zuletzt festgeschriebenen Rechnung im Nummernkreis, weist der Dialog darauf hin; festschreiben lässt sich trotzdem.
+11. **Entwurf speichern** oder direkt **Festschreiben**. Bis der gespeicherte Entwurf geladen ist, sind die Felder kurz gesperrt, damit keine Eingabe verloren geht. Das Festschreiben fragt in einem Dialog nach und nennt Nummer, Kunde und Betrag; erst **Festschreiben** dort führt es aus. Liegt das Rechnungsdatum vor dem der zuletzt festgeschriebenen Rechnung im Nummernkreis, weist der Dialog darauf hin; festschreiben lässt sich trotzdem.
 
 Die [Vorschau](#vorschau) zeigt die Rechnung, während du tippst. Die Überschrift im Editor nennt die Nummer, die die Rechnung voraussichtlich bekommt; vergeben wird sie erst beim Festschreiben.
 
@@ -43,7 +45,7 @@ Einen Entwurf, den du nicht mehr brauchst, entfernst du mit **Entwurf löschen**
 
 **Vorschau** im Kopf des Editors zeigt die Rechnung so, wie sie gerade im Formular steht: Sie fährt von rechts über das Formular herein, am Handy von unten. **Schließen**, Esc oder ein Klick daneben bringt dich an dieselbe Stelle im Formular zurück; Eingaben und Scrollposition bleiben.
 
-Das Blatt kommt aus derselben Vorlage wie das PDF, Umbrüche, Seiten und Schrift stimmen also. Das ist das Layout, das der Belegart zugeordnet ist, eingebaut oder [eigenes](belegvorlagen.md#hochladen-und-zuordnen). Kurz nachdem du aufgehört hast zu tippen, setzt Haben es neu. Braucht das auf deinem Server länger als zwei Sekunden, erscheint **Aktualisieren**, und das Blatt wird nur noch auf Klick neu gesetzt. Bewusst anders als im PDF: Statt des GiroCodes steht ein Platzhalter, damit niemand eine Vorschau bezahlt, und bei Fremdwährung fehlt die Umsatzsteuer in Euro, bis der Kurs feststeht.
+Das Blatt kommt aus derselben Vorlage wie das PDF, Umbrüche, Seiten und Schrift stimmen also. Das ist das Layout, das der Belegart zugeordnet ist, eingebaut oder [eigenes](belegvorlagen.md#hochladen-und-zuordnen). Kurz nachdem du aufgehört hast zu tippen, setzt Haben es neu. Braucht das auf deinem Server länger als zwei Sekunden, erscheint **Aktualisieren**, und das Blatt wird nur noch auf Klick neu gesetzt. Lässt sich das Blatt nicht setzen, etwa weil Haben gerade nicht erreichbar ist, steht über dem Blatt der Grund; **Erneut versuchen** setzt es noch einmal. Bewusst anders als im PDF: Statt des GiroCodes steht ein Platzhalter, damit niemand eine Vorschau bezahlt, und bei Fremdwährung fehlt die Umsatzsteuer in Euro, bis der Kurs feststeht.
 
 Ist das Fenster breit genug für Formular und Vorschau nebeneinander, öffnet der Pfeil neben **Vorschau** ein Menü:
 
@@ -52,9 +54,9 @@ Ist das Fenster breit genug für Formular und Vorschau nebeneinander, öffnet de
 
 Haben merkt sich die Wahl in diesem Browser, für Rechnungen, Angebote und Mahnungen gemeinsam; auf einem anderen Gerät gilt sie nicht. Ohne Wahl ist die Vorschau auf einem großen Bildschirm angeheftet, auf dem Laptop fährt sie über das Formular. Am Handy und in schmalen Fenstern fährt sie immer über das Formular; eine angeheftete Vorschau kommt zurück, sobald das Fenster wieder breit genug ist. Auf dem Laptop reicht oft schon das Einklappen der Seitenleiste (`Strg+B`, am Mac `⌘+B`).
 
-Bei **Gemeinsame Firmengestaltung** öffnet **Gestaltung** (Zahnrad) neben dem Blatt eine Spalte mit Farbe, Schrift, Logo samt Größe und Stelle, Falz- und Lochmarken, GiroCode, Kundennummer, Artikelnummer und der Spalte USt. Am Handy steht sie unter dem Blatt. Das Blatt zeigt jede Änderung sofort, gespeichert wird sie erst mit **Für alle Belege speichern**; nur das Logo wird beim Hochladen sofort gespeichert. Sie gilt dann für alle Belege ohne ausgewählte Marke, die ab jetzt erzeugt werden, auch für offene Entwürfe; festgeschriebene PDFs bleiben unverändert. Schließt du die Vorschau vorher, gehen die Änderungen verloren. Dasselbe stellst du unter [Einstellungen › Beleggestaltung](einrichtung.md#logo-und-blatt) ein. Ein eigenes Layout zeigt nur die Einstellungen, deren Felder es verwendet ([Eigene Belegvorlagen](belegvorlagen.md#einstellungen-der-gestaltung)).
+Bei **Gemeinsame Firmengestaltung** öffnet **Gestaltung** (Zahnrad) neben dem Blatt eine Spalte mit dem Layout der Belegart und seinen Optionen, Farbe, Schrift, Logo samt Größe und Stelle, Falz- und Lochmarken, GiroCode, Kundennummer, Artikelnummer und der Spalte USt. Am Handy steht sie unter dem Blatt. Das Blatt zeigt jede Änderung sofort, gespeichert wird sie erst mit **Gestaltung speichern**; nur das Logo wird beim Hochladen sofort gespeichert. Sie gilt dann für alles ohne ausgewählte Marke, was ab jetzt erzeugt wird, auch für offene Entwürfe; festgeschriebene PDFs bleiben unverändert. Schließt du die Vorschau vorher, gehen die Änderungen verloren. Dasselbe stellst du unter [Einstellungen › Beleggestaltung](beleggestaltung.md#logo-und-blatt) ein. Ein eigenes Layout zeigt nur die Einstellungen, deren Felder es verwendet ([Eigene Belegvorlagen](belegvorlagen.md#einstellungen-der-gestaltung)).
 
-Bei einer ausgewählten Marke verweist die Gestaltungskarte auf die [Markenprofile](einrichtung.md#markenprofile), wo du deren Gestaltung bearbeitest.
+Bei einer ausgewählten Marke verweist die Gestaltungskarte auf die [Markenprofile](beleggestaltung.md#markenprofile), wo du deren Gestaltung bearbeitest.
 
 ### Entwurf als PDF
 
@@ -94,12 +96,13 @@ Viele Auftraggeber verlangen ihre Bestellnummer auf jeder Rechnung und weisen Re
 | --- | --- |
 | Beschreibung | Bezeichnung der Position, eine Zeile, z. B. `Beratung Softwarearchitektur`. Pflicht. Steht im XML als Artikelname (BT-153). |
 | Text zu Position | Optional, mehrzeilig, bis 2000 Zeichen, z. B. Leistungsumfang oder Bestellbezug. Steht im PDF in kleinerer Schrift unter der Bezeichnung, die dann halbfett ist, und im XML als Artikelbeschreibung (BT-154). Storno und Rechnungskorrektur übernehmen ihn, ebenso Rechnungen aus einem Angebot oder einer Vorlage und der Lieferschein. Angebote und wiederkehrende Rechnungen haben dasselbe Feld. |
-| Art.-Nr. | Optional, bis 50 Zeichen, z. B. `ET-1042`. Kommt beim Einfügen aus dem [Artikelkatalog](#artikelkatalog) mit und lässt sich in der Position ändern. Im PDF als Spalte „Art.-Nr.“ hinter der Position, nur wenn mindestens eine Position eine Nummer hat. Der Schalter **Artikelnummer** unter [Gestaltung](einrichtung.md#logo-und-blatt) blendet die Spalte aus, im XML bleibt die Nummer. Im XML als Artikelnummer des Verkäufers (BT-155: UBL `cac:SellersItemIdentification`, CII `ram:SellerAssignedID`), im ZUGFeRD (Profil EN 16931) ebenso. Storno, Rechnungskorrektur, Rechnung aus einem Angebot, Serienrechnung und Lieferschein übernehmen sie. Die Position merkt sich die Nummer, nicht den Artikel: Ändert sich die Nummer im Katalog, bleibt die Rechnung, wie sie ist. Angebote und wiederkehrende Rechnungen haben dasselbe Feld. |
+| Art.-Nr. | Optional, bis 50 Zeichen, z. B. `ET-1042`. Kommt beim Einfügen aus dem [Artikelkatalog](#artikelkatalog) mit und lässt sich in der Position ändern. Im PDF als Spalte „Art.-Nr.“ hinter der Position, nur wenn mindestens eine Position eine Nummer hat. Der Schalter **Artikelnummer** unter [Gestaltung](beleggestaltung.md#logo-und-blatt) blendet die Spalte aus, im XML bleibt die Nummer. Im XML als Artikelnummer des Verkäufers (BT-155: UBL `cac:SellersItemIdentification`, CII `ram:SellerAssignedID`), im ZUGFeRD (Profil EN 16931) ebenso. Storno, Rechnungskorrektur, Rechnung aus einem Angebot, Serienrechnung und Lieferschein übernehmen sie. Die Position merkt sich die Nummer, nicht den Artikel: Ändert sich die Nummer im Katalog, bleibt die Rechnung, wie sie ist. Angebote und wiederkehrende Rechnungen haben dasselbe Feld. |
 | Menge | Bis zu drei Nachkommastellen, z. B. `0,5` oder `152`. Muss größer als null sein. |
 | Einheit | `Std.`, `Tag`, `Monat`, `Stk.`, `Psch.`, `km` und die [eigenen Einheiten](#eigene-einheiten) |
 | Einzelpreis | In Euro, z. B. `95,00`. Negative Preise sind möglich, für einen Nachlass aber besser der [Rabatt](#rabatte). |
 | Rabatt | Optional, als Prozent (`10 %`) oder Betrag (`50,00`), siehe [Rabatte](#rabatte). |
 | Steuersatz | 19 %, 7 % oder 0 % |
+| Kosten für § 35a EStG | Nur mit dem Haken **Anteil der Arbeits-, Maschinen- und Fahrtkosten ausweisen**: **Material und Sonstiges** oder **Arbeit, Maschinen, Fahrt**, hinter der Bezeichnung. Siehe [Arbeits-, Maschinen- und Fahrtkosten](#arbeits--maschinen--und-fahrtkosten--35a-estg). |
 
 Der Zeilenbetrag ist Menge mal Einzelpreis, kaufmännisch auf Cent gerundet. Bei Nettopreisen rechnet Haben die Umsatzsteuer nach EN 16931 je Steuersatz auf die Summe der Zeilennetto, nicht als Summe der Steuer je Zeile. Bei mehreren Steuersätzen weist das PDF die Steuer je Satz mit ihrer Bemessungsgrundlage aus.
 
@@ -138,9 +141,11 @@ Der Gesamtbetrag stimmt damit auf den Cent mit den Endpreisen überein. Weil die
 
 ### Artikelkatalog
 
+Den Menüpunkt **Artikel** blendest du unter [Einstellungen › Bereiche](einrichtung.md#bereiche-ausblenden) ein oder aus.
+
 Unter **Artikel** (Seitenleiste, Bereich Verkauf) legst du Positionen an, die du oft brauchst: Stundensatz, Tagessatz, Wartungspauschale.
 
-- Jeder Artikel hat eine Bezeichnung (eine Zeile), eine Einheit, einen Preis und einen Steuersatz, dazu optional einen **Text zur Position** (mehrzeilig, bis 2000 Zeichen), eine Artikelnummer und eine interne Notiz. Unter **Preis ist** legst du fest, ob der Preis netto oder brutto inklusive Umsatzsteuer gilt; in der Liste steht bei Bruttopreisen „brutto“.
+- Jeder Artikel hat eine Bezeichnung (eine Zeile), eine Einheit, einen Preis und einen Steuersatz, dazu optional einen **Text zur Position** (mehrzeilig, bis 2000 Zeichen), eine Artikelnummer, die Vorgabe **Kosten für § 35a EStG** ([Arbeits-, Maschinen- und Fahrtkosten](#arbeits--maschinen--und-fahrtkosten--35a-estg)) und eine interne Notiz. Unter **Preis ist** legst du fest, ob der Preis netto oder brutto inklusive Umsatzsteuer gilt; in der Liste steht bei Bruttopreisen „brutto“.
 - Passt der Preis nicht zum Preismodus der Rechnung, rechnet Haben ihn beim Einfügen um, kaufmännisch auf Cent gerundet: Ein Artikel zu 9,80 € brutto steht in einer Netto-Rechnung mit 8,24 €, ein Artikel zu 100,00 € netto in einer Brutto-Rechnung mit 119,00 €. Ohne Steuerausweis übernimmt Haben den Preis unverändert.
 - Im Editor für Rechnungen und Angebote sucht **Aus dem Katalog einfügen** nach Bezeichnung und Artikelnummer und fügt den Artikel als Position mit Menge 1 ein, mit Bezeichnung, Text und Artikelnummer. Ist die einzige Zeile noch leer, ersetzt er sie.
 - Ein Klick in die Beschreibung einer Position zeigt den Katalog, beim Tippen passende Artikel, jeweils mit Nummer, Preis (netto oder brutto) und Einheit; gesucht wird nach Bezeichnung und Artikelnummer, die Liste zeigt höchstens 50 Treffer. Wählst du einen Treffer mit Tastatur oder Maus, übernimmt die Position dessen Text, Artikelnummer, Einheit, Preis und Steuersatz; die Menge bleibt, bei einem Artikel ohne Text auch ein schon eingegebener Text der Position. Danach kannst du alles von Hand ändern.
@@ -165,7 +170,7 @@ In der Einleitung, im mehrzeiligen Text zu einer Position und im Hinweis stehen 
 | `__Text__` | unterstrichen |
 | `___Text___` | kursiv und unterstrichen |
 
-Du musst die Zeichen nicht tippen: Sobald du Text markierst, erscheinen direkt darüber die Knöpfe **F**, **K** und **U**, am Handy rechts über dem Feld. Oder nimm <kbd>Strg</kbd>/<kbd>⌘</kbd>+<kbd>B</kbd>, <kbd>I</kbd> oder <kbd>U</kbd>; ohne Markierung gilt das Kürzel für das Wort unter dem Cursor. Ein zweiter Klick nimmt die Auszeichnung zurück. Die Knöpfe zeichnen immer ganze Wörter aus, auch wenn nur ein Teil markiert ist. <kbd>Esc</kbd> blendet die Knöpfe aus. Du findest sie auch bei Artikeln, Textbausteinen, den Standard-Einleitungen und in Einleitung und Schluss einer [Mahnung](rechnungen-zahlung.md#mahnwesen).
+Du musst die Zeichen nicht tippen: Sobald du Text markierst, erscheinen direkt darüber die Knöpfe **F**, **K** und **U**, am Handy rechts über dem Feld. Oder nimm <kbd>Strg</kbd>/<kbd>⌘</kbd>+<kbd>B</kbd>, <kbd>I</kbd> oder <kbd>U</kbd>; ohne Markierung gilt das Kürzel für das Wort unter dem Cursor. Ein zweiter Klick nimmt die Auszeichnung zurück. Die Knöpfe zeichnen immer ganze Wörter aus, auch wenn nur ein Teil markiert ist. <kbd>Esc</kbd> blendet die Knöpfe aus. Du findest sie auch bei Artikeln, Textbausteinen und in Einleitung und Schluss einer [Mahnung](rechnungen-zahlung.md#mahnwesen).
 
 Die Vorschau und das PDF zeigen dieselbe Formatierung. Kombinationen wie `*_fett und kursiv_*` sind möglich.
 Leerzeilen bleiben Absätze. Die Zeichen müssen den Text direkt umschließen; `* Text *` bleibt wörtlich.
@@ -177,6 +182,8 @@ Die Zeichen zählen bei der Grenze von 2000 Zeichen mit. Bereits festgeschrieben
 
 ### Textbausteine
 
+Den Menüpunkt **Textbausteine** blendest du unter [Einstellungen › Bereiche](einrichtung.md#bereiche-ausblenden) ein oder aus.
+
 Unter **Textbausteine** (Seitenleiste, Bereich Verkauf) legst du Kopf- und Fußtexte an, die du immer wieder brauchst: Pflichtangaben eines Kunden wie Bestellnummer oder Rahmenvertrag, eine Einleitung je Projekt, einen Dank zum Schluss.
 
 - Jeder Baustein hat eine **Bezeichnung** (nur für die Auswahl), eine **Art** und den **Text**. Ein **Kopftext** steht als Einleitung über den Positionen, ein **Fußtext** als Hinweis unter den Summen.
@@ -187,6 +194,45 @@ Unter **Textbausteine** (Seitenleiste, Bereich Verkauf) legst du Kopf- und Fußt
 - In wiederkehrenden Rechnungen gelten in der Einleitung dieselben Platzhalter wie in Beschreibung und Hinweis.
 - Aus einem Angebot übernimmt die Rechnung die Einleitung des Angebots.
 - Nicht mehr gebrauchte Bausteine archivierst du; sie lassen sich wiederherstellen. Jede Änderung steht im Änderungsprotokoll.
+
+#### Standard je Belegart
+
+Unter **Standard für** machst du einen Baustein zum Standard einer Belegart. Er füllt dann neue Belege dieser Art von selbst vor, außer die [Standardmarke](beleggestaltung.md#markenprofile) hat eigene Texte, auch Rechnungs- und Angebotsentwürfe aus der [REST-API](api.md) und Rechnungen aus **Leistungen abrechnen**. Rechnungen aus einem Angebot, aus einer wiederkehrenden Rechnung und Abrechnungen eines Shops oder App-Stores behalten ihre eigenen Texte; im Entwurf änderst oder leerst du den Text wie jeden anderen, und Belege, die es schon gibt, ändern sich nicht. In der Liste steht „Standard für …“ am Baustein.
+
+| Belegart | Kopftext | Fußtext |
+| --- | --- | --- |
+| Rechnung, Angebot | Einleitung des neuen Entwurfs | Hinweis des neuen Entwurfs |
+| Mahnung, je Stufe (Zahlungserinnerung, 1. Mahnung, letzte Mahnung) | Einleitung der Stufe | Schluss der Stufe |
+| Auftragsbestätigung | beim Erzeugen, wenn das Angebot keine Einleitung hat | beim Erzeugen, wenn das Angebot keinen Hinweis hat |
+| Lieferschein | – | Hinweis, beim Erzeugen |
+
+- Bei der Mahnung wählst du die Stufe, etwa **Mahnungen: Letzte Mahnung**; eine Stufe ohne Standard behält ihre Vorlage (siehe [Mahnwesen](rechnungen-zahlung.md#mahnwesen)). Ein Standard „Mahnungen“ aus einer älteren Version galt für jede Stufe: Beim Update bleibt er Standard der 1. Mahnung, Zahlungserinnerung und letzte Mahnung bekommen je eine Kopie mit dem Namen der Stufe in Klammern. Dasselbe gilt beim Übernehmen einer älteren Exportdatei; die Rückmeldung zählt dann die Bausteine der Datei, nicht die Kopien.
+- Je Belegart und Art gibt es höchstens einen Standard. Machst du einen weiteren zum Standard, löst er den bisherigen ab, bei der Mahnung den derselben Stufe. Ein archivierter Baustein ist kein Standard mehr, auch nicht nach dem Wiederherstellen.
+- Ein Standard gilt für alle Kunden; ein Baustein für einen bestimmten Kunden kann kein Standard sein. Der Lieferschein hat nur einen Hinweis, dort geht nur ein Fußtext.
+- Auftragsbestätigung und Lieferschein haben keinen Entwurf: Der Standard greift jedes Mal, wenn du sie erzeugst, auch für ein schon angenommenes Angebot; einen eigenen Text des Angebots ersetzt er nicht. Ohne Standard bleibt es bei den Texten des Angebots bzw. ohne Hinweis.
+- [Platzhalter](#platzhalter-in-einleitung-und-hinweis) bleiben im Entwurf stehen und werden in Rechnung und Angebot bei Vorschau und Festschreiben eingesetzt, in der Auftragsbestätigung beim Erzeugen. In Mahnung und Lieferschein setzt Haben keine Platzhalter ein.
+- Die frühere **Standard-Einleitung** aus den Firmendaten hat Haben beim Update in je einen Kopftext-Baustein mit Standard für Rechnungen bzw. Angebote übernommen, ebenso beim Übernehmen der Einstellungen aus einer älteren Exportdatei.
+
+#### Platzhalter in Einleitung und Hinweis
+
+In Einleitung und Hinweis von Rechnung und Angebot, auch aus einem Textbaustein, setzt Haben Platzhalter ein: in der Vorschau, im Entwurfs-PDF und beim Festschreiben. Im Entwurf bleibt der Platzhalter stehen, damit du ihn noch ändern kannst; nach dem Festschreiben stehen in Rechnung, PDF und XML die Werte. Die Namen sind die der [E-Mail-Vorlagen](#per-e-mail-versenden):
+
+| Platzhalter | Wert |
+| --- | --- |
+| `{art}` | Rechnung, Abschlagsrechnung, Schlussrechnung, Stornorechnung, Rechnungskorrektur bzw. Angebot |
+| `{nummer}` | Nummer des Belegs; in Vorschau und Entwurfs-PDF die voraussichtliche bzw. „ENTWURF“ |
+| `{datum}` | Rechnungs- bzw. Angebotsdatum |
+| `{betrag}` | Gesamtbetrag brutto in der Währung der Rechnung, wie in der E-Mail; bei der Schlussrechnung nach Abzug der Abschläge, bei Storno und Korrektur negativ |
+| `{faellig}` | Fälligkeit (nur Rechnung) |
+| `{gueltig}` | gültig bis (nur Angebot) |
+| `{leistungszeitraum}` | Leistungszeitraum („01.10.2026 – 31.10.2026“) oder Leistungsdatum, leer ohne Angabe |
+| `{kunde}` | Name des Kunden |
+| `{firma}` | dein Firmenname |
+| `{iban}`, `{bic}` | IBAN (in Vierergruppen) und BIC des [Zahlungskontos](rechnungen-zahlung.md#zahlungskonto) der Rechnung, etwa um sie größer als in der Fußzeile auf die Rechnung zu setzen |
+
+Kopierst du eine Rechnung oder ein Angebot oder machst aus einem Angebot eine Rechnung, kommen Einleitung und Hinweis mit den Platzhaltern mit, nicht mit den Werten des Originals; die Auftragsbestätigung setzt die Werte der gewählten Positionen ein.
+
+Beispiel für einen Hinweis: „Bitte überweisen Sie {betrag} bis zum {faellig} auf das Konto {iban} unter Angabe der Rechnungsnummer {nummer}.“ Datum und Betrag stehen in der Sprache der Rechnung. Ein unbekannter Platzhalter bleibt stehen, so fällt ein Tippfehler in der Vorschau auf. In [wiederkehrenden Rechnungen](#wiederkehrende-rechnungen) kommen deren Platzhalter dazu; die setzt Haben schon beim Anlegen des Entwurfs ein.
 
 ### Umsatzsteuer auf der Rechnung
 
@@ -211,20 +257,24 @@ Außer bei „Regulär“ gilt:
 
 Bei Reverse Charge erinnert der Editor daran, dass die Leistung zusätzlich in die Zusammenfassende Meldung (ZM) an das Bundeszentralamt für Steuern gehört. Die ZM sendet Haben über ERiC ([Umsatzsteuer](umsatzsteuer.md#zusammenfassende-meldung)). Bei „Nicht-EU-Ausland: Dienstleistung oder Nutzungsrecht“ lässt Haben im XML die USt-IdNr. von dir und vom Kunden weg (BR-O-02); als Kennung des Verkäufers dient dann die Steuernummer bzw. USt-IdNr. (BT-29). Den Steuersatz lässt Haben in den Positionen des XML weg; in der Steueraufschlüsselung steht 0, weil XRechnung ihn dort verlangt (BR-DE-14).
 
+**Bestätigung beim BZSt.** Bei Reverse Charge und innergemeinschaftlicher Lieferung fragt Haben beim Öffnen der Rückfrage zum Festschreiben das [BZSt](kontakte.md#ust-idnr-beim-bzst-bestätigen), ob die USt-IdNr. des Kunden gültig ist, wenn ihre letzte Antwort nicht gültig oder älter als 30 Tage ist. Bei Reverse Charge muss außerdem die letzte qualifizierte Antwort aus dieser Frist stammen und bei Name und Ort nicht „Stimmt nicht“ melden; ohne Ort am Kontakt reicht die einfache. Meldet das BZSt die Nummer als ungültig, passen Name oder Ort nicht, bestätigt es Name und Anschrift nicht oder antwortet es nicht, steht das als Hinweis in der Rückfrage; festschreiben geht trotzdem. Hat die Nummer selbst einen Fehler, der das [Festschreiben sperrt](#was-vor-dem-festschreiben-geprüft-wird), etwa `ATU1234`, nennt die Rückfrage diese Sperre ohne Abfrage beim BZSt. Serienrechnungen mit **Direkt festschreiben** fragen nicht. Eine feste Frist nennen weder [§ 18e UStG](https://www.gesetze-im-internet.de/ustg_1980/__18e.html) noch UStAE 18e.1; die 30 Tage hat Haben gewählt. Liegt die Leistung vor dem Festschreiben, kommt diese Abfrage zu spät für den Vertrauensschutz: Eine Bestätigung erst nach dem Umsatz genügt der Sorgfalt eines ordentlichen Kaufmanns nicht (UStAE 6a.8 Abs. 6). Neue Kunden bestätigst du deshalb vorher am [Kontakt](kontakte.md#ust-idnr-beim-bzst-bestätigen).
+
 **Lieferung oder Leistung?** „Nicht-EU-Ausland: Dienstleistung oder Nutzungsrecht“ ist für Dienstleistungen und Nutzungsrechte, deren Leistungsort im Drittland liegt; sie sind in Deutschland nicht steuerbar (Kz 45). Verkaufst du Ware, die ins Drittland gelangt, ist es eine steuerbare, aber steuerfreie **Ausfuhrlieferung** (Kz 43); die Vorsteuer aus dem Einkauf bleibt abziehbar. Ebenso ist Ware an ein Unternehmen im EU-Ausland keine Reverse-Charge-Leistung, sondern eine **innergemeinschaftliche Lieferung** (Kz 41).
 
 Zur innergemeinschaftlichen Lieferung:
 
-- Auf der Rechnung stehen deine USt-IdNr. und die des Kunden und der Hinweis auf die Steuerfreiheit (§ 14a Abs. 3 UStG). Ohne beide Nummern, mit einer deutschen oder einer formal falschen USt-IdNr. des Kunden oder bei einem Kunden außerhalb der EU lässt sich die Rechnung nicht festschreiben. Ob die Nummer erteilt ist, klärst du vorher mit der Bestätigungsabfrage beim BZSt.
+- Auf der Rechnung stehen deine USt-IdNr. und die des Kunden und der Hinweis auf die Steuerfreiheit (§ 14a Abs. 3 UStG). Ohne beide Nummern, mit einer deutschen oder einer formal falschen USt-IdNr. des Kunden (geprüft wie bei der [Vorprüfung der ZM](umsatzsteuer.md#vorprüfung-der-zm), auch der Aufbau je Land) lässt sich die Rechnung nicht festschreiben. Haben prüft außerdem das umsatzsteuerliche Gebiet anhand von Land und PLZ der Kundenanschrift und zeigt für erkannte [Sondergebiete](umsatzsteuer-sondergebiete.md) einen Prüfhinweis.
 - Im XML steht die Anschrift des Kunden als Lieferanschrift mit Lieferland (BT-80, Pflicht nach BR-IC-12).
 - Haben meldet die Lieferung in Kz 41 der Voranmeldung im Monat des Rechnungsdatums, auch bei Ist-Versteuerung, und in der [Zusammenfassenden Meldung](umsatzsteuer.md#zusammenfassende-meldung) mit Umsatzart L.
 - Steuerfrei ist sie nur mit Nachweis, dass die Ware ins andere EU-Land gelangt ist (§ 6a Abs. 3 UStG, § 17a UStDV), etwa mit der Gelangensbestätigung oder einem Versandbeleg. Den Nachweis bewahrst du selbst auf, zum Beispiel als [Anhang](#zusätzliche-anhänge) der Rechnung.
 
-Zur Ausfuhrlieferung: Der Kunde sitzt außerhalb der EU, und die Rechnung braucht deine USt-IdNr. (EN 16931 BR-G-02). Steuerfrei ist sie nur mit Ausfuhrnachweis (§ 6 Abs. 4 UStG, §§ 8 bis 11 UStDV), in der Regel dem Ausgangsvermerk aus dem ATLAS-Verfahren des Zolls. Bei Ist-Versteuerung zählt sie wie Kz 81 mit dem Zahlungseingang.
+Zur Ausfuhrlieferung: Das Ziel liegt außerhalb des umsatzsteuerlichen Gemeinschaftsgebiets, auch wenn es politisch zu einem EU-Staat gehört. Für [Sondergebiete wie die Kanaren und Helgoland](umsatzsteuer-sondergebiete.md) zeigt Haben anhand von Land und PLZ einen Hinweis; die Behandlung wählst du selbst ([§ 1 Abs. 2/2a UStG](https://www.gesetze-im-internet.de/ustg_1980/__1.html), [Art. 6 MwStSystRL](https://www.boe.es/buscar/doc.php?id=DOUE-L-2006-82505)). Die Rechnung braucht deine USt-IdNr. (EN 16931 BR-G-02). Steuerfrei ist sie nur mit Ausfuhrnachweis (§ 6 Abs. 4 UStG, §§ 8 bis 11 UStDV), in der Regel dem Ausgangsvermerk aus dem ATLAS-Verfahren des Zolls. Auch bei Ist-Versteuerung zählt sie im Monat der Leistung, nicht mit dem Zahlungseingang ([Umsätze ohne Steuer](umsatzsteuer.md#umsätze-ohne-steuer-kz-21-41-43-45-und-48)).
 
 Bist du in den Einstellungen als Kleinunternehmer eingetragen, bekommen neue Rechnungen automatisch „Kleinunternehmer: ohne Umsatzsteuer“. Du kannst stattdessen die eigene Befreiung nach § 4 Nr. 14 Buchst. a oder Nr. 21 wählen oder einen geklärten ausländischen Leistungsort angeben. Die innergemeinschaftliche Lieferung wird damit nicht freigegeben ([§ 19 Abs. 1 Satz 2 UStG](https://www.gesetze-im-internet.de/ustg_1980/__19.html)). Alle Positionen bleiben ohne deutschen Steuerausweis. Angebote, Serienvorlagen und die API verwenden dieselben Regeln.
 
 Für „Leistungsort EU: Dienstleistung oder Nutzungsrecht“ bestätigst du das Land des tatsächlichen Leistungsorts und dass keine ausländische Umsatzsteuer auszuweisen ist. Die Kundenanschrift allein bestimmt den Leistungsort nicht ([§ 3a UStG](https://www.gesetze-im-internet.de/ustg_1980/__3a.html)); eine Privatperson im EU-Ausland wird dadurch kein Reverse-Charge-Kunde. Ausländische Steuersätze, OSS und das besondere EU-Kleinunternehmerverfahren nach § 19a werden hier nicht abgewickelt.
+
+Liegt der tatsächliche Leistungsort in einem Sondergebiet, kannst du bei DE, ES, IT oder GR dessen **PLZ des tatsächlichen Leistungsorts** selbst ergänzen und die ausländische Behandlung bestätigen. Haben übernimmt dafür keine Kundenanschrift. Eine Änderung von Land oder PLZ verlangt eine erneute Bestätigung. Beispiel: Kunde in Berlin, tatsächliche Leistung auf Helgoland – Land DE, PLZ 27498 und „Nicht-EU-Ausland: Dienstleistung oder Nutzungsrecht“. Ein Kunde auf Teneriffa macht eine tatsächlich in Madrid erbrachte Leistung dagegen nicht zur Drittlandleistung. Angebote, Serienvorlagen, aus einem Fremdsystem übernommene Rechnungen und die API bewahren dieselben ausdrücklichen Angaben. Alte Leistungsortdaten bleiben ohne ergänzte PLZ erhalten.
 
 Alte Befreiungstexte werden nicht automatisch einer Vorschrift zugeordnet. Ihr gespeicherter Belegstand bleibt erhalten; die Einordnung für den [Gesamtumsatz](auswertungen.md#gesamtumsatz-nach--19-ustg) ist bis zur Klärung als ungeklärt sichtbar. Ein Verkauf von Anlagevermögen und ein Hilfsumsatz werden ausdrücklich gekennzeichnet. Den Anlagenabgang erfasst du weiterhin in der Anlagenverwaltung.
 
@@ -238,13 +288,15 @@ Alte Befreiungstexte werden nicht automatisch einer Vorschrift zugeordnet. Ihr g
 
 Die Reihenfolge, nach der Haben das Format vorschlägt: Standardformat des Kontakts, sonst XRechnung (CII) bei vorhandener Leitweg-ID, sonst das Standardformat aus den Einstellungen. Du kannst es im Entwurf jederzeit ändern.
 
+Als Rat: ZUGFeRD passt für die meisten Kunden, XRechnung nur, wenn der Kunde sie verlangt. CII und UBL sind zwei Schreibweisen davon, im Zweifel CII.
+
 ### Was vor dem Festschreiben geprüft wird
 
 Der Editor listet alles auf, was noch fehlt. Geprüft werden:
 
 - Firmendaten: Name, Anschrift, E-Mail-Adresse, IBAN, Steuernummer oder USt-IdNr.
 - Kunde gewählt, mindestens eine Position, keine Position mit Betrag 0.
-- Umsatzsteuer: Außer bei „Regulär“ müssen alle Positionen 0 % haben. Reverse Charge braucht deine USt-IdNr. in den Firmendaten und die USt-IdNr. des Kunden, und der Kunde darf nicht in Deutschland sitzen. Die innergemeinschaftliche Lieferung braucht deine USt-IdNr., eine USt-IdNr. des Kunden aus einem anderen EU-Land und einen Kunden in einem anderen EU-Land. Die Ausfuhrlieferung braucht deine USt-IdNr. und einen Kunden außerhalb der EU. Monaco zählt dabei zu Frankreich ([Umsatzsteuer](umsatzsteuer.md#zusammenfassende-meldung)). Bei „Nicht-EU-Ausland: Dienstleistung oder Nutzungsrecht“ darf der Kunde nicht in Deutschland sitzen. „Steuerfreie Leistung, z. B. Heilbehandlung oder Unterricht“ braucht die Befreiungsvorschrift.
+- Umsatzsteuer: Außer bei „Regulär“ müssen alle Positionen 0 % haben. Reverse Charge und die innergemeinschaftliche Lieferung brauchen deine USt-IdNr. und eine USt-IdNr. des Kunden aus einem anderen EU-Land. Haben prüft sie wie die [Vorprüfung der ZM](umsatzsteuer.md#vorprüfung-der-zm) und nach dem Aufbau in ihrem Land; nordirische Nummern (XI) gehen nur bei Lieferungen. Bei beiden prüft Haben außerdem das Land des Kunden. Storno und Korrektur übernehmen die Nummer der Rechnung ohne Prüfung des Aufbaus; bei Reverse Charge prüfen sie nur, ob eine Nummer da ist. Die Ausfuhrlieferung braucht deine USt-IdNr. und als Bestimmungsort eine Kundenanschrift im umsatzsteuerlichen Drittland. [Sondergebiete](umsatzsteuer-sondergebiete.md) geben einen Prüfhinweis. Bei Dienstleistungen kann ein ausdrücklich erfasster tatsächlicher Leistungsort vom Kundensitz abweichen. Monaco zählt zu Frankreich ([Umsatzsteuer](umsatzsteuer.md#zusammenfassende-meldung)). „Steuerfreie Leistung, z. B. Heilbehandlung oder Unterricht“ braucht die Befreiungsvorschrift.
 - Kleinunternehmer: Die gewählte Umsatzsteuer-Behandlung muss zum Firmenstatus passen, siehe [Umsatzsteuer auf der Rechnung](#umsatzsteuer-auf-der-rechnung).
 - Bei Kleinunternehmer-Rechnungen mit Rechnungsdatum bis Ende des laufenden Jahres fragt Haben vor dem Festschreiben nach, wenn die vollständige Zahlung im laufenden Jahr die Jahresgrenze überschreiten könnte oder der erfasste Vorjahresumsatz über 25.000 € liegt. Bei Abbruch bleibt der Entwurf gespeichert. Die automatische Festschreibung einer wiederkehrenden Rechnung braucht dann eine manuelle Bestätigung am Entwurf. Mehr zur Berechnung unter [Kleinunternehmer](einrichtung.md#kleinunternehmer).
 - Eine Rechnung muss einen positiven Gesamtbetrag haben, eine Rechnungskorrektur einen negativen.
@@ -272,6 +324,19 @@ Bei steuerpflichtigen Werklieferungen oder sonstigen Leistungen im Zusammenhang 
 - Nach dem Festschreiben ist die Auswahl gesperrt. Storno und Rechnungskorrektur übernehmen sie unveränderlich aus der ursprünglichen Rechnung. Bestehende Belegdateien ändern sich nicht.
 - Für Kleinunternehmer bleibt die Auswahl freiwillig verfügbar. [§ 34a UStDV](https://www.gesetze-im-internet.de/ustdv_1980/__34a.html) nennt den Hinweis nicht unter den Mindestangaben einer Kleinunternehmerrechnung; Haben setzt ihn dort nicht automatisch.
 
+## Arbeits-, Maschinen- und Fahrtkosten (§ 35a EStG)
+
+Privatkunden können für Handwerkerleistungen und haushaltsnahe Dienstleistungen einen Teil der Kosten von ihrer Einkommensteuer abziehen. Das gilt nur für die Arbeitskosten ([§ 35a Abs. 5 Satz 2 EStG](https://www.gesetze-im-internet.de/estg/__35a.html)), dazu zählen auch die in Rechnung gestellten Maschinen- und Fahrtkosten, Material aber nicht; Verbrauchsmittel bleiben nicht außer Ansatz, kennzeichne sie als **Arbeit, Maschinen, Fahrt** (BMF-Schreiben vom 09.11.2016, BStBl I S. 1213, geändert am 01.09.2021, BStBl I S. 1494, Rz. 39). Arbeit außerhalb des Haushalts ist nicht begünstigt; führe sie als eigene Position mit **Material und Sonstiges** und nenne in der Bezeichnung, dass sie außerhalb des Haushalts erbracht wurde (Rz. 39). Der Anteil muss sich aus der Rechnung ermitteln lassen, ein eigener Ausweis der Umsatzsteuer darauf ist nicht nötig (Rz. 40). Beispiel: 3 Rauchwarnmelder je 31,00 €, Montage 3 × 8,00 € und Anfahrt 35,00 € ergeben 59,00 € Arbeits- und Fahrtkosten.
+
+- Im Editor von Rechnung, Angebot und wiederkehrender Rechnung **Anteil der Arbeits-, Maschinen- und Fahrtkosten ausweisen (§ 35a EStG)** anhaken. Hinter der Bezeichnung jeder Position steht dann die Auswahl **Material und Sonstiges** oder **Arbeit, Maschinen, Fahrt**. Haben erkennt Privatkunden nicht selbst; ohne Haken erscheint kein Satz.
+- Unter den Summen steht dann „Darin sind Arbeits-, Maschinen- und Fahrtkosten von 59,00 € enthalten (§ 35a EStG).“, bei regulärer Besteuerung mit „inkl. USt“. Der Betrag ist die Summe der gekennzeichneten Positionen nach ihrem Rabatt, um ihren Anteil am Gesamtrabatt gemindert, bei Nettopreisen mit der Umsatzsteuer ihres Satzes. Der Satz nennt den Anteil vor Skonto; zieht der Kunde Skonto ab, sind seine Aufwendungen entsprechend kleiner. Der Satz steht im PDF, auch in eigenen Layouts über das Pflichtfeld `taxNote`, und als BT-22 in ZUGFeRD und XRechnung, auf Englisch auch englisch.
+- Im Angebot zählen optionale und alternative Positionen nicht mit, wie bei der Summe. Die Rechnung aus dem Angebot, Kopien, Storno, Rechnungskorrektur und wiederkehrende Rechnungen übernehmen die Auswahl je Position. Das Storno nennt den Anteil mit Minus.
+- Eine Abschlagsrechnung aus dem [Zahlungsplan](angebote.md#zahlungsplan) eines Angebots mit gekennzeichneten Positionen teilt ihren Betrag je Steuersatz auf bis zu zwei Positionen auf, „…, Anteil Arbeits-, Maschinen- und Fahrtkosten“ und „…, Anteil Material und Sonstiges“, im Verhältnis des Auftrags nach Rabatt (prozentuale Aufteilung, Rz. 40). So nennt jede ihren eigenen Anteil, denn der Kunde setzt seine Aufwendungen im Jahr der Zahlung an ([§ 11 Abs. 2 EStG](https://www.gesetze-im-internet.de/estg/__11.html)). Andere Abschlagsrechnungen nennen einen Anteil, wenn du ihre Positionen kennzeichnest.
+- In der Schlussrechnung nennt der Satz den Anteil der ganzen Leistung vor Abzug der Abschlagsrechnungen. Nennt jede abgezogene Abschlagsrechnung einen Anteil, folgt ein zweiter Satz, etwa „Davon entfallen 2.216,70 € auf die Abschlagsrechnungen und 5.172,30 € auf diese Rechnung.“ Fehlt einer der Anteil oder liegen die je Abschlagsrechnung gerundeten Anteile zusammen über dem der ganzen Leistung (bei 50 % / 50 % / Rest möglich), bleibt es beim ersten Satz, ebenso in Storno und Rechnungskorrektur.
+- Im [Artikelkatalog](#artikelkatalog) legt **Kosten für § 35a EStG** die Vorgabe fest, die beim Einfügen in die Position geht. Fügst du einen solchen Artikel ein, ist der Haken gesetzt; nimmst du ihn heraus, verlieren alle Positionen das Kennzeichen.
+- In der REST-API heißt das Feld `arbeitskosten`, je Position und am Artikel ([API](api.md#beispiele)).
+- Haben prüft nicht, ob die Leistung im Haushalt des Kunden erbracht wurde und ob er unbar zahlt; beides ist Voraussetzung für den Abzug (§ 35a Abs. 4 und Abs. 5 Satz 3 EStG).
+
 ## Was beim Festschreiben passiert
 
 Alles läuft in einer einzigen Datenbanktransaktion. Schlägt ein Schritt fehl, bleibt der Entwurf ohne Nummer zurück und im Nummernkreis entsteht keine Lücke. PDF und XML entstehen, bevor Haben etwas speichert; andere Vorgänge, etwa ein gleichzeitig gebuchter Beleg, warten so nicht auf das Erzeugen der Dateien.
@@ -281,7 +346,7 @@ Alles läuft in einer einzigen Datenbanktransaktion. Schlägt ein Schritt fehl, 
 3. **PDF erzeugen.** Die sichtbare Rechnung entsteht mit Typst als PDF/A-3b, aus dem Layout, das der Rechnung zugeordnet ist ([Eigene Belegvorlagen](belegvorlagen.md)). Als Erstellungszeit steht das Rechnungsdatum im PDF.
 4. **XML erzeugen.** Haben schreibt je nach Format Factur-X EN 16931 (und bettet es ins PDF ein), XRechnung CII oder XRechnung UBL. Unbekannte Länder- oder Währungscodes lehnt Haben vorher mit einer Meldung ab.
 5. **Prüfsummen.** Von PDF und XML wird je ein SHA-256 gespeichert. Die ersten Zeichen des PDF-Hashes stehen auf der Detailseite.
-6. **Buchen.** Haben legt den Buchungssatz an (siehe unten) und schreibt ihn fest.
+6. **Buchen.** Haben legt den Buchungssatz an (siehe unten) und schreibt ihn fest. Im Bilanzverfahren von GmbH und UG endet dieser Schritt ohne Buchungssatz: bei einer Anzahlungsanforderung vor der Schlussleistung und ihrem Storno, bei einem Storno der Schlussrechnung und bei einem betragsgleichen Ersatz nach Storno. Dazu kommt die Schlussrechnung, deren Rest durch Abschläge vollständig gedeckt ist, auch außerhalb des Bilanzverfahrens ([Abschlags- und Schlussrechnung](#abschlags--und-schlussrechnung)).
 7. **Sperren.** Die Rechnung bekommt einen Festschreibungszeitpunkt. Ab dann lehnen Datenbank-Trigger jede Änderung oder Löschung der Rechnung, ihrer Positionen und ihrer [zusätzlichen Anhänge](#zusätzliche-anhänge) ab. Das Siegel der Rechnung schließt die Anhänge ein.
 
 ## Pflichtangaben einer GmbH oder UG
@@ -290,17 +355,17 @@ Auf allen Geschäftsbriefen einer GmbH oder UG an einen bestimmten Empfänger, g
 
 Haben nimmt die Angaben aus den [Firmendaten](einrichtung.md#firmendaten) und setzt sie
 
-- als eigene Zeile unter die drei Spalten des Fußes von Rechnung, Storno, Korrektur, Angebot, Auftragsbestätigung, Lieferschein, Mahnung und Steuerbescheinigung, auch in der Vorschau im Editor: „Sitz der Gesellschaft: Bremen · Registergericht: Amtsgericht Bremen, HRB 12345 HB · Geschäftsführung: Erika Mustermann“. Die Rechtsform steht davor („Rechtsform: GmbH“) nur, wenn der Firmenname sie nicht schon nennt, etwa „GmbH“ oder „UG (haftungsbeschränkt)“ (§ 4, § 5a Abs. 1 GmbHG). Auf englischen Belegen sind die Beschriftungen englisch („Registered office“, „Register court“, „Managing directors“).
+- in den Fuß von Rechnung, Storno, Korrektur, Angebot, Auftragsbestätigung, Lieferschein, Mahnung und Steuerbescheinigung, auch in der Vorschau im Editor: je nach Layout und Einstellung als eigene Spalte neben den übrigen, als Zeile darunter oder in der Randspalte unter den übrigen Angaben, „Sitz der Gesellschaft: Bremen · Registergericht: Amtsgericht Bremen, HRB 12345 HB · Geschäftsführung: Erika Mustermann“. Mit Platzhaltern stehen sie dort in deiner eigenen Fußzeile, wo du sie hinschreibst ([Pflichtangaben in der Fußzeile](beleggestaltung.md#pflichtangaben-einer-gmbh-oder-ug)). Die Rechtsform steht davor („Rechtsform: GmbH“) nur, wenn der Firmenname sie nicht schon nennt, etwa „GmbH“ oder „UG (haftungsbeschränkt)“ (§ 4, § 5a Abs. 1 GmbHG). Auf englischen Belegen sind die Beschriftungen englisch („Registered office“, „Register court“, „Managing directors“).
 - in die E-Rechnung: die Registernummer als Kennung aus einem amtlichen Register (BT-30, in CII `SpecifiedLegalOrganization/ID`, in UBL `PartyLegalEntity/CompanyID`) und die ganze Zeile als „Seller additional legal information“ (BT-33, in CII `Description` des Verkäufers, in UBL `CompanyLegalForm`) nach dem semantischen Modell der EN 16931-1 (Gruppe BG-4).
 - als Signatur unter E-Mails mit Rechnung, Angebot oder Mahnung, siehe [Per E-Mail versenden](#per-e-mail-versenden).
 
 **Hinweis, keine Sperre:** Fehlt etwas, zeigen Firmendaten und Editor einen Hinweis, das Festschreiben bleibt möglich; der Fuß nennt dann nur, was eingetragen ist. Die Rechnung bleibt umsatzsteuerlich gültig, denn § 14 Abs. 4 UStG verlangt die Angaben nicht; fehlende Angaben kann das Registergericht mit Zwangsgeld durchsetzen ([§ 79 Abs. 1 GmbHG](https://www.gesetze-im-internet.de/gmbhg/__79.html)). Eine Gesellschaft in Gründung hat vor der Eintragung noch keine Registernummer, schreibt aber schon Rechnungen, und Storno und Korrektur müssen immer möglich sein.
 
-**Festgeschriebene Rechnungen bleiben, wie sie sind:** Der Absender ist mit der Rechnung gespeichert, PDF und XML sind gesperrt. Mahnung, Auftragsbestätigung und Lieferschein entstehen dagegen neu und tragen die Angaben aus den aktuellen Firmendaten, auch zu einer älteren Rechnung. Beim Einzelunternehmen ändert sich nichts.
+**Festgeschriebene Rechnungen bleiben, wie sie sind:** Absender und Kunde sind mit der Rechnung gespeichert, PDF und XML sind gesperrt. Mahnung, Auftragsbestätigung und Lieferschein entstehen dagegen neu und tragen Namen, Anschrift und Pflichtangaben aus den aktuellen Firmendaten und Namen und Anschrift des Kunden aus dem aktuellen Kontakt, auch zu einer älteren Rechnung. Bankverbindung, Steuernummer und Kundennummer bleiben wie auf der Rechnung.
 
 ## Buchungen
 
-Beispiel: Rechnung über 1.000,00 € netto zu 19 %.
+Beispiel: bereits erbrachte Leistung, Rechnung über 1.000,00 € netto zu 19 %.
 
 **Soll-Versteuerung** (nach vereinbarten Entgelten):
 
@@ -329,10 +394,22 @@ Rechnungen ohne Steuerausweis gehen ohne Steuerzeile auf eigene Erlöskonten:
 | Warenlieferung in die EU (innergemeinschaftliche Lieferung) | 8125 | 4125 | `IGL` (Kz 41) |
 | Warenlieferung ins Nicht-EU-Ausland (Ausfuhrlieferung) | 8120 | 4120 | `Ausfuhr` (Kz 43) |
 | Steuerfreie Leistung, z. B. Heilbehandlung oder Unterricht | 8100 | 4100 | `Steuerfrei` (Kz 48) |
-| Kleinunternehmer: ohne Umsatzsteuer | 8192 | 4184 | `KU` (keine Kennzahl) |
+| Kleinunternehmer: ohne Umsatzsteuer | 8192 | 4184 | `KU` (Kz 48 nach dem [Leistungstag](umsatzsteuer.md#umsätze-ohne-steuer-kz-21-41-43-45-und-48)) |
 
 > [!IMPORTANT]
-> Die Kontenzuordnung stammt aus `packages/core/src/posting.ts`. Gleiche sie vor dem Echtbetrieb mit deiner Steuerberatung ab.
+> Die Kontenzuordnung stammt aus `packages/core/src/kontenplan.ts`. Gleiche sie vor dem Echtbetrieb mit deiner Steuerberatung ab.
+
+### Vorauszahlung auf normale Rechnungen
+
+Bei neuen normalen Rechnungen in Euro mit regulärer deutscher Umsatzsteuer, auch an eine ausländische Kundenanschrift, zählt als Leistungstag **Leistung von**, bei einem Zeitraum **Leistung bis**; er wird beim Festschreiben gespeichert. Sind beide leer, grenzt Haben eine frühere Zahlung nicht als Vorauszahlung ab; ein Leistungstag am Rechnungsdatum zählt als Angabe. Ordne eine frühere Bank- oder Barzahlung mit ihrem tatsächlichen Zahlungstag zu: Die Steuer auf diesen Betrag entsteht im Voranmeldungszeitraum des Zahlungseingangs, auch bei Soll ([§ 13 Abs. 1 Nr. 1 Buchst. a Satz 4 UStG](https://www.gesetze-im-internet.de/ustg_1980/__13.html)). GmbH und UG führen den Nettobetrag bis zur Leistung als [erhaltene Anzahlung](buchhaltung.md#anzahlungen-vor-leistung). Die EÜR bleibt beim Zufluss ([§ 11 Abs. 1 EStG](https://www.gesetze-im-internet.de/estg/__11.html)).
+
+Beispiel: Leistung und Rechnung am 20. Januar über 700 € netto und 133 € Steuer, Zahlung schon am 13. Dezember des Vorjahres. Im Dezember stehen bei GmbH/UG 700 € Anzahlung und 133 € fällige Steuer; der Erlös entsteht im Januar. Bei nur 119 € Vorauszahlung sind es zunächst 100 € Anzahlung und 19 € Steuer. Die verbleibende Steuer wird bei Soll mit der Leistung, bei Ist mit der Restzahlung fällig; die Vorauszahlung wird nicht erneut besteuert.
+
+Bei GmbH und UG steht in neu erzeugten Bilanzierungseinträgen zu einer normalen Rechnung **Erlösabgrenzung Rechnung** mit Rechnungsnummer. Bei einer Anzahlungsrechnung lautet der Text dieser Einträge **Bilanzierung Anzahlung** mit Rechnungsnummer.
+
+Rechnungen, die vor dieser Regel festgeschrieben wurden, nehmen bei Soll oder als GmbH/UG keine Zahlung vor ihrem Leistungstag an; bei Ist ohne Bilanz stimmt der bisherige Weg schon. Zahlungen ab dem Leistungstag bleiben auch vor dem Rechnungsdatum möglich. Storniere die Alt-Rechnung im Monat der Leistung, stelle sie mit Leistungszeitraum neu aus und ordne die Zahlung der neuen Rechnung zu. Ist der Eingangsmonat schon gemeldet, zeigt die [Umsatzsteuerseite](umsatzsteuer.md) die Abweichung zur Berichtigung.
+
+Beim Einzelunternehmen mit Soll stehen am Leistungstag zwei Journalbelege, Rechnung und Steuerumbuchung; Forderung und Erlös entstehen nur einmal.
 
 ## Zahlung und Mahnung
 
@@ -383,15 +460,15 @@ Bei größeren Aufträgen rechnest du in Teilen ab: zuerst Abschlagsrechnungen, 
 
 Die Abzüge setzt Haben selbst als eigene Positionen darunter, je Abschlagsrechnung und Steuersatz eine, mit Netto und Umsatzsteuer der Abschlagsrechnung, z. B. „Abzüglich Abschlagsrechnung 2026-031 vom 15.09.2026 (netto 3.000,00 €, USt 570,00 €)“. Die Schlussrechnung weist den Restbetrag aus und verweist im XML auf jede abgezogene Abschlagsrechnung. Noch offene Abschläge bleiben eigene Posten.
 
-Ein neuer Abschlag ist vorbelegt eine **Anzahlung vor Leistung**. Bei regulärer Besteuerung entsteht seine Umsatzsteuer mit dem tatsächlichen Zahlungseingang, bei Teilzahlungen anteilig; bei Soll-Versteuerung spätestens mit der Schlussleistung. Für eine schon erbrachte Teilleistung setzt du **Teilleistung bereits erbracht** und trägst den Leistungstag unter **Leistung von** ein; bei einem Zeitraum zählt **Leistung bis**. Bei Soll entsteht die Steuer dann mit der Teilleistung. Das Datum darf nicht nach dem Rechnungsdatum liegen. Grundlage sind [§ 13 Abs. 1 Nr. 1 Buchst. a UStG](https://www.gesetze-im-internet.de/ustg_1980/__13.html) und [Abschnitt 13.5 UStAE](https://ao.bundesfinanzministerium.de/usth/2023/A-Umsatzsteuergesetz/IV-Steuer-und-Vorsteuer/Paragraf-13/ae-13-5.html).
+Ein neuer Abschlag ist vorbelegt eine **Anzahlung vor Leistung**. Bei regulärer Besteuerung entsteht seine Umsatzsteuer mit dem tatsächlichen Zahlungseingang, bei Teilzahlungen anteilig; bei Soll-Versteuerung spätestens mit der Schlussleistung. Bei steuerfreien Umsätzen und Ausfuhrlieferungen meldet die Voranmeldung die Anzahlung nicht; die Schlussrechnung zählt in [Kz 48 bzw. 43](umsatzsteuer.md#umsätze-ohne-steuer-kz-21-41-43-45-und-48) mit der ganzen Leistung. Für eine schon erbrachte Teilleistung setzt du **Teilleistung bereits erbracht** und trägst den Leistungstag unter **Leistung von** ein; bei einem Zeitraum zählt **Leistung bis**. Bei Soll entsteht die Steuer dann mit der Teilleistung. Das Datum darf nicht nach dem Rechnungsdatum liegen. Grundlage sind [§ 13 Abs. 1 Nr. 1 Buchst. a UStG](https://www.gesetze-im-internet.de/ustg_1980/__13.html) und [Abschnitt 13.5 UStAE](https://ao.bundesfinanzministerium.de/usth/2023/A-Umsatzsteuergesetz/IV-Steuer-und-Vorsteuer/Paragraf-13/ae-13-5.html).
 
 Mit der Schlussleistung wird bei Soll auch die Steuer auf noch unbezahlte neue Anzahlungsrechnungen fällig; spätere Zahlungen versteuern sie nicht nochmals. Für eine solche Schlussrechnung zählt der eingetragene Leistungstag, sonst ihr Rechnungsdatum. Bei der Übernahme aus einem Angebot schlägt der Entwurf dafür den heutigen Tag vor; geplante Leistungsdaten des Angebots gelten nicht automatisch als tatsächlich erbrachte Schlussleistung. Prüfe das Datum und passe es vor der Festschreibung an den tatsächlichen Leistungstag beziehungsweise das Ende des Leistungszeitraums an. Ist-Versteuerung bleibt zahlungsbezogen. Bei neuen erbrachten Teil- und Schlussleistungen bleibt nach einem Verfahrenswechsel das Verfahren des Leistungsjahres maßgeblich ([UStAE 13.6 Abs. 3](https://ao.bundesfinanzministerium.de/usth/2023/A-Umsatzsteuergesetz/IV-Steuer-und-Vorsteuer/Paragraf-13/ae-13-6.html)). Für EU-Leistungen mit Reverse Charge gelten unabhängig von Ist/Soll die [Meldezeitpunkte nach Leistung](umsatzsteuer.md#umsätze-ohne-steuer-kz-21-41-43-45-und-48). Die übrigen Auslands-Meldezeitpunkte bleiben erhalten. Vor diesem Update festgeschriebene Abschläge und ihre Korrekturen behalten ihre bisherige Versteuerung. Die Buchung und den Umgang mit später zugeordneten Zahlungen beschreibt [Buchhaltung](buchhaltung.md#anzahlungen-vor-leistung).
 
-**Schlussrechnung bei GmbH und UG ersetzen:** Im neuen Bilanzverfahren bleibt die bereits erbrachte Schlussleistung beim bloßen Rechnungsstorno bestehen. Für einen Ersatz nach diesem Storno müssen dieselben Abschläge, derselbe Kunde, dieselbe Steuerbehandlung, derselbe Leistungstag und dieselben Netto-/Steuerbeträge je Satz vorliegen. Haben verbindet den Ersatz mit dem eindeutigen Vorgänger; bisherige Zahlungen zählen auf den offenen Rest, ihre Zuordnungen bleiben am ursprünglichen Beleg. Das Papierstorno eröffnet keine Erstattung. Eine echte Rückzahlung nach Storno einer Anforderung vor Leistung bleibt möglich ([bestätigter Ablauf in #750](https://github.com/firsttris/haben/issues/750#issuecomment-6837873675)).
+**Schlussrechnung bei GmbH und UG ersetzen:** Im neuen Bilanzverfahren bleibt die bereits erbrachte Schlussleistung beim bloßen Rechnungsstorno bestehen. Für einen Ersatz nach diesem Storno müssen dieselben Abschläge, derselbe Kunde, dieselbe Steuerbehandlung, derselbe Leistungstag und dieselben Netto-/Steuerbeträge je Satz vorliegen. Haben verbindet den Ersatz mit dem eindeutigen Vorgänger; bisherige Zahlungen zählen auf den offenen Rest, ihre Zuordnungen bleiben am ursprünglichen Beleg. Das Papierstorno eröffnet keine Erstattung. Eine echte Rückzahlung nach Storno einer Anforderung vor Leistung bleibt möglich ([bestätigter Ablauf in #750](https://github.com/Speicherstadt/haben/issues/750#issuecomment-6837873675)).
 
 Abweichende Beträge oder Abzüge, eine mehrdeutige Vorgängerkette und bereits vorhandene Entgeltkorrekturen werden beim Ersatz abgelehnt. Eine echte Entgeltminderung braucht eine eigene datierte Korrektur im Zeitraum der Änderung; das Datum des Ersatzbelegs weist diesen Zeitpunkt nicht nach ([§ 17 Abs. 1 Satz 8 UStG](https://www.gesetze-im-internet.de/ustg_1980/__17.html)). Für den Ausfall einer noch unbilanzierten Anforderung gilt die Grenze unter [Anzahlungen vor Leistung](buchhaltung.md#anzahlungen-vor-leistung).
 
-Bei neuen Bilanz-Schlussketten von GmbH und UG lässt sich eine Bank- oder Barzahlung vor dem tatsächlichen Leistungstag beziehungsweise Leistungsende nicht zuordnen. Verwende dafür eine Abschlagsrechnung. Zahlungen am Leistungstag bleiben möglich; unmarkierte Altbelege und die EÜR behalten ihre bisherigen Zahlungswege. Der allgemeine Vorauszahlungsfall auf normalen Rechnungen ist als [#853](https://github.com/firsttris/haben/issues/853) abgegrenzt.
+Bei neuen Bilanz-Schlussketten von GmbH und UG lässt sich eine Bank- oder Barzahlung vor dem tatsächlichen Leistungstag beziehungsweise Leistungsende nicht zuordnen. Verwende dafür eine Abschlagsrechnung. Zahlungen am Leistungstag bleiben möglich; unmarkierte Altbelege und die EÜR behalten ihre bisherigen Zahlungswege. Für normale Rechnungen gilt der [eigene Vorauszahlungsweg](#vorauszahlung-auf-normale-rechnungen).
 
 Regeln:
 
@@ -418,18 +495,18 @@ Stornorechnung und Rechnungskorrektur übernehmen die Sprache der ursprüngliche
 
 ## Wiederkehrende Rechnungen
 
-Für Monatspauschalen, Wartungsverträge oder Hosting legst du unter **Rechnungen › Wiederkehrend › Neue Vorlage** eine Vorlage an. Haben erzeugt daraus zu jedem Termin eine Rechnung.
+Für Wochen- und Monatspauschalen, Wartungsverträge oder Hosting legst du unter **Rechnungen › Wiederkehrend › Neue Vorlage** eine Vorlage an. Haben erzeugt daraus zu jedem Termin eine Rechnung. Bis die gespeicherte Vorlage geladen ist, sind die Felder kurz gesperrt, damit keine Eingabe verloren geht.
 
 | Feld | Bedeutung |
 |---|---|
 | Bezeichnung | Name der Vorlage für die Liste, Pflicht |
-| Intervall | monatlich, vierteljährlich, halbjährlich oder jährlich |
-| Nächste Rechnung am | Rechnungsdatum des nächsten Termins. Die folgenden Termine liegen am selben Tag im Monat; der 31. wird in kürzeren Monaten zum Monatsende und springt danach zurück. |
+| Intervall | wöchentlich, alle 2 oder 4 Wochen, monatlich, alle 2 Monate, vierteljährlich, halbjährlich oder jährlich |
+| Nächste Rechnung am | Rechnungsdatum des nächsten Termins. Bei Monaten liegen die folgenden Termine am selben Tag im Monat; der 31. wird in kürzeren Monaten zum Monatsende und springt danach zurück. Bei Wochen liegen sie 7, 14 bzw. 28 Tage später, am selben Wochentag. |
 | Endet nach dem | optional. Danach wird die Vorlage inaktiv. |
-| Leistungszeitraum | **Laufend:** die Monate ab dem Rechnungsmonat (Vorauszahlung). **Vergangen:** die Monate davor (Abrechnung). **Keiner:** ohne Leistungszeitraum, dann gilt das Rechnungsdatum. |
+| Leistungszeitraum | **Laufend:** die Monate ab dem Rechnungsmonat (Vorauszahlung), bei Wochen die 7, 14 bzw. 28 Tage ab dem Rechnungsdatum. **Vergangen:** die Monate davor (Abrechnung), bei Wochen ebenso viele Tage bis zum Vortag. **Keiner:** ohne Leistungszeitraum, dann gilt das Rechnungsdatum. |
 | Was am Termin passiert | **Entwurf anlegen:** du prüfst und schreibst selbst fest. **Direkt festschreiben:** Nummer, PDF, XML und Buchung wie beim Festschreiben von Hand; auf Wunsch **und per E-Mail an den Kunden schicken** (Vorlage und Adresse wie beim [Versand von Hand](#per-e-mail-versenden)). |
 | Aktiv | Ohne Häkchen erzeugt die Vorlage keine Rechnungen. |
-| Kunde, Einleitung, Positionen mit Text zur Position, Zahlungsziel, Format, Umsatzsteuer, Preise (netto oder brutto), Hinweis, Aufbewahrungshinweis | wie im Rechnungseditor |
+| Kunde, Einleitung, Positionen mit Text zur Position, Zahlungsziel, Format, Umsatzsteuer, Preise (netto oder brutto), Hinweis, Aufbewahrungshinweis, Anteil der Arbeits-, Maschinen- und Fahrtkosten | wie im Rechnungseditor |
 | Zahlungsart | Überweisung oder SEPA-Lastschrift; bei Lastschrift wählt jeder Lauf das Mandat selbst, siehe [Lastschrift](rechnungen-zahlung.md#lastschrift) |
 
 In Einleitung, Beschreibungen, Texten zur Position und Hinweis ersetzt Haben Platzhalter:
@@ -439,7 +516,7 @@ In Einleitung, Beschreibungen, Texten zur Position und Hinweis ersetzt Haben Pla
 | `{monat}` | November |
 | `{jahr}` | 2026 |
 | `{quartal}` | Q4 |
-| `{zeitraum}` | November 2026, bei mehreren Monaten Oktober – Dezember 2026 |
+| `{zeitraum}` | November 2026, bei mehreren Monaten Oktober – Dezember 2026, bei Wochen 23.11.2026 – 29.11.2026 |
 
 Bezug ist der Leistungszeitraum, ohne Leistungszeitraum das Rechnungsdatum. „Wartung {monat} {jahr}“ wird so zu „Wartung November 2026“. Die Vorschau unter dem Formular zeigt die nächste Rechnung.
 
@@ -447,9 +524,9 @@ Bezug ist der Leistungszeitraum, ohne Leistungszeitraum das Rechnungsdatum. „W
 
 Scheitert das Festschreiben, etwa weil in den Firmendaten die IBAN fehlt, bleibt die Rechnung als Entwurf stehen. Scheitert nur der E-Mail-Versand (kein E-Mail-Zugang, keine Adresse beim Kunden, Server nicht erreichbar), ist die Rechnung festgeschrieben und du schickst sie auf ihrer Seite von Hand. Die Vorlage zeigt den Fehler, bis du sie das nächste Mal speicherst.
 
-Die Seite einer Vorlage listet alle daraus erzeugten Rechnungen. Löschen lässt sich eine Vorlage nur, solange daraus keine Rechnung entstanden ist; sonst deaktivierst du sie.
+Die Seite einer Vorlage listet alle noch vorhandenen Rechnungen und Entwürfe, die daraus entstanden sind. Solange diese Liste Einträge enthält, kannst du die Vorlage deaktivieren. Ist sie leer, kannst du die Vorlage löschen.
 
-Vorlagen aus sevDesk kommen pausiert an, siehe [Umzug aus sevDesk](sevdesk.md#wiederkehrende-rechnungen).
+Vorlagen aus sevDesk und FastBill kommen pausiert an, siehe [Umzug aus sevDesk](sevdesk.md#wiederkehrende-rechnungen) und [Umzug aus FastBill](fastbill.md#wiederkehrende-rechnungen).
 
 ## Rechnungsliste und Status
 
@@ -473,17 +550,18 @@ Unter dem Status steht in Grau, was er für diese Rechnung gerade heißt. Überf
 
 ## Festgeschriebene Rechnung
 
-Die Detailseite zeigt das PDF, die Eckdaten (Kunde, Rechnungsdatum, Fälligkeit, Netto, Umsatzsteuer, Brutto, Format, Zeitpunkt der Festschreibung, bei Rechnungen ohne Steuerausweis die Umsatzsteuer-Behandlung) und den Anfang des SHA-256 des PDFs.
+Die Detailseite zeigt das PDF, die Eckdaten (Kunde, Rechnungsdatum, Fälligkeit, Netto, Umsatzsteuer, Brutto, Format, Zeitpunkt der Festschreibung, bei Rechnungen ohne Steuerausweis die Umsatzsteuer-Behandlung, unter **Im Journal** die Buchungen der Rechnung) und den Anfang des SHA-256 des PDFs.
 
 - **PDF herunterladen** liefert `Rechnung-<Nummer>.pdf`.
 - **XML herunterladen** liefert `Rechnung-<Nummer>-cii.xml` bzw. `-ubl.xml`. Bei ZUGFeRD ist das dasselbe XML, das im PDF steckt.
 - **Lieferschein** erzeugt einen Lieferschein mit den Positionen und Mengen der Rechnung, ohne Preise (siehe [Angebote](angebote.md#auftragsbestätigung-und-lieferschein)).
+- **Kopieren** legt für die nächste ähnliche Rechnung einen neuen Entwurf an, mit Kunde, Ansprechpartner (solange aktiv), Einleitung, Positionen (samt Text, Artikelnummer und Rabatt), Hinweis samt [Aufbewahrungshinweis](#aufbewahrungshinweis-bei-grundstücksleistungen), Bestell-, Auftrags- und Lieferscheinnummer, Umsatzsteuer, Preismodus, Währung, Sprache, Format, Gesamtrabatt, Zahlungsziel, Skonto und Zahlungsart. Das Rechnungsdatum ist heute, Nummer, Leistungszeitraum und Kurs sind leer; aus „bereits bezahlt“ wird Überweisung. [Anhänge](#zusätzliche-anhänge) und der Bezug zu einem Angebot bleiben beim Original, das sich nicht ändert. Auch eine stornierte Rechnung lässt sich kopieren, ebenso ein Rechnungsentwurf: Im Editor steht **Kopieren** neben **Festschreiben**, am Handy unter **⋯**; Ungespeichertes wird vorher gespeichert. Stornorechnungen, Korrekturen sowie Abschlags- und Schlussrechnungen lassen sich nicht kopieren.
 
 Beide Dateien werden aus der Datenbank ausgeliefert, so wie sie beim Festschreiben entstanden sind. Sie werden nie neu erzeugt.
 
 Ist eine [Ablage im Dokumentenarchiv](dokumentenarchiv.md) eingerichtet, steht unter den Eckdaten **Archiv**: „Wird übertragen“, „Übertragen“ mit Zeitpunkt, HTTP-Status und, falls das Archiv eine Kennung nennt, **Im Archiv öffnen**, oder „Fehlgeschlagen“ mit der Zahl der Versuche und dem Grund (HTTP-Status und Anfang der Antwort).
 
-Unter **Zahlungen** stehen die Zahlungen auf die Rechnung mit Datum und Betrag: „Bank“ für eine Zuordnung im [Bankabgleich](bank.md), „bar“ mit der Nummer im [Kassenbuch](kasse.md#rechnung-bar-bezahlt) für eine Bareinnahme. Aufgehobene und stornierte Zahlungen sind durchgestrichen. Solange die Rechnung offen ist, führt **Barzahlung in der Kasse erfassen** ins Kassenbuch, mit der Rechnung und dem offenen Betrag vorbelegt.
+Unter **Zahlungen** stehen die Zahlungen auf die Rechnung mit Datum und Betrag: „Bank“ für eine Zuordnung im [Bankabgleich](bank.md) (der Link öffnet den Umsatz, dort steht ihre Buchung), „bar“ mit der Nummer im [Kassenbuch](kasse.md#rechnung-bar-bezahlt) für eine Bareinnahme. Aufgehobene und stornierte Zahlungen sind durchgestrichen. Solange die Rechnung offen ist, führt **Barzahlung in der Kasse erfassen** ins Kassenbuch, mit der Rechnung und dem offenen Betrag vorbelegt.
 
 ## Zusätzliche Anhänge
 
@@ -532,7 +610,7 @@ Gebucht wird je Seite eine Buchung zwischen Forderungen und Verrechnungskonto, z
 | Rechnung | 1590 Verrechnungskonto (SKR04 1370) | 1400 Forderungen (SKR04 1200) |
 | Korrektur | 1400 Forderungen (SKR04 1200) | 1590 Verrechnungskonto (SKR04 1370) |
 
-Die Verrechnung selbst trägt keine Umsatzsteuer: Die Minderung hängt an der Korrektur (§ 17 Abs. 1 UStG), nicht an der Aufrechnung. Verrechnet ist kein Geld geflossen: Haben gibt die Forderung in dieser Höhe auf, statt sie zu kassieren. Bei Ist-Versteuerung entsteht darauf deshalb keine Umsatzsteuer, weder bei der Rechnung noch bei der Korrektur; die Steuer der Zahlungen bleibt die Steuer des tatsächlich vereinnahmten Entgelts. Bei Soll-Versteuerung mindert die Korrektur die Umsatzsteuer in ihrem eigenen Monat, die Aufrechnung ändert daran nichts. Bleibt der Rest offen, bleibt auch seine Steuer offen, wie bei jeder unbezahlten Rechnung. Hat die Rechnung zwei Steuersätze und nimmt die Korrektur nur einen davon zurück, trägt nach der Verrechnung nur noch der verbliebene Satz die Steuer: Die Verrechnung nimmt den Anteil der Gegenrechnung aus dem Mix, die Zahlungen verteilen sich über den Rest (Rechnung 100,00 € zu 19 % und 100,00 € zu 7 %, Korrektur über die 19-%-Position, verrechnet 119,00 €, Zahlung 107,00 € → Kz 81 bleibt bei null, Kz 86 trägt 100,00 € und 7,00 € Steuer). War vor der Verrechnung schon ein Teil bezahlt, bleibt dessen Steuer im Monat der Zahlung stehen; berichtigt wird mit der nächsten Zahlung ([§ 17 Abs. 1 Satz 8 UStG](https://www.gesetze-im-internet.de/ustg_1980/__17.html)). In der EÜR ist die Verrechnung kein Zufluss (§ 11 EStG); in den offenen Posten und im Mahnwesen zählt sie wie eine Zahlung.
+Die Verrechnung selbst trägt keine Umsatzsteuer: Die Minderung hängt an der Korrektur (§ 17 Abs. 1 UStG), nicht an der Aufrechnung. Verrechnet ist kein Geld geflossen: Haben gibt die Forderung in dieser Höhe auf, statt sie zu kassieren. Bei Ist-Versteuerung entsteht darauf deshalb keine Umsatzsteuer, weder bei der Rechnung noch bei der Korrektur; die Steuer der Zahlungen bleibt die Steuer des tatsächlich vereinnahmten Entgelts. Bei Soll-Versteuerung mindert die Korrektur die Umsatzsteuer in ihrem eigenen Monat, soweit das Entgelt nicht schon bezahlt war ([Bereits bezahlte Rechnung](#bereits-bezahlte-rechnung)); die Aufrechnung ist keine Rückzahlung und ändert daran nichts. Bleibt der Rest offen, bleibt auch seine Steuer offen, wie bei jeder unbezahlten Rechnung. Hat die Rechnung zwei Steuersätze und nimmt die Korrektur nur einen davon zurück, trägt nach der Verrechnung nur noch der verbliebene Satz die Steuer: Die Verrechnung nimmt den Anteil der Gegenrechnung aus dem Mix, die Zahlungen verteilen sich über den Rest (Rechnung 100,00 € zu 19 % und 100,00 € zu 7 %, Korrektur über die 19-%-Position, verrechnet 119,00 €, Zahlung 107,00 € → Kz 81 bleibt bei null, Kz 86 trägt 100,00 € und 7,00 € Steuer). War vor der Verrechnung schon ein Teil bezahlt, bleibt dessen Steuer im Monat der Zahlung stehen; berichtigt wird mit der nächsten Zahlung ([§ 17 Abs. 1 Satz 8 UStG](https://www.gesetze-im-internet.de/ustg_1980/__17.html)). In der EÜR ist die Verrechnung kein Zufluss (§ 11 EStG); in den offenen Posten und im Mahnwesen zählt sie wie eine Zahlung.
 
 Aufgehoben wird im selben Abschnitt mit Datum und Grund; die Gegenbuchung steht am Tag der Aufhebung, nicht rückwirkend. Solange eine Verrechnung besteht, lässt sich die Rechnung nicht stornieren — hebe sie zuerst auf. Im Jahresarchiv stehen die Verrechnungen in `rechnungen/verrechnungen.csv`; im [Journal](buchhaltung.md#die-seite-buchungen) führt die Herkunft beider Buchungen auf ihre Rechnung.
 
@@ -588,26 +666,45 @@ Eine festgeschriebene Rechnung änderst du nicht, du stellst eine neue aus. Auf 
 
 | | Stornieren | Rechnungskorrektur anlegen |
 | --- | --- | --- |
-| Zweck | Hebt die Rechnung vollständig auf. | Mindert den Betrag teilweise. |
-| Ergebnis | Stornorechnung mit allen Positionen negativ, sofort festgeschrieben und gebucht. | Entwurf mit allen Positionen negativ, den du anpasst. |
+| Zweck | Hebt die Rechnung vollständig auf. | Mindert den Betrag. |
+| Ergebnis | Stornorechnung mit allen Positionen negativ, sofort festgeschrieben und gebucht. Das Papierstorno einer Schlussrechnung oder Anzahlungsanforderung bei GmbH und UG ([Bilanzverfahren](#abschlags--und-schlussrechnung)) bucht nichts. Festgeschriebene Korrekturen der Rechnung bekommen je ein eigenes Storno. | Entwurf mit allen Positionen negativ, den du auf die Minderung kürzt. |
 | Bestätigung | Im Dialog **Stornieren**. | Festschreiben wie bei einer Rechnung. |
 | Bedingung | – | Gesamtbetrag muss negativ bleiben. |
 
 Für beide gilt:
 
 - Sie bekommen eine eigene Nummer aus demselben Nummernkreis und das heutige Datum.
-- Sie gehen an die Anschrift, die auf der ursprünglichen Rechnung steht; der Kunde ist im Editor nicht wählbar.
+- Sie gehen an die Anschrift, die auf der ursprünglichen Rechnung steht; der Kunde ist im Editor nicht wählbar. Ebenso übernehmen sie seine USt-IdNr., geprüft nur eingeschränkt ([Was vor dem Festschreiben geprüft wird](#was-vor-dem-festschreiben-geprüft-wird)).
 - Sie übernehmen die Umsatzsteuer-Behandlung und den Hinweis der ursprünglichen Rechnung, dazu [Bestell-, Auftrags- und Lieferscheinnummer](#bestellnummer-auftrag-und-lieferschein).
 - PDF und XML verweisen auf die ursprüngliche Rechnung („zur Rechnung 2026-034 vom …“, im XML als BillingReference).
 - Im XML erscheinen sie als Gutschrift (Typcode 381) mit positiven Beträgen; der Zahlungsweg ist offen gelassen.
 - Eine bereits stornierte Rechnung lässt sich nicht noch einmal stornieren oder korrigieren. Storno und Korrektur selbst lassen sich nicht weiter korrigieren.
-- War die Rechnung schon (teilweise) bezahlt, ist die Stornorechnung im Bankabgleich mit dem gezahlten Betrag offen. Die Rückzahlung an den Kunden ordnest du dort der Stornorechnung zu; bei Ist-Versteuerung mindert sie im Monat der Rückzahlung die Umsatzsteuer.
+- War die Rechnung schon (teilweise) bezahlt, ist die Stornorechnung im Bankabgleich mit dem gezahlten Betrag offen. Die Rückzahlung an den Kunden ordnest du dort der Stornorechnung zu; sie mindert im Monat der Rückzahlung die Umsatzsteuer ([Bereits bezahlte Rechnung](#bereits-bezahlte-rechnung)).
 
 Auf neuen Stornobelegen steht „Die ursprüngliche Rechnung wird storniert.“ Das gilt unabhängig von Zahlungen und Erstattungen, auch für das positive Storno einer Rechnungskorrektur. Der Hinweis nennt keinen Kundensaldo und sagt keine Auszahlung zu. Eine Rechnungskorrektur beschreibt die Minderung der ursprünglichen Rechnung. PDF und E-Rechnung verwenden denselben Inhalt, das englische PDF entsprechend übersetzt. Bereits gespeicherte Belege behalten ihren bisherigen Text.
 
 Die ursprüngliche Rechnung zeigt unter **Korrekturen** alle Stornos und Korrekturen, die sich auf sie beziehen, eine stornierte Rechnung zusätzlich einen roten Hinweis mit Link zur Stornorechnung.
 
 Im Bankabgleich ist eine stornierte Rechnung nicht mehr offen. Eine Rechnungskorrektur erscheint dort als offener Posten mit negativem Betrag, dem du eine Rückzahlung zuordnen kannst.
+
+### Rechnung für dieselbe Leistung austauschen
+
+Wenn sich nur der Beleg ändert, storniere die bisherige Rechnung und wähle auf ihrer Detailseite **Ersatzrechnung erstellen**. Der Entwurf verweist auf die bereits ausgestellte Rechnung. Kunde, Leistungszeitraum, Währung, Steuerbehandlung und Beträge je Steuersatz müssen weiterhin übereinstimmen. Eine Entgeltänderung erfasst du als Rechnungskorrektur. Solange auf dem Storno eine Erstattung oder Verrechnung wirksam ist, lehnt Haben den Austausch ab.
+
+Beim Festschreiben dokumentiert der neue Beleg dieselbe Leistung mit eigener Nummer und Verweis auf den Vorgänger. Die Umsatzsteuer wird einmal erfasst. Bereits zugeordnete Zahlungen bleiben am ursprünglichen Beleg gespeichert und werden beim offenen Betrag der Ersatzrechnung berücksichtigt. Das Papierstorno begründet nach Festschreiben des Ersatzes keine Erstattung. Für einen Stichtag zwischen Storno und Ersatz weist der Abschluss den weiterhin bestehenden Anspruch aus. Der Austausch eines Stornos aus einem abgeschlossenen Jahr muss im Abschluss dieses Jahres geklärt werden. Eine [erneute Bankzuordnung](bank.md#zuordnung-aufheben) ist ein eigener Vorgang.
+
+### Bereits bezahlte Rechnung
+
+Storno und Rechnungskorrektur mindern die Umsatzsteuer auf schon vereinnahmtes Entgelt erst mit der Rückzahlung an den Kunden, bei Soll wie bei Ist, mit und ohne Leistungstag, auch bei Abschlagsrechnungen über eine Teilleistung (Anzahlungsrechnungen laufen über den [Anzahlungsweg](#abschlags--und-schlussrechnung)). [UStAE 17.1 Abs. 2 Satz 3](https://www.bundesfinanzministerium.de/Content/DE/Downloads/BMF_Schreiben/Steuerarten/Umsatzsteuer/Umsatzsteuer-Anwendungserlass/Umsatzsteuer-Anwendungserlass-aktuell.pdf): „Vereinbaren der leistende Unternehmer und der Leistungsempfänger die vollständige oder teilweise Rückzahlung des entrichteten Entgelts, mindert sich die Bemessungsgrundlage nur, soweit das Entgelt tatsächlich zurückgezahlt wird, und zwar in dem Besteuerungszeitraum, in dem die Rückgewähr erfolgt“; für Storno nach Zahlung Abs. 8 Satz 5 mit BFH V R 34/09 ([§ 17 UStG](https://www.gesetze-im-internet.de/ustg_1980/__17.html)). Bei steuerfreien Umsätzen und Ausfuhrlieferungen gilt das ebenso für Kz 48 und 43.
+
+- Zurückgehalten wird nur die Überzahlung, also was mehr bezahlt ist als das geminderte Entgelt. Den unbezahlten Teil mindert die Korrektur bei Soll in ihrem eigenen Monat.
+- Ordne die Rückzahlung im Bankabgleich dem Storno oder der Korrektur zu; bei Raten zählt jede im Monat ihrer Zahlung. Eine [Verrechnung](#verrechnen-ohne-zahlung) ist keine Rückzahlung.
+- Bei Soll bucht Haben am Tag der Korrektur die zurückgehaltene Steuer von „Umsatzsteuer nicht fällig“ auf „Umsatzsteuer“ zurück und mit der Rückzahlung wieder um („Umsatzsteuer bis zur Rückzahlung“). Bei Ist erledigt das schon die Rückzahlung.
+- Mehrere Steuersätze: Die Überzahlung verteilt sich im Verhältnis der Minderung je Satz; mindert die Korrektur nur den 19-%-Teil, bleibt sie ganz bei 19 %. Der Rundungsrest in Cent geht auf den größten Anteil.
+
+Beispiel (Soll): Rechnung 1.190 €, bezahlt 1.100 €, im Juni Korrektur über 119 €. Im Juni mindern sich 75,63 € netto und 14,37 € Steuer; die 29 € Überzahlung bleiben besteuert, bis du sie im Juli zurückzahlst (24,37 € und 4,63 €).
+
+Stornos und Korrekturen, die vor dieser Regel festgeschrieben wurden, tragen kein Kennzeichen und behalten das bisherige Verfahren (bei Soll Minderung im Monat der Korrektur), auch neben neuen Korrekturen derselben Rechnung. Gesendete Voranmeldungen ändern sich dadurch nicht.
 
 ## Kontakte
 
@@ -625,13 +722,21 @@ Die Rechnung steht danach festgeschrieben in der Liste, mit Nummer und PDF aus d
 
 Anders als bei [übernommenen Rechnungen](#übernommene-rechnungen) aus dem Umzug gibt es keinen Stichtag: Der Erlös steht in Haben, nicht in alten Büchern. Übernimm eine Rechnung deshalb nur, wenn sie in keinem anderen Programm mehr verbucht wird. Es gelten dieselben Prüfungen wie beim Festschreiben: vollständige Firmendaten, die Versteuerungsart des Jahres und bei Kleinunternehmern die Umsatzgrenze. Könnte sie überschritten werden oder lag der Vorjahresumsatz schon über der Grenze, fragt Haben nach und übernimmt die Rechnung erst nach deiner Bestätigung.
 
-- Nur Rechnungen in Euro über mehr als 0 €, mit 19 %, 7 % oder 0 %. Eine E-Rechnung als Gutschrift, als Anzahlungsrechnung oder in Fremdwährung warnt Haben beim Einlesen und lehnt sie beim Übernehmen ab. Ohne E-Rechnung erkennt Haben eine Anzahlungsrechnung nicht: Übernimm hier nur Rechnungen über erbrachte Leistungen.
+- Nur Rechnungen in Euro über mehr als 0 €, mit 19 %, 7 % oder 0 %. Eine E-Rechnung als Anzahlungsrechnung oder in Fremdwährung warnt Haben beim Einlesen und lehnt sie beim Übernehmen ab, ebenso eine Gutschrift, die kein Storno einer aus dem Fremdsystem übernommenen Rechnung ist (siehe unten). Ohne E-Rechnung erkennt Haben eine Anzahlungsrechnung nicht: Übernimm hier nur Rechnungen über erbrachte Leistungen.
 - Das Zahlungsziel beträgt höchstens 365 Tage, die Fälligkeit liegt nicht vor dem Rechnungsdatum, die Datei ist höchstens 20 MB groß.
-- Netto und Steuer je Satz trägst du wie auf der Rechnung ein, jeden Satz einmal (nennt eine E-Rechnung denselben Satz in mehreren Zeilen, rechnet Haben sie im Vorschlag zusammen); lässt sich die Steuer nicht centgenau nachbilden, lehnt Haben ab. Das gilt auch, wenn das Fremdsystem die Steuer je Position rundet.
+- Bei „Regulär“ trägst du Netto und Steuer je Satz wie auf der Rechnung ein, jeden Satz einmal (nennt eine E-Rechnung denselben Satz in mehreren Zeilen, rechnet Haben sie im Vorschlag zusammen); lässt sich die Steuer nicht centgenau nachbilden, lehnt Haben ab. Das gilt auch, wenn das Fremdsystem die Steuer je Position rundet. Bei jeder anderen Behandlung gilt 0 %, und du trägst nur den Nettobetrag ein; Beträge mehrerer Sätze rechnet Haben beim Wechsel der Behandlung zusammen.
 - Eine Rechnungsnummer, die es in Haben schon gibt, lässt sich nicht übernehmen; ein Schrägstrich, ein Rückstrich oder ein Sonderzeichen wie ein Zeilenumbruch in der Nummer lehnt Haben ab. Gleicht die fremde Nummer dem Muster deiner eigenen, meldet Haben später beim Festschreiben, dass die Nummer vergeben ist; wähle dann ein anderes Nummernformat.
 - Margenbesteuerung (§ 25 UStG), Dreiecksgeschäfte, inländische Leistungen mit Steuerschuld des Leistungsempfängers (§ 13b UStG) und Rechnungen mit steuerpflichtigen und steuerfreien Positionen zugleich (etwa Gutachten zu 19 % und Heilbehandlung nach § 4 Nr. 14 UStG) bildet das Formular nicht ab; solche Rechnungen erfasst du von Hand. Als Kleinunternehmer übernimmst du hier Rechnungen nach § 19 UStG und Leistungen ins Ausland; eine eigene Befreiung (§ 4 Nr. 14 Buchst. a oder Nr. 21 UStG, siehe [Umsatzsteuer auf der Rechnung](#umsatzsteuer-auf-der-rechnung)) erfasst du im Editor.
 
 Rechtsgrundlagen: Entstehung der Steuer nach [§ 13 UStG](https://www.gesetze-im-internet.de/ustg_1980/__13.html), Aufbewahrung der Rechnung in der ausgestellten Form nach [§ 14b UStG](https://www.gesetze-im-internet.de/ustg_1980/__14b.html) und § 147 AO.
+
+### Storno aus dem Fremdsystem
+
+Storniert das andere Programm eine hier übernommene Rechnung, lädst du das Storno auf demselben Weg hoch (**Ausgangsrechnung hochladen**). Es muss eine E-Rechnung im PDF sein, als Gutschrift oder mit negativem Betrag, die die Rechnung als vorausgegangene Rechnung nennt (BT-25). Haben erkennt das Storno, nennt die Rechnung mit Datum, Betrag und Kunde und übernimmt es mit **Storno übernehmen**: festgeschrieben, mit Nummer und PDF aus dem Fremdsystem, gebucht wie ein [Storno](#storno-und-rechnungskorrektur) in Haben zum Datum der Gutschrift. Die Rechnung gilt danach als storniert.
+
+Haben übernimmt nur das volle Storno: Netto und Steuer je Satz müssen die Rechnung genau aufheben. Abgelehnt wird auch, wenn die Rechnung schon storniert ist, eine festgeschriebene Korrektur hat, teilweise ausgebucht oder mit einer Korrektur verrechnet ist, oder wenn das Storno älter ist als die Rechnung. Ein Teilstorno und ein Storno ohne E-Rechnung bildet Haben noch nicht ab.
+
+Rechtsgrundlage: Berichtigung der Steuer im Zeitraum der Änderung nach [§ 17 Abs. 1 UStG](https://www.gesetze-im-internet.de/ustg_1980/__17.html), bei schon Bezahltem erst mit der Rückzahlung (siehe [Bereits bezahlte Rechnung](#bereits-bezahlte-rechnung)); vorausgegangene Rechnung BT-25 und Gutschrift (Code 381) nach EN 16931.
 
 ## Übernommene Rechnungen
 
@@ -647,8 +752,9 @@ Die CI prüft bei jedem Push auf `main` und in jedem Pull Request die erzeugten 
 
 - Nur die Steuersätze 19 %, 7 % und 0 %. Fremdwährung mit den Einschränkungen unter [Rechnungen in Fremdwährung](#rechnungen-in-fremdwährung); Angebote nur in Euro.
 - Innergemeinschaftliche Lieferungen nur an Kunden mit USt-IdNr. Nicht unterstützt: Lieferungen an Abnehmer ohne USt-IdNr. und neue Fahrzeuge (Kz 44, 49), Dreiecksgeschäfte (§ 25b UStG), Lieferungen in ein Konsignationslager (§ 6b UStG), das innergemeinschaftliche Verbringen eigener Ware und Versandhandel an Privatkunden im EU-Ausland (One-Stop-Shop).
-- Ausfuhrlieferungen nur an Kunden mit Anschrift außerhalb der EU; den Ausfuhrnachweis führt Haben nicht.
+- Ausfuhrlieferungen anhand der Kundenanschrift einschließlich der erkannten umsatzsteuerlichen Sondergebiete; den Ausfuhrnachweis führt Haben nicht. Die Grenzen der PLZ-Erkennung stehen unter [Sondergebiete](umsatzsteuer-sondergebiete.md).
 - Skonto nur vom ganzen Rechnungsbetrag (kein Basisbetrag nach BR-DE-18), höchstens drei Stufen, nur in Euro. Keine Zuschläge auf Belegebene; Abschläge auf Belegebene nur als [Gesamtrabatt](#rabatte).
 - Höchstens 200 Positionen je Rechnung.
+- Das Rechnungsdatum ersetzt keinen Leistungsnachweis, auch wenn bar bei der Leistung bezahlt und die Rechnung später ausgestellt wurde: Trag den Leistungstag vor dem Festschreiben ein (siehe [Vorauszahlung](#vorauszahlung-auf-normale-rechnungen)).
 - Rechnungen gehen per E-Mail über deinen SMTP-Zugang oder über [Microsoft 365](einrichtung-email.md#e-mail-über-microsoft-365), nicht über Peppol oder die Portale öffentlicher Auftraggeber. Über Microsoft 365 gehen Anhänge nur bis 2,5 MB zusammen.
 - Zusätzliche Anhänge nur als PDF, bis 20 MB je Datei und zehn je Rechnung. Viele Mailserver nehmen Mails ab etwa 25 MB nicht mehr an; das Versandprotokoll zeigt dann die Meldung des Servers. Anhänge lassen sich nur in Haben hochladen, nicht über die [REST-API](api.md); [wiederkehrende Rechnungen](#wiederkehrende-rechnungen) haben keine Anhänge und versenden ohne sie. Mahnungen gehen ohne die Anhänge der Rechnung.

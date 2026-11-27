@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { DocumentKind } from "../../storage.ts";
 import { publicEndpoint, type ExtractionConfig } from "./extraction-config.ts";
+import { estimateTokens, openGate, type RequestGate } from "./extraction-limits.ts";
 import {
   EXTRACTION_INSTRUCTIONS,
   EXTRACTION_REQUEST,
@@ -46,13 +47,19 @@ export async function extractWithOpenAiCompatible(
   config: OpenAiConfig,
   bytes: Uint8Array,
   kind: DocumentKind,
+  gate: RequestGate = openGate,
   deps: OpenAiDeps = defaultDeps,
 ): Promise<ProviderResult> {
   const { images, text, warnings } = await modelInput(config, bytes, readableKind(kind), deps);
+  let body = requestBody(config, images, text, true);
+  await gate(requestTokens(body, images));
+  // Die Wartezeit erst ab dem Senden: Das Warten auf die Grenzen zählt nicht mit
   const signal = AbortSignal.timeout(config.timeoutMs);
-  let response = await post(config, deps, requestBody(config, images, text, true), signal);
+  let response = await post(config, deps, body, signal);
   if (!response.ok && (await rejectsStructuredOutput(response))) {
-    response = await post(config, deps, requestBody(config, images, text, false), signal);
+    body = requestBody(config, images, text, false);
+    await gate(requestTokens(body, images));
+    response = await post(config, deps, body, signal);
   }
   if (!response.ok) throw await httpError(config, response);
   const content = await answerText(response, signal, config);
@@ -100,6 +107,12 @@ async function modelInput(config: OpenAiConfig, bytes: Uint8Array, readable: Rea
   return { images: pages.map((page) => dataUrl("image/png", page)), text, warnings };
 }
 
+/** Geschätzte Tokens: der Text der Anfrage ohne die Bilder, die einzeln zählen */
+function requestTokens(body: unknown, images: string[]): number {
+  const imageChars = images.reduce((sum, url) => sum + url.length, 0);
+  return estimateTokens({ textChars: JSON.stringify(body).length - imageChars, images: images.length });
+}
+
 function dataUrl(mediaType: string, bytes: Uint8Array): string {
   return `data:${mediaType};base64,${Buffer.from(bytes).toString("base64")}`;
 }
@@ -133,9 +146,16 @@ function requestBody(config: OpenAiConfig, images: string[], text: string | null
 async function post(config: OpenAiConfig, deps: OpenAiDeps, body: unknown, signal: AbortSignal): Promise<Response> {
   const headers: Record<string, string> = { "content-type": "application/json", accept: "application/json" };
   if (config.apiKey) headers.authorization = `Bearer ${config.apiKey}`;
+  const endpoint = new URL(config.endpoint);
+  // OpenRouter: HTTP-Referer ist für die App-Zuordnung nötig, X-OpenRouter-Title setzt den Namen.
+  // https://openrouter.ai/docs/app-attribution
+  if (endpoint.hostname === "openrouter.ai") {
+    headers["HTTP-Referer"] = "https://haben.app";
+    headers["X-OpenRouter-Title"] = "Haben";
+  }
   try {
     // Keiner Umleitung folgen: Ein 307/308 schickte den Beleg sonst an einen anderen Host als den eingerichteten
-    return await deps.fetch(config.endpoint, { method: "POST", headers, body: JSON.stringify(body), signal, redirect: "manual" });
+    return await deps.fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body), signal, redirect: "manual" });
   } catch (error) {
     throw networkError(config, error);
   }

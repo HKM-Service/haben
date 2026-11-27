@@ -1,10 +1,11 @@
 import { brandProfileInputSchema } from "@haben/core";
 import type postgres from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { kleinunternehmerStand } from "../auswertungen/test-umsatz-stand.ts";
 import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
 
 describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Postgres)", () => {
-  let invoices: typeof import("./invoices.ts");
+  let invoices: typeof import("./index.ts");
   let quotes: typeof import("./quotes.ts");
   let brands: typeof import("../stammdaten/brand-profiles.ts");
   let editor: typeof import("../stammdaten/editor-context.ts");
@@ -29,7 +30,7 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
 
   beforeAll(async () => {
     sql = await setupTestDb();
-    invoices = await import("./invoices.ts");
+    invoices = await import("./index.ts");
     quotes = await import("./quotes.ts");
     brands = await import("../stammdaten/brand-profiles.ts");
     editor = await import("../stammdaten/editor-context.ts");
@@ -69,7 +70,7 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
     const created = await invoices.createDraft(actor, draft());
 
     expect(await invoices.finalizeIssues(created.id)).toEqual([]);
-    const finalized = await invoices.finalizeInvoice(actor, created.id);
+    const finalized = await invoices.finalizeInvoice(actor, created.id, kleinunternehmerStand);
     expect(finalized).toMatchObject({ status: "final", seller: { name: "Beispielfirma GmbH", brand: "HKMcore", email, iban } });
     expect(finalized.pdf?.length).toBeGreaterThan(0);
     expect(finalized.xml).toContain(email);
@@ -84,6 +85,16 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
     const finalized = await quotes.finalizeQuote(actor, created.id);
     expect(finalized).toMatchObject({ status: "final", seller: { name: "Beispielfirma GmbH", brand: "HKMcore", email, iban } });
     expect(finalized.pdf?.length).toBeGreaterThan(0);
+  });
+
+  // Ein Storno wird nicht bezahlt: Ein inzwischen ungültiges Konto der Marke darf ihn nicht verhindern
+  it.each(["privat", "ausgeschlossen"] as const)("storniert eine Rechnung der Marke auch, wenn ihr Konto inzwischen %s ist", async (state) => {
+    const created = await invoices.createDraft(actor, draft());
+    const finalized = await invoices.finalizeInvoice(actor, created.id, kleinunternehmerStand);
+    await makeAccountUnavailable(state);
+
+    const storno = await invoices.cancelInvoice(actor, finalized.id, "2026-10-05");
+    expect(storno).toMatchObject({ kind: "storno", status: "final", brandProfileId, seller: { brand: "HKMcore", name: "Beispielfirma GmbH" } });
   });
 
   // Die Detail-Loader brauchen die Problemliste, um den bestehenden Entwurf weiter zur Bearbeitung anzuzeigen.

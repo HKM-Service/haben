@@ -1,9 +1,10 @@
 import { editorBrandProfiles } from "./brand-profile-issues.ts";
-import { legalInfo } from "@haben/core";
+import { circleKey, legalInfo } from "@haben/core";
 import { legalLine } from "@haben/einvoice";
 import { db, schema } from "../../db/index.ts";
 import { today } from "../../today.ts";
 import { listArticles } from "./articles.ts";
+import { listBankverbindungen } from "./bankverbindungen.ts";
 import { backgroundInfo } from "./background.ts";
 import { letterIssues, loadCompany, sellerIssues } from "./company.ts";
 import { contactPersonOptions } from "./contact-persons.ts";
@@ -16,7 +17,7 @@ import { listUnits } from "./units.ts";
 
 /** Gemeinsame Daten für den Rechnungs- und den Angebotseditor, mit der letzten vergebenen Nummer je Jahr */
 export async function editorContext(kind: "rechnung" | "angebot") {
-  const [company, counters, contacts, articles, textBlocks, logo, background, design, mandates, contactPersons, units] = await Promise.all([
+  const [company, counters, contacts, articles, textBlocks, logo, background, design, mandates, contactPersons, units, bankverbindungen] = await Promise.all([
     loadCompany(),
     kind === "rechnung" ? db.select().from(schema.invoiceNumberCounters) : db.select().from(schema.quoteNumberCounters),
     listContacts(),
@@ -28,6 +29,7 @@ export async function editorContext(kind: "rechnung" | "angebot") {
     kind === "rechnung" ? mandateOptions(today()) : Promise.resolve([]),
     contactPersonOptions(),
     listUnits(),
+    listBankverbindungen(),
   ]);
   const { name, strasse, plz, ort, email, telefon, steuernummer, ustId, iban, bic, bank, kontoinhaber } = company;
   return {
@@ -37,7 +39,10 @@ export async function editorContext(kind: "rechnung" | "angebot") {
     mandates,
     /** Ansprechpartner aller Kunden (#424), für die Auswahl unter „Kunde“ */
     contactPersons,
-    articles: articles.map(({ id, number, description, detail, unit, unitPrice, taxRate, priceIncludesTax }) => ({
+    /** Weitere Zahlungskonten (#1887) und die IBAN des Standards */
+    bankverbindungen: bankverbindungen.map(({ id, bezeichnung, iban: kontoIban }) => ({ id, bezeichnung, iban: kontoIban })),
+    standardIban: iban,
+    articles: articles.map(({ id, number, description, detail, unit, unitPrice, taxRate, priceIncludesTax, arbeitskosten }) => ({
       id,
       number,
       description,
@@ -46,6 +51,7 @@ export async function editorContext(kind: "rechnung" | "angebot") {
       unitPrice,
       taxRate,
       priceIncludesTax,
+      arbeitskosten,
     })),
     textBlocks: textBlocks.map(({ id, name, kind, text, contactId }) => ({ id, name, kind, text, contactId })),
     /** Eigene Einheiten (#748) für die Auswahl in den Positionen, ohne archivierte */
@@ -79,8 +85,10 @@ export async function editorContext(kind: "rechnung" | "angebot") {
     /** Vorlagen für den Zahlungsplan im Angebot */
     planTemplates: company.paymentPlanTemplates,
     numberFormat: kind === "rechnung" ? company.invoiceNumberFormat : company.quoteNumberFormat,
-    /** Letzte Nummer je Kreis: Jahr, 0 = durchlaufender Zähler */
-    numberCounters: Object.fromEntries(counters.map((c) => [c.year, c.last])) as Record<number, number>,
+    /** Letzte Nummer je Kreis: Jahr (0 = durchlaufender Zähler), beim Kundenkreis Jahr:Kontakt (#1426) */
+    numberCounters: Object.fromEntries(counters.map((c) => [circleKey(c.year, c.contactId), c.last])) as Record<string, number>,
     numberRunning: kind === "rechnung" ? company.invoiceCounterRunning : company.quoteCounterRunning,
+    /** Zähler kreist je Kunde (#1426): der Editor zeigt den Kreis des gewählten Kontakts */
+    numberPerCustomer: kind === "rechnung" ? company.invoiceCounterPerCustomer : company.quoteCounterPerCustomer,
   };
 }

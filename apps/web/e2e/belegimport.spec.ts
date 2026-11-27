@@ -114,10 +114,18 @@ test("Kleinunternehmer-Ersteinrichtung: Übersicht ohne reguläre UStVA-Aufforde
         await expect(page.getByText(/^Voranmeldung .* senden$/)).toHaveCount(0);
         await expect(page.getByText(/^USt-Zahllast /)).toHaveCount(0);
         await expect(page.getByText(/Voranmeldung fällig/)).toHaveCount(0);
-        await expect(page.getByText(/ERiC ist nicht eingerichtet/)).toHaveCount(0);
+        await expect(page.getByText(/Senden ist noch nicht eingerichtet/)).toHaveCount(0);
         await expect(page.getByRole("heading", { name: "Letzte Voranmeldungen" })).toHaveCount(0);
         await expect(page.getByRole("link", { name: "Neue Rechnung", exact: true })).toBeVisible();
-        await expect(page.getByText("Offene Forderungen", { exact: true })).toBeVisible();
+        // Noch nichts erfasst: statt Karten mit 0,00 € der Weg zur ersten Rechnung
+        await expect(page.getByText("Offene Forderungen", { exact: true })).toHaveCount(0);
+        await expect(page.getByRole("link", { name: "Erste Rechnung schreiben" })).toBeVisible();
+        // Ohne „Letzte Voranmeldungen“ nimmt „Letzte Rechnungen“ die ganze Breite, wie „Zu erledigen“ darüber
+        const breite = (name: string) =>
+          page
+            .locator("section.card", { has: page.getByRole("heading", { name, exact: true }) })
+            .evaluate((el) => Math.round(el.getBoundingClientRect().width));
+        expect(await breite("Letzte Rechnungen")).toBe(await breite("Zu erledigen"));
       }
     }
   } finally {
@@ -530,7 +538,7 @@ test("Beleg aus sevDesk: später hochgeladene Datei zeigt die Belegansicht als n
   await gehe(page, `/archiv/beleg/${voucher.id}`);
   const datei = page.getByRole("region", { name: "Datei", exact: true });
   await expect(datei).toContainText("Nachgeladen am");
-  await expect(datei).toContainText("Ein späterer Abruf aus sevDesk hat die Datei angehängt.");
+  await expect(datei).toContainText("Die übrigen Angaben stammen aus dem ersten Import.");
   await expect(datei.getByRole("link", { name: "rechnung-januar.pdf herunterladen" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Dateistand" })).toContainText("sevDesk nennt die Datei erst nach dem ersten Abruf");
   // Die PDF-Vorschau ist ein eigenes Dokument ohne Landmarke

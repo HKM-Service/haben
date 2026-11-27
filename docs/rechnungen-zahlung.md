@@ -24,11 +24,23 @@ Skonto ist ein Abzug, den der Kunde machen darf, wenn er früh zahlt, etwa 2 % b
 
 Zahlt der Kunde in der Frist den Betrag abzüglich Skonto, erkennt der [Bankabgleich](bank.md#skonto-auf-eigene-rechnungen) die Zahlung und bucht das Skonto mit einem Klick aus; bei einer [Barzahlung](kasse.md#rechnung-bar-bezahlt) im Kassenbuch ebenso. Wie das Skonto Erlöse und Umsatzsteuer mindert, steht unter [Ausbuchen](rechnungen.md#ausbuchen). Nach der Fälligkeit gilt der volle Betrag: [Mahnungen](#mahnwesen) fordern den ganzen offenen Betrag und weisen darauf hin, dass das Skonto entfallen ist.
 
+## Zahlungskonto
+
+Auf der Rechnung steht als Zahlungskonto die Bankverbindung aus den [Firmendaten](einrichtung.md#firmendaten). Für Zahlungen auf ein anderes eigenes Konto, etwa je Objekt, Auftraggeber oder für Rücklagen, legst du unter **Einstellungen › Firma › Weitere Zahlungskonten** beliebig viele an: Bezeichnung (nur für die Auswahl), IBAN, Kontoinhaber, Bank und BIC. Das Konto aus den Firmendaten bleibt der **Standard**.
+
+Sobald es ein weiteres gibt, steht in Rechnungen mit Überweisung und in Angeboten die Auswahl **Zahlungskonto**, am [Kontakt](kontakte.md) unter **Weitere Angaben** das **Bevorzugte Zahlungskonto**. Gemeint ist immer dein Konto, auf das der Kunde zahlt, nicht seins.
+
+- **Vorgabe:** Ein neuer Entwurf nimmt das bevorzugte Zahlungskonto des Kunden, sonst den Standard; wählst du im Editor einen anderen Kunden, wechselt es mit. Das gilt auch für wiederkehrende Rechnungen, Rechnungen aus Zeiteinträgen und Entwürfe aus der [REST-API](api.md); dort setzt nur Haben das Zahlungskonto. Die Rechnung aus einem Angebot, eine Kopie, Storno und Korrektur übernehmen das Zahlungskonto des Originals, solange es das Konto noch gibt; sonst nehmen Kopie und Rechnung aus dem Angebot das bevorzugte des Kunden, Storno und Korrektur das Standardkonto.
+- **Auf dem Beleg:** IBAN, BIC, Bank und Kontoinhaber des Zahlungskontos stehen in Fußzeile, Zahlungsaufforderung, [GiroCode](#girocode), den Platzhaltern `{iban}` und `{bic}` und in der E-Rechnung (BT-84 bis BT-86). Mit dem Festschreiben kopiert Haben sie in den Beleg; spätere Änderungen am Zahlungskonto berühren ihn nicht, und Mahnungen nennen weiter das Konto der Rechnung.
+- **Lastschrift:** Haben zieht immer auf das Konto aus den Firmendaten ein; bei [Lastschrift](#lastschrift) gibt es deshalb keine Auswahl.
+- **Löschen:** Ein Zahlungskonto lässt sich jederzeit löschen, nach einer Rückfrage. Festgeschriebene Belege behalten ihre Kopie; Entwürfe und Kontakte, die es gewählt haben, nehmen danach den Standard.
+- **Bankabgleich:** Geht eine Zahlung auf das Konto, dessen IBAN auf der Rechnung steht, zählt das für diese Rechnung ([Vorschläge](bank.md#vorschläge)).
+
 ## GiroCode
 
 Neben der Zahlungsaufforderung druckt Haben einen GiroCode, also einen EPC-QR-Code nach dem Standard des European Payments Council. Der Kunde scannt ihn mit der Banking-App, und die Überweisung ist ausgefüllt:
 
-- Empfänger, IBAN und BIC aus den Firmendaten; als Empfänger steht der **Kontoinhaber**, ohne Angabe der Firmenname,
+- Empfänger, IBAN und BIC des [Zahlungskontos](#zahlungskonto) der Rechnung; als Empfänger steht der **Kontoinhaber**, ohne Angabe der Firmenname,
 - der Rechnungsbetrag,
 - der Verwendungszweck „Rechnung 2026-001“.
 
@@ -71,6 +83,8 @@ Gebucht wird beim Erzeugen nichts. Die Rechnung bleibt offen, bis der Bankabglei
 
 ## Mahnwesen
 
+Die folgenden Einstiege zum Mahnen erscheinen, wenn **Mahnwesen** unter [Einstellungen › Bereiche](einrichtung.md#bereiche-ausblenden) eingeschaltet ist. Bereits erstellte Mahnungen kannst du weiterhin als PDF öffnen.
+
 Unter **Rechnungen › Mahnwesen** stehen alle überfälligen Rechnungen: festgeschrieben, nicht storniert, mit offenem Betrag und abgelaufener Fälligkeit. Ob eine Rechnung bezahlt ist, ergibt sich aus den Zuordnungen im [Bankabgleich](bank.md) und den Bareinnahmen im [Kassenbuch](kasse.md#rechnung-bar-bezahlt). Je Rechnung siehst du, wie viele Tage sie überfällig ist, den offenen Betrag und die letzte Mahnung mit ihrer Frist.
 
 Der Knopf rechts schlägt die nächste Stufe vor:
@@ -96,7 +110,7 @@ Im Formular legst du fest:
 | Mahngebühr | Vorschlag je Stufe aus den Einstellungen, höchstens 1.000 € |
 | Verzugszinsen | Geschäftskunde: Basiszinssatz plus 9 Prozentpunkte, Verbraucher: plus 5 (§ 288 BGB). Taggenau ab dem Tag nach der Fälligkeit bis heute, auf 365 Tage, auf den offenen Betrag. Nur mit Basiszinssatz in den Einstellungen. |
 | Verzugspauschale | 40 € nach § 288 Abs. 5 BGB, nur gegenüber Geschäftskunden |
-| Einleitung und Schluss | Vorlage je Stufe, frei änderbar, auch [fett, kursiv und unterstrichen](rechnungen.md#fett-kursiv-und-unterstrichen) |
+| Einleitung und Schluss | Vorlage je Stufe, frei änderbar, auch [fett, kursiv und unterstrichen](rechnungen.md#fett-kursiv-und-unterstrichen). Gibt es einen [Standard-Textbaustein](rechnungen.md#standard-je-belegart) für die Stufe, steht sein Kopftext als Einleitung bzw. sein Fußtext als Schluss da, sonst die Vorlage der Stufe. Die Anrede „Sehr geehrte Damen und Herren,“ setzt Haben selbst davor; ein Standard-Kopftext beginnt deshalb ohne eigene Anrede |
 
 Unter dem Formular siehst du die Forderung mit Gesamtbetrag. **Vorschau**, **Entwurf als PDF** und **… erstellen** stehen oben rechts im Kopf. **Vorschau** zeigt das Blatt der Mahnung, während du Stufe, Frist, Gebühr und Texte änderst, von rechts über das Formular oder neben ihm angeheftet, mit dem Zahnrad für die Gestaltung ([wie bei der Rechnung](rechnungen.md#vorschau), ohne Artikelnummer und Spalte USt, die eine Mahnung nicht hat). **Entwurf als PDF** zeigt die Mahnung vorher mit dem Vermerk „ENTWURF“ und einem Platzhalter statt des GiroCodes, mit denselben Prüfungen und Beträgen wie beim Erstellen ([Entwurf als PDF](rechnungen.md#entwurf-als-pdf)); gespeichert wird dabei nichts. **… erstellen** speichert die Mahnung mit PDF und öffnet es. Das PDF hat denselben Briefbogen wie die Rechnung, in der aktuellen Gestaltung: Rechnungsnummer und -datum, Fälligkeit, offener Betrag, Gebühren und Zinsen, Gesamtbetrag und Zahlungsaufforderung mit IBAN. Mahnungen sind wie verschickte Schreiben unveränderlich (Trigger); eine falsche Mahnung ersetzt du durch eine neue. Bereits erstellte Mahnungen behalten ihr PDF; Zeichen wie `*`, die dort als Text stehen, bleiben also stehen.
 

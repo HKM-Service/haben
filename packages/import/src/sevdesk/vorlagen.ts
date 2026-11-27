@@ -1,4 +1,4 @@
-import { type Cents, type Millis, TAX_RATES, type RecurringInterval, type ServicePeriodMode, type TaxTreatment } from "@haben/core";
+import { type Cents, type Millis, parseRecurrence, type Recurrence, recurrenceParts, type ServicePeriodMode, TAX_RATES, type TaxTreatment } from "@haben/core";
 import { lexDate, lexToBasisPoints, lexToCents } from "../lexoffice/map.ts";
 import { sevNumber } from "./map.ts";
 import type { SevDocumentPos, SevInvoice } from "./types.ts";
@@ -34,7 +34,8 @@ export interface SevRecurringTemplate {
   taxTreatment: TaxTreatment;
   priceMode: "netto" | "brutto";
   lines: SevRecurringLine[];
-  intervalMonths: RecurringInterval;
+  /** Dauer nach ISO 8601, belegt sind P0Y0M1W (wird P1W) und Monate */
+  recurrence: Recurrence;
   anchorDay: number;
   nextDate: string;
   endDate: string | null;
@@ -65,18 +66,6 @@ export function sevPlaceholders(texts: (string | null | undefined)[]): string[] 
   const found = new Set<string>();
   for (const text of texts) for (const match of (text ?? "").matchAll(PLACEHOLDER)) found.add(match[0]);
   return [...found];
-}
-
-/**
- * Intervall in Monaten aus der Angabe von sevDesk ("P0Y1M", "P1Y", "P0Y0M1W"); null bei Wochen, Tagen oder
- * einer unlesbaren Angabe. Belegt sind "P0Y1M" und "P0Y0M1W".
- */
-export function sevIntervalMonths(value: string | null | undefined): number | null {
-  const m = /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?$/.exec((value ?? "").trim());
-  if (!m || m[0] === "P") return null;
-  if (Number(m[3] ?? 0) > 0 || Number(m[4] ?? 0) > 0) return null;
-  const months = Number(m[1] ?? 0) * 12 + Number(m[2] ?? 0);
-  return months > 0 ? months : null;
 }
 
 /**
@@ -163,6 +152,35 @@ const clip = (text: string, max: number, hints: string[], what: string) => {
   return text.slice(0, max);
 };
 
+/** Positionen der Vorlage; ein Text nennt den Grund, warum eine Position nicht übernehmbar ist */
+function vorlagenPositionen(positions: SevDocumentPos[], priceMode: "brutto" | "netto", hints: string[]): SevRecurringLine[] | string {
+  const lines: SevRecurringLine[] = [];
+  for (const [i, p] of positions.entries()) {
+    const taxRate = lexToBasisPoints(sevNumber(p.taxRate));
+    if (!(TAX_RATES as readonly number[]).includes(taxRate)) return `Position ${i + 1}: Steuersatz ${sevNumber(p.taxRate)} % gibt es in Haben nicht.`;
+    if (sevNumber(p.discount) !== 0) return `Position ${i + 1}: Rabatt, wiederkehrende Rechnungen in Haben kennen keine Rabatte.`;
+    const quantity = Math.round(sevNumber(p.quantity) * 1000);
+    if (quantity < 1) return `Position ${i + 1}: Menge ${sevNumber(p.quantity)} ist nicht übernehmbar.`;
+    const price = priceMode === "brutto" ? (p.priceGross ?? p.price) : (p.priceNet ?? p.price);
+    let description = sevPlainText(p.name);
+    if (!description) {
+      description = "Position";
+      hints.push(`Position ${i + 1} hat in sevDesk keine Bezeichnung.`);
+    }
+    lines.push({
+      description: clip(description, 500, hints, `Bezeichnung der Position ${i + 1}`),
+      detail: clip(sevPlainText(p.text), 2000, hints, `Text der Position ${i + 1}`),
+      itemNumber: "",
+      quantity,
+      // sevDesk nennt die Einheit nur als ID (Unity); die Bezeichnung ist nicht abgerufen
+      unit: "Stk.",
+      unitPrice: lexToCents(sevNumber(price)),
+      taxRate: taxRate as (typeof TAX_RATES)[number],
+    });
+  }
+  return lines;
+}
+
 /**
  * Vorlage von sevDesk → Felder einer wiederkehrenden Rechnung von Haben. invoices sind alle Rechnungen aus GET /Invoice;
  * daraus stammt, ob nachfällig abgerechnet wird. ok: false nennt den Grund, warum Haben die Vorlage nicht abbilden kann.
@@ -175,11 +193,11 @@ export function mapSevRecurringInvoice(raw: SevInvoice, positions: SevDocumentPo
       ok: false,
       reason: `Währung ${currency}: Haben erzeugt wiederkehrende Rechnungen nur in Euro.`,
     };
-  const intervalMonths = sevIntervalMonths(raw.accountIntervall);
-  if (intervalMonths == null || ![1, 3, 6, 12].includes(intervalMonths))
+  const recurrence = parseRecurrence(raw.accountIntervall);
+  if (!recurrence)
     return {
       ok: false,
-      reason: `Intervall „${raw.accountIntervall ?? ""}“: Haben kennt nur monatlich, vierteljährlich, halbjährlich und jährlich.`,
+      reason: `Intervall „${raw.accountIntervall ?? ""}“: Haben kennt nur 1, 2 und 4 Wochen sowie 1, 2, 3, 6 und 12 Monate.`,
     };
   const tax = taxTreatmentOf(raw);
   if (!tax)
@@ -200,53 +218,22 @@ export function mapSevRecurringInvoice(raw: SevInvoice, positions: SevDocumentPo
   const priceMode = sevNumber(raw.showNet) === 0 && raw.showNet != null ? "brutto" : "netto";
   if (positions.length === 0) return { ok: false, reason: "Die Vorlage hat keine Positionen." };
 
-  const lines: SevRecurringLine[] = [];
-  for (const [i, p] of positions.entries()) {
-    const taxRate = lexToBasisPoints(sevNumber(p.taxRate));
-    if (!(TAX_RATES as readonly number[]).includes(taxRate))
-      return {
-        ok: false,
-        reason: `Position ${i + 1}: Steuersatz ${sevNumber(p.taxRate)} % gibt es in Haben nicht.`,
-      };
-    if (sevNumber(p.discount) !== 0)
-      return {
-        ok: false,
-        reason: `Position ${i + 1}: Rabatt, wiederkehrende Rechnungen in Haben kennen keine Rabatte.`,
-      };
-    const quantity = Math.round(sevNumber(p.quantity) * 1000);
-    if (quantity < 1)
-      return {
-        ok: false,
-        reason: `Position ${i + 1}: Menge ${sevNumber(p.quantity)} ist nicht übernehmbar.`,
-      };
-    const price = priceMode === "brutto" ? (p.priceGross ?? p.price) : (p.priceNet ?? p.price);
-    let description = sevPlainText(p.name);
-    if (!description) {
-      description = "Position";
-      hints.push(`Position ${i + 1} hat in sevDesk keine Bezeichnung.`);
-    }
-    lines.push({
-      description: clip(description, 500, hints, `Bezeichnung der Position ${i + 1}`),
-      detail: clip(sevPlainText(p.text), 2000, hints, `Text der Position ${i + 1}`),
-      itemNumber: "",
-      quantity,
-      // sevDesk nennt die Einheit nur als ID (Unity); die Bezeichnung ist nicht abgerufen
-      unit: "Stk.",
-      unitPrice: lexToCents(sevNumber(price)),
-      taxRate: taxRate as (typeof TAX_RATES)[number],
-    });
-  }
+  const lines = vorlagenPositionen(positions, priceMode, hints);
+  if (typeof lines === "string") return { ok: false, reason: lines };
   hints.push("Einheiten sind als „Stk.“ übernommen; sevDesk nennt sie nur als Kennung.");
 
   const { billing, evidence } = sevBilling(String(raw.id), invoices);
   let servicePeriod: ServicePeriodMode = "keiner";
   let anchorDay = Number(nextDate.slice(8, 10));
   if (billing === "vorschuessig") servicePeriod = "laufend";
-  else if (billing === "nachfaellig" && intervalMonths === 1) {
+  else if (billing === "nachfaellig" && recurrence === "P1M") {
     // Rechnung am Ende des Monats, für diesen Monat; der Termin bleibt am Monatsende
     servicePeriod = "laufend";
     if (lastDayOfMonth(nextDate)) anchorDay = 31;
-  } else if (billing === "nachfaellig")
+  } else if (billing === "nachfaellig" && recurrenceParts(recurrence).weeks !== null)
+    // sevDesk endet den Zeitraum am Rechnungsdatum, Haben mit „vorher“ am Vortag
+    hints.push("Nachfällig in Wochen kann Haben nicht genau abbilden: Leistungszeitraum ist „Keiner“. Bitte selbst setzen.");
+  else if (billing === "nachfaellig")
     hints.push("Nachfällig über mehrere Monate kann Haben nicht abbilden: Leistungszeitraum ist „Keiner“. Bitte selbst setzen.");
   else
     hints.push("Ob sevDesk nachfällig oder vorschüssig abrechnet, ist ohne erzeugte Rechnung unklar. In sevDesk nachsehen und den Leistungszeitraum setzen.");
@@ -262,7 +249,7 @@ export function mapSevRecurringInvoice(raw: SevInvoice, positions: SevDocumentPo
     taxTreatment: tax.treatment,
     priceMode,
     lines,
-    intervalMonths: intervalMonths as RecurringInterval,
+    recurrence,
     anchorDay,
     nextDate,
     endDate: lexDate(raw.accountEndDate),

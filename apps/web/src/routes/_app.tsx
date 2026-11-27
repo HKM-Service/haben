@@ -13,7 +13,9 @@ import { NAV_GROUPS, STEUERBERATUNG_NAV, navLinkSichtbar } from "../lib/navigati
 import { readNavCollapsed, saveNavCollapsed, subscribeNavCollapsed } from "../lib/nav-rail.ts";
 import { NavMarkSymbol } from "../components/NavMarkSymbol.tsx";
 import { usePageHeadHeight, useScrolled } from "../lib/use-page-head.ts";
-import { ROLLEN_LABEL, STEUERBERATUNG_START, steuerberatungSieht } from "../lib/rollen.ts";
+import { SeitenLaden } from "../components/Fehlerseiten.tsx";
+import { navigationZustand } from "../lib/app-navigation.ts";
+import { ROLLEN_LABEL, STEUERBERATUNG_START, siehtSeite } from "../lib/rollen.ts";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ location }) => {
@@ -21,11 +23,12 @@ export const Route = createFileRoute("/_app")({
     if (!state.initialized) throw redirect({ to: "/setup" });
     if (!state.user) throw redirect({ to: "/login" });
     // Die Steuerberatung sieht nur ihre Seiten; die Server Functions prüfen das unabhängig davon selbst
-    if (state.user.role !== "inhaber" && !steuerberatungSieht(location.pathname)) throw redirect({ to: STEUERBERATUNG_START });
+    if (!siehtSeite(state.user.role, location.pathname)) throw redirect({ to: STEUERBERATUNG_START });
     return {
       user: state.user,
       oidc: state.oidc,
       rechtsform: state.rechtsform ?? "einzelunternehmen",
+      kontenrahmen: state.kontenrahmen ?? "SKR03",
       eigeneSeiten: state.eigeneSeiten,
       hatMitarbeiter: state.hatMitarbeiter,
       ausgeblendet: state.ausgeblendet,
@@ -173,11 +176,19 @@ function AppLayout() {
   const { collapsed, openFlyout, setOpenFlyout } = useRailState();
   useNavTipEscape();
   useEinklappKuerzel();
-  // Erst wenn die neue Seite steht (resolvedLocation): solange der Loader läuft, ist noch die alte Seite mit dem geklickten Link zu sehen
-  const pathname = useRouterState({ select: (state) => (state.resolvedLocation ?? state.location).pathname });
+  // Die Navigation markiert das Ziel sofort; solange eine andere Seite lädt, zeigt <main> die Ladeansicht statt der alten Seite
+  const { resolvedPathname, navPathname, wechseltSeite } = useRouterState({
+    select: (state) =>
+      navigationZustand({
+        status: state.status,
+        locationPathname: state.location.pathname,
+        resolvedPathname: state.resolvedLocation?.pathname,
+        matchPathname: state.matches.at(-1)?.pathname,
+      }),
+  });
   const main = useRef<HTMLElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
-  const firstPath = useRef(pathname);
+  const firstPath = useRef(resolvedPathname);
   const sichtbareGruppen = groups
     .map((group) => ({ ...group, links: group.links.filter((link) => navLinkSichtbar(link, { gesellschaft, hatMitarbeiter, ausgeblendet })) }))
     .filter((group) => group.links.length > 0);
@@ -187,11 +198,11 @@ function AppLayout() {
   // Nach dem Seitenwechsel steht der Fokus am Anfang des Inhalts, nicht mehr auf dem geklickten Link;
   // Filter und Suche (nur Suchparameter) lassen ihn, wo er ist
   useEffect(() => {
-    if (pathname === firstPath.current) return;
-    firstPath.current = pathname;
+    if (resolvedPathname === firstPath.current) return;
+    firstPath.current = resolvedPathname;
     setOpenFlyout(null);
     if (!main.current?.contains(document.activeElement)) main.current?.focus({ preventScroll: true });
-  }, [pathname, setOpenFlyout]);
+  }, [resolvedPathname, setOpenFlyout]);
 
   useMobileMenuEscape(menuOpen, paletteOpen, () => setMenuOpen(false), toggle);
 
@@ -199,6 +210,8 @@ function AppLayout() {
     // Erst beim Abmelden laden: der Auth-Client bringt den Passkey-Code mit, den nur Anmeldung und Einstellungen brauchen
     const { authClient } = await import("../lib/auth-client.ts");
     await authClient.signOut();
+    // Vorgeladene Seiten gehören zur beendeten Sitzung
+    router.clearCache();
     await router.navigate({ to: "/login" });
   }
 
@@ -226,7 +239,7 @@ function AppLayout() {
             collapsed={collapsed}
             onToggleCollapse={() => saveNavCollapsed(!collapsed)}
             inhaber={inhaber}
-            pathname={pathname}
+            pathname={navPathname}
             firma={firma ?? null}
             firmen={firmen}
             firmenportal={firmenportal ?? null}
@@ -243,7 +256,7 @@ function AppLayout() {
         </div>
       </nav>
       <main className="main" id="inhalt" ref={main} tabIndex={-1}>
-        <Outlet />
+        {wechseltSeite ? <SeitenLaden /> : <Outlet />}
       </main>
       <CommandPalette
         open={paletteOpen}
@@ -307,8 +320,8 @@ function NavSearch({ onOpen }: { onOpen: () => void }) {
       aria-keyshortcuts={`${ariaKuerzel(PALETTE_KUERZEL)} ${ariaKuerzel(PALETTE_ALT_KUERZEL)}`}
     >
       <Icon name="search" size={18} />
-      <span className="nav-search-label">Schnellsuche</span>
-      <NavTip>Schnellsuche</NavTip>
+      <span className="nav-search-label">Suche</span>
+      <NavTip>Suche</NavTip>
       <Kuerzel tasten={PALETTE_KUERZEL} className="nav-kbd" aria-hidden="true" />
       <Kuerzel tasten={PALETTE_ALT_KUERZEL} className="nav-kbd" aria-hidden="true" />
     </button>

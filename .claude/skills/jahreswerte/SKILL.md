@@ -1,6 +1,6 @@
 ---
 name: "jahreswerte"
-description: "Amtliche Jahreswerte in Haben nachziehen: Lohnsteuer-PAP des BMF, Rechengrößen und Beitragssätze der Sozialversicherung, Taxonomie der E-Bilanz, neue ERiC-Version, geänderte Normen des Gesetzeswächters und Stand von SKR03/SKR04. Wenn der Workflow „Jahreswerte prüfen“ ein Issue mit dem Label jahreswerte geöffnet hat oder ein Jahreswechsel-Test fehlschlägt."
+description: "Amtliche Jahreswerte in Haben nachziehen (Lohnsteuer-PAP, Sozialversicherung, E-Bilanz-Taxonomie, ERiC, Normen, SKR03/SKR04). Wenn ein Issue mit dem Label jahreswerte offen ist oder ein Jahreswechsel-Test fehlschlägt."
 ---
 
 # Jahreswerte nachziehen
@@ -32,7 +32,7 @@ Befunde `eric`, `eric-<Version>-entfernt`.
 
 1. Pakete unter `https://download.elster.de/download/eric/eric_<Hauptversion>/ERiC-<Version>-Linux-x86_64.jar`, die Dokumentation daneben als `ERiC-<Version>-Dokumentation.zip`. Ein `.x.1` im Herbst ist BETA (Senden nur mit Testmerker).
 2. Neben dem bisherigen installieren: `ERIC_DIR=/var/tmp/eric-<Version> bun packages/elster/src/install-cli.ts --lizenz-akzeptiert <Version>`.
-3. In der Dokumentation `ERiC-Releasenotes.pdf`, `Datenartversionmatrix.ods` und die Schemas unter `Datenarten/` lesen; `include/` mit der alten Version vergleichen (`diff -r`). Entfallene Datenart-Versionen und geänderte Signaturen in `packages/elster` anpassen, neue Jahre in `KAPESTA_JAHRE`, `LSTA_JAHRE`, `GEWST_JAHRE`, `KST_JAHRE`, `EBILANZ_TAXONOMIEN`, `LSTB_SCHNITTSTELLEN`. `lstb.test.ts` prüft die Nutzdaten von ElsterLohn gegen die Schemas, wenn `ERIC_DOKU` auf `Dokumentation` des entpackten Pakets zeigt (braucht `java`).
+3. In der Dokumentation `ERiC-Releasenotes.pdf`, `Datenartversionmatrix.ods` und die Schemas unter `Datenarten/` lesen; `include/` mit der alten Version vergleichen (`diff -r`). Entfallene Datenart-Versionen und geänderte Signaturen in `packages/elster` anpassen, neue Jahre in `KAPESTA_JAHRE`, `LSTA_JAHRE`, `GEWST_JAHRE`, `KST_JAHRE`, `EBILANZ_TAXONOMIEN`, `LSTB_SCHNITTSTELLEN`; `VAST_JAHRE` (`packages/elster/src/vast-vorschlag.ts`) nur, wenn unter `ElsterDatenabholung/ElsterVaStDaten/VaSt-Belege/Zuordnungsinformationen/ESt_<Jahr>/` die Zuordnung des Jahres liegt, und dann die Regeln in `Jahresdokumentation_VAST_Vorberechnungen_<Jahr>.ods` mit dem Vorjahr vergleichen. `lstb.test.ts` prüft die Nutzdaten von ElsterLohn gegen die Schemas, wenn `ERIC_DOKU` auf `Dokumentation` des entpackten Pakets zeigt (braucht `java`).
 4. Die Tests mit dem neuen ERiC laufen lassen (`docs/entwicklung.md`, „Tests mit echtem ERiC“), auch die neuen Jahre in `eric-echt.test.ts`, und mit dem alten gegenprüfen.
 5. `DEFAULT_ERIC_VERSION` in `packages/elster/src/install.ts` nur auf eine für Echtfälle freigegebene Version heben, nach einer geglückten Testübermittlung (die macht der Maintainer), und die Tabelle in `docs/einrichtung-elster.md` („Welche ERiC-Version“) nachziehen.
 
@@ -67,7 +67,7 @@ Befund `norm-<id>`. `scripts/jahreswerte/normen.json` nennt je Norm, wofür Habe
 
 ## Kontenrahmen
 
-Befunde `datev-skr03`, `datev-skr04`: die Kontenzuordnung (`hgb.ts`, `posting.ts`, `ebilanz.ts`) mit der neuen Ausgabe abgleichen, dann `HABEN_KONTENRAHMEN_STAND` in `scripts/jahreswerte/datev.ts` anheben. Widerspricht eine Kontenfunktion dem Gesetz, einer Kennzahl oder der Taxonomie, gilt die Norm.
+Befunde `datev-skr03`, `datev-skr04`: die Kontenzuordnung (`hgb.ts`, `kontenplan.ts`, `ebilanz.ts`) mit der neuen Ausgabe abgleichen, dann `HABEN_KONTENRAHMEN_STAND` in `scripts/jahreswerte/datev.ts` anheben. Widerspricht eine Kontenfunktion dem Gesetz, einer Kennzahl oder der Taxonomie, gilt die Norm.
 
 Dabei die Konvention [„Neue Systemkonten“](../../../docs/entwicklung.md#konventionen) beachten: neu genutzte Nummern können mit bestehenden eigenen Konten kollidieren.
 

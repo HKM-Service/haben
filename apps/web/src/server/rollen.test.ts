@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { darf, steuerberatungSieht } from "../lib/rollen.ts";
+import { darf, siehtSeite, steuerberatungSieht } from "../lib/rollen.ts";
 
 /*
  * Rechte der Rolle Steuerberatung (Roadmap Platz 10, Stufe 1). Diese Tests lesen alle Server Functions und API-Routen aus
@@ -15,6 +15,10 @@ const routesApi = fileURLToPath(new URL("../routes/api", import.meta.url));
 
 /** Lesende Server Functions, die auch die Steuerberatung aufrufen darf. Nur GET, nur Lesen, keine Geheimnisse. */
 const STEUERBERATUNG_LIEST = [
+  "bwa.ts:getBwa",
+  "bwa.ts:getBwaKonten",
+  "bwa.ts:getBwaWarum",
+  "bwa.ts:getBwaZeile",
   "documents.ts:getDocumentDetail",
   "documents.ts:getDocuments",
   "documents.ts:getDocumentSettlements",
@@ -26,6 +30,7 @@ const STEUERBERATUNG_LIEST = [
   "journal.ts:getJournal",
   "ledger.ts:getKontenblatt",
   "ledger.ts:getSaldenliste",
+  "liquiditaet.ts:getLiquiditaet",
   "reports.ts:getReports",
   "search.ts:searchCommandPalette",
   "search.ts:getRecentPaletteItems",
@@ -55,8 +60,8 @@ const STEUERBERATUNG_LAEDT = [
   "rechnungsanhang/$id.ts",
 ];
 
-/** API-Routen ohne Sitzung: eigene Anmeldung (Better Auth), API-Token (MCP, REST), OAuth-Client (Registrierung, Token), geheimer Link (Kalender) oder öffentlicher Healthcheck */
-const OHNE_SITZUNG = ["auth/$.ts", "fristen/kalender.ts", "health.ts", "mcp.ts", "oauth/register.ts", "oauth/token.ts", "v1/$.ts"];
+/** API-Routen ohne Sitzung: eigene Anmeldung (Better Auth), API-Token (MCP, REST), OAuth-Client (Registrierung, Token), geheimer Link (Kalender), eigenes Token (Metriken) oder öffentlicher Healthcheck */
+const OHNE_SITZUNG = ["auth/$.ts", "fristen/kalender.ts", "health.ts", "mcp.ts", "metrics.ts", "oauth/register.ts", "oauth/token.ts", "v1/$.ts"];
 
 interface ServerFn {
   id: string;
@@ -102,6 +107,8 @@ describe("Rechte der Rollen", () => {
     for (const path of [
       "/steuerberatung",
       "/auswertungen",
+      "/auswertungen/bwa",
+      "/auswertungen/liquiditaet",
       "/buchungen",
       "/konten",
       "/konten/1400",
@@ -125,6 +132,13 @@ describe("Rechte der Rollen", () => {
     ]) {
       expect(steuerberatungSieht(path), path).toBe(false);
     }
+  });
+
+  it("ein Link auf eine Seite, die die Rolle nicht öffnen kann, entfällt (Kontakt in „Warum?“ der BWA)", () => {
+    const kontakt = "/kontakte/0b8f6a52-6d3e-4d43-9a43-3b0c5d1e2f10";
+    expect(siehtSeite("inhaber", kontakt)).toBe(true);
+    expect(siehtSeite("steuerberatung", kontakt)).toBe(false);
+    expect(siehtSeite("steuerberatung", "/belege/0b8f6a52-6d3e-4d43-9a43-3b0c5d1e2f10")).toBe(true);
   });
 });
 

@@ -5,7 +5,7 @@ import { withActor } from "../../db/actor.ts";
 import { db, schema } from "../../db/index.ts";
 import type { LexofficeImportProgress } from "../../db/schema.ts";
 import { importRecurringPaused } from "../rechnungen/index.ts";
-import { progressMessage } from "./lexoffice.ts";
+import { progressMessage } from "./umzug-gemeinsam.ts";
 
 /*
  * Vorlagen wiederkehrender Rechnungen aus sevDesk (invoiceType WKR, #472). Jede kommt pausiert als wiederkehrende
@@ -95,13 +95,7 @@ async function importOne(actor: string, importId: string, client: SevdeskClient,
       })
       .returning({ id: schema.sevdeskRecurringTemplates.id });
     if (!link) return false;
-    const { anchorDay, intervalMonths, ...template } = mapped.template;
-    const recurringId = await importRecurringPaused(tx, {
-      ...template,
-      contactId: contact.id,
-      intervalMonths,
-      anchorDay,
-    });
+    const recurringId = await importRecurringPaused(tx, { ...mapped.template, contactId: contact.id });
     await tx.update(schema.sevdeskRecurringTemplates).set({ recurringId }).where(eq(schema.sevdeskRecurringTemplates.id, link.id));
     return true;
   });

@@ -2,7 +2,7 @@
 // dessen, worauf Haben aufbaut, dazu das Issue „Dependency Dashboard“ mit allem, was offen ist.
 // Eigene Pull Requests: KoSIT-Validator und XRechnung-Konfiguration (CI-Job kosit), Bun (Images,
 // package.json, Screenshots, README), die Wolfi-Basis des App-Images (wöchentlich), PostgreSQL
-// (Datenbank, Backup-Image, CI, Doku), lib-fints, Caddy und restic.
+// (Datenbank, Backup-Image, CI, Doku), lib-fints, Caddy, restic und rclone.
 // Nicht über Renovate: ERiC (download.elster.de hat keine Liste, die Renovate lesen könnte;
 // DEFAULT_ERIC_VERSION in packages/elster/src/install.ts hebt man von Hand nach einer
 // Testübermittlung) und Habens eigene Images. Neue ERiC-Versionen, Lohnsteuer-PAP, Sozialversicherungswerte,
@@ -93,7 +93,7 @@
   packageRules: [
     {
       // Habens eigene Images ziehen mit den Releases nach (release.yml)
-      matchPackageNames: ["docker.io/tristanteu/**", "tristanteu/**", "ghcr.io/firsttris/**"],
+      matchPackageNames: ["docker.io/tristanteu/**", "tristanteu/**", "ghcr.io/speicherstadt/**"],
       enabled: false,
     },
     {
@@ -141,7 +141,7 @@
       groupName: "PostgreSQL",
       sourceUrl: "https://github.com/postgres/postgres",
       prBodyNotes: [
-        "Eine neue Hauptversion zieht in `deploy/db/Containerfile` (Datenbank), `deploy/backup/Containerfile` (pg_dump), CI und Doku zusammen. Beide Images bauen die Programme aller Versionen von `UPGRADE_FROM` bis zur vorletzten mit ein: `haben-db` hebt damit vorhandene Bestände beim Start mit `pg_upgrade` an, `backup.sh` nimmt das `pg_dump` der Version, in der die Datenbank läuft. Der CI-Job `db-upgrade` prüft das Upgrade von 16 mit Backup und Test-Restore davor und danach; bei einer weiteren Hauptversion dort einen Schritt von der bisherigen ergänzen. Fällt eine alte Version aus dem PGDG-Repository, `UPGRADE_FROM` in beiden Containerfiles anheben und das in docs/installation-backup.md (PostgreSQL-Update) vermerken. Die Trigger der Migrationen (`apps/web/drizzle/*_trigger.sql`, Festschreibung und Hash-Kette) laufen in CI gegen die neue Version.",
+        "Eine neue Hauptversion zieht in `deploy/db/Containerfile` (Datenbank), `deploy/backup/Containerfile` (pg_dump), CI und Doku zusammen. Beide Images bauen die Programme aller Versionen von `UPGRADE_FROM` bis zur vorletzten mit ein: `haben-db` hebt damit vorhandene Bestände beim Start mit `pg_upgrade` an, `backup.sh` nimmt das `pg_dump` der Version, in der die Datenbank läuft. Das Backup-Image darf eine Version voraus sein, für eigene Datenbanken (`docs/kubernetes.md`). Der CI-Job `db-upgrade` prüft das Upgrade von 16 mit Backup und Test-Restore davor und danach; bei einer weiteren Hauptversion dort einen Schritt von der bisherigen ergänzen. Fällt eine alte Version aus dem PGDG-Repository, `UPGRADE_FROM` in beiden Containerfiles anheben und das in docs/installation-backup.md (PostgreSQL-Update) vermerken. Die Trigger der Migrationen (`apps/web/drizzle/*_trigger.sql`, Festschreibung und Hash-Kette) laufen in CI gegen die neue Version.",
       ],
       schedule: ["at any time"],
       automerge: false,
@@ -167,6 +167,16 @@
       prBodyNotes: [
         "Vor dem Mergen: Release Notes gegen `deploy/Caddyfile` und den Caddy-Block in `deploy/compose.yml` prüfen (Sicherheits-Header, `max_size`).",
       ],
+      schedule: ["at any time"],
+      automerge: false,
+      dependencyDashboardApproval: false,
+    },
+    {
+      // rclone im Backup-Image (deploy/backup/Containerfile): Zieltypen ändern sich mit den Versionen, vor dem Mergen
+      // einmal `rclone listremotes` und einen Lauf gegen ein WebDAV-Ziel prüfen
+      matchPackageNames: ["docker.io/rclone/rclone"],
+      sourceUrl: "https://github.com/rclone/rclone",
+      groupName: "rclone",
       schedule: ["at any time"],
       automerge: false,
       dependencyDashboardApproval: false,

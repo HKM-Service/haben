@@ -1,17 +1,16 @@
 import {
-  ACCOUNT_PURPOSES,
   direktBuchungenFuerKonto,
   direktKategorienFuerKonto,
-  PAYMENT_PROVIDERS,
   directBookingLabel,
-  paymentProviderAccount,
   STEUER_POSTEN,
   STEUER_POSTEN_KEYS,
   DARLEHEN_TEILE,
   DARLEHEN_TEIL_KEYS,
   formatEuro,
+  kategorienMitKonto,
   STEUERARTEN,
   steuerartenFor,
+  vorauswahlUmsatz,
 } from "@haben/core";
 import { loadCompany } from "../modules/stammdaten/index.ts";
 import { storePayoutView } from "../modules/stores/index.ts";
@@ -27,6 +26,7 @@ import {
   allocateSplit,
   allocationSchema,
   BankError,
+  KontoWaehlenError,
   gemeldeteVoranmeldungen,
   createAccount,
   createProviderAccount,
@@ -62,8 +62,10 @@ import {
   reverseNeutralization,
 } from "../modules/bank/index.ts";
 import { deleteEnableBankingSettings, enableBankingSettingsSchema, enableBankingSettingsSummary, saveEnableBankingSettings } from "../modules/bank/index.ts";
-import { callbackUrl, enableBankingConfigured, listBanks, listConnections, removeConnection, startConnection, syncConnection } from "../modules/bank/index.ts";
-import { fintsConfigured, listFintsConnections } from "../modules/bank/index.ts";
+import { listBanks, removeConnection, startConnection, syncConnection } from "../modules/bank/index.ts";
+import { fintsConfigured } from "../modules/bank/index.ts";
+import { klaerungView, resolveConflict, resolveConflictSchema } from "../modules/bank/index.ts";
+import { abrufUndKarten, kontenAngaben } from "./bank-karten.ts";
 import { authMiddleware } from "../middleware.ts";
 import { today } from "../today.ts";
 import { UserError } from "../errors.ts";
@@ -87,7 +89,8 @@ export const getBankOverview = createServerFn({ method: "GET" })
     const allAccounts = data.konto === "alle" && accounts.length > 1;
     const shown = allAccounts ? accounts : [accounts.find((a) => a.id === data.konto) ?? accounts[0]].filter((a) => a !== undefined);
     const transactions = shown.length > 0 ? await umsatzauswahl(shown, data.filter, data.suche, { feld: data.sort, richtung: data.dir }) : [];
-    const selectedId = data.umsatz ?? transactions.find((t) => t.open !== 0)?.id ?? transactions[0]?.id;
+    const dienstleister = new Set(accounts.filter((a) => a.purpose === "zahlungsdienstleister").map((a) => a.id));
+    const selectedId = data.umsatz ?? vorauswahlUmsatz(transactions, dienstleister)?.id;
     const found = selectedId ? await transactionDetail(selectedId) : null;
     const detail = found && shown.some((a) => a.id === found.transaction.bankAccountId) ? found : null;
     // Das gewählte Konto; in „Alle Konten“ das des gewählten Umsatzes, nach dessen Zweck sich die Buchungsarten richten
@@ -103,7 +106,13 @@ export const getBankOverview = createServerFn({ method: "GET" })
       excludedAccounts: (await listExcludedAccounts()).map((a) => ({ ...a, excludedAt: a.excludedAt?.toISOString() ?? null })),
       transactions,
       detail: detail
-        ? { ...detail, neutralization: await neutralizationView(detail.transaction.id), storePayout: await storePayoutView(detail.transaction.id) }
+        ? {
+            ...detail,
+            neutralization: await neutralizationView(detail.transaction.id),
+            storePayout: detail.duplicateReviews.every((review) => review.decision === "distinct") ? await storePayoutView(detail.transaction.id) : null,
+            /** Bezug zu einem Umsatz aus der Klärung eines Konflikts im Abruf (#306) */
+            klaerung: await klaerungView(detail.transaction.id),
+          }
         : null,
       directKinds: await (async () => {
         const { rechtsform } = await loadCompany();
@@ -117,23 +126,14 @@ export const getBankOverview = createServerFn({ method: "GET" })
       steuerarten: steuerartenFor((await loadCompany()).rechtsform).map((value) => ({ value, label: STEUERARTEN[value] })),
       steuerPosten: STEUER_POSTEN_KEYS.map((value) => ({ value, label: STEUER_POSTEN[value] })),
       /** Direkt buchen auf eine Kategorie: Einnahmen und die Ausgabekategorien, die ohne Beleg gehen (#324) */
-      kategorien: direktKategorienFuerKonto(account?.purpose ?? "geschaeft"),
-      kleinunternehmer: (await loadCompany()).kleinunternehmer,
+      kategorien: kategorienMitKonto(direktKategorienFuerKonto(account?.purpose ?? "geschaeft"), (await loadCompany()).kontenrahmen),
+      ...(({ kleinunternehmer, kontenrahmen }) => ({ kleinunternehmer, kontenrahmen }))(await loadCompany()),
       /** Darlehen mit Bestand und die Teile einer Rate */
       loans: (await listLoans()).map((l) => ({ value: l.id, label: `${l.name} · Bestand ${formatEuro(l.balance)}` })),
       loanParts: DARLEHEN_TEIL_KEYS.map((value) => ({ value, label: DARLEHEN_TEILE[value] })),
-      purposes: Object.entries(ACCOUNT_PURPOSES).map(([value, label]) => ({ value, label })),
-      providers: Object.entries(PAYMENT_PROVIDERS).map(([value, p]) => ({ value, label: p.label })),
-      /** Sachkonto je Zahlungsdienstleister, zur Anzeige */
-      ledgers: Object.fromEntries(
-        await Promise.all(
-          accounts
-            .filter((a) => a.ledgerIndex !== null)
-            .map(async (a) => [a.id, paymentProviderAccount((await loadCompany()).kontenrahmen, a.ledgerIndex!)] as const),
-        ),
-      ),
-      sync: { configured: await enableBankingConfigured(), callbackUrl: callbackUrl(), connections: await listConnections() },
-      fints: { configured: fintsConfigured(), connections: await listFintsConnections() },
+      ...(await kontenAngaben(accounts)),
+      /** Kontoabruf (Enable Banking, FinTS) und die Karten der Konten mit ihrem Stand (#1951) */
+      ...(await abrufUndKarten(accounts)),
     };
   });
 
@@ -159,7 +159,13 @@ export const importStatements = createServerFn({ method: "POST" })
         results.push({ filename: file.name, ...result });
       } catch (error) {
         if (!(error instanceof BankError)) throw error;
-        results.push({ filename: file.name, error: error.message, zuordnen: error instanceof UnbekannteCsvError });
+        // zuordnen: Spalten einer unbekannten Bank zuordnen; kontoWaehlen: die Datei nennt kein Konto, das Haben findet
+        results.push({
+          filename: file.name,
+          error: error.message,
+          zuordnen: error instanceof UnbekannteCsvError,
+          kontoWaehlen: error instanceof KontoWaehlenError,
+        });
       }
     }
     return results;
@@ -329,6 +335,12 @@ export const syncBankConnection = createServerFn({ method: "POST" })
     const result = await syncConnection(context.user.id, data);
     return { added: result.added, error: result.error, gaps: result.accounts.flatMap((a) => (a.gap ? [a.gap] : [])) };
   });
+
+/** Konflikt im Abruf klären (#306): bisherigen Umsatz behalten oder den gelieferten als weiteren übernehmen */
+export const resolveBankConflict = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(resolveConflictSchema)
+  .handler(async ({ data, context }) => resolveConflict(context.user.id, data));
 
 export const disconnectBank = createServerFn({ method: "POST" })
   .middleware([authMiddleware])

@@ -157,7 +157,7 @@ function NewDunningPage() {
                   draft.baseRate === null ? (
                     <>
                       Für Zinsen den Basiszinssatz in den{" "}
-                      <Link to="/einstellungen" search={{ bereich: "firma" }}>
+                      <Link to="/einstellungen" search={{ bereich: "firma" }} hash="company-dunning">
                         Einstellungen
                       </Link>{" "}
                       eintragen.
@@ -230,7 +230,7 @@ function dunningDesign(profileId: string | null, draft: DesignDraft, logo: strin
   return {
     panel: (
       <BrandDesignPanel profileId={profileId}>
-        <DesignPanel draft={draft} vatRates={0} positions={false} logo={logo} onLogoChanged={onLogoChanged} />
+        <DesignPanel draft={draft} vatRates={0} positions={false} logo={logo} onLogoChanged={onLogoChanged} layoutType="mahnung" />
       </BrandDesignPanel>
     ),
     onClosed: draft.discard,

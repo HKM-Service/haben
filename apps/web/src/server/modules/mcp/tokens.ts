@@ -29,12 +29,17 @@ export const TOKEN_SCOPES = [
   "kontakte:schreiben",
   "rechnungen:lesen",
   "rechnungen:entwuerfe",
+  "rechnungen:vorlagen-anlegen",
+  "rechnungen:vorlagen-bearbeiten",
+  "angebote:lesen",
+  "angebote:entwuerfe",
   "belege:lesen",
   "belege:anlegen",
   "artikel:lesen",
   "artikel:schreiben",
   "leistungen:lesen",
   "leistungen:schreiben",
+  "bank:importieren",
 ] as const;
 export type TokenScope = (typeof TOKEN_SCOPES)[number];
 
@@ -45,18 +50,24 @@ export const TOKEN_SCOPE_LABELS: Record<TokenScope, string> = {
   "kontakte:schreiben": "API: Kontakte lesen, anlegen und ändern",
   "rechnungen:lesen": "API: Rechnungen und Entwürfe lesen",
   "rechnungen:entwuerfe": "API: Rechnungen lesen, Entwürfe anlegen, ändern und löschen",
+  "rechnungen:vorlagen-anlegen": "API: Vorlagen für wiederkehrende Rechnungen anlegen",
+  "rechnungen:vorlagen-bearbeiten": "API: Pausierte Vorlagen ändern und Vorlagen ohne erzeugte Rechnungen löschen",
+  "angebote:lesen": "API: Angebote und Entwürfe lesen",
+  "angebote:entwuerfe": "API: Angebote lesen, Entwürfe anlegen, ändern und löschen",
   "belege:lesen": "API: Belege lesen",
   "belege:anlegen": "API: Belege lesen und hochladen (landen als „Zu prüfen“)",
   "artikel:lesen": "API: Katalogartikel lesen",
   "artikel:schreiben": "API: Katalogartikel lesen, anlegen und ändern",
   "leistungen:lesen": "API: Leistungseinträge lesen",
   "leistungen:schreiben": "API: Leistungseinträge lesen, anlegen und löschen (Zeiterfassung)",
+  "bank:importieren": "API: Bankumsätze in freigegebene Quellen liefern; liest keine Umsätze und bucht nichts",
 };
 
 /** Ein Recht schließt ein anderes mit ein: wer schreiben darf, darf auch lesen */
 const IMPLIED: Partial<Record<TokenScope, TokenScope>> = {
   "kontakte:schreiben": "kontakte:lesen",
   "rechnungen:entwuerfe": "rechnungen:lesen",
+  "angebote:entwuerfe": "angebote:lesen",
   "belege:anlegen": "belege:lesen",
   "artikel:schreiben": "artikel:lesen",
   "leistungen:schreiben": "leistungen:lesen",

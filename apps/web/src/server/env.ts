@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { parseOrigin } from "@haben/core";
 import { parseFirmen } from "../lib/firmen.ts";
+import { LOG_FORMATS, LOG_LEVELS } from "../lib/log-werte.ts";
 
 const envSchema = z
   .object({
@@ -33,6 +34,12 @@ const envSchema = z
     ERIC_HOME: z.string().optional(),
     /** Commit, aus dem das Image gebaut ist; setzt das Containerfile aus dem gleichnamigen Build-Argument */
     HABEN_COMMIT: z.string().optional(),
+    /** Ab welcher Stufe der Serverprozess schreibt (#1860); debug meldet jeden Lauf der Hintergrundjobs mit Dauer */
+    HABEN_LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
+    /** text: lesbare Zeilen, wie bisher mit console.*; json: ein Objekt je Zeile mit time, level, component und msg (#1860) */
+    HABEN_LOG_FORMAT: z.enum(LOG_FORMATS).default("text"),
+    /** Bearer-Token für GET /api/metrics (#1858); ohne ihn gibt es den Endpunkt nicht. Getrimmt wie credentials_file in Prometheus, etwa für ein Secret mit Zeilenumbruch */
+    HABEN_METRICS_TOKEN: z.string().trim().min(32, "mindestens 32 Zeichen, z. B. openssl rand -hex 32").optional(),
     ERIC_LOG_DIR: z.string().optional(),
     ERIC_WORKER_PATH: z.string().optional(),
     /** Befehl für den ERiC-Worker statt der eigenen Laufzeit, z. B. ein Skript, das ihn unter QEMU als x86_64 startet (arm64) */
@@ -107,10 +114,16 @@ const envSchema = z
     GOOGLE_PLAY_TOKEN_URL: z.string().url().optional(),
     GOOGLE_PLAY_STORAGE_URL: z.string().url().optional(),
     APP_STORE_CONNECT_URL: z.string().url().optional(),
+    /** Adresse der Bestätigungsabfrage des BZSt (eVatR), nur zum Testen gegen einen nachgebauten Dienst */
+    EVATR_API_URL: z.string().url().optional(),
     /** Etsy Open API v3: nur im E2E-Durchlauf „etsy-abruf“ auf die nachgebaute API gesetzt, sonst gelten die echten Adressen */
     ETSY_API_URL: z.string().url().optional(),
     ETSY_TOKEN_URL: z.string().url().optional(),
     ETSY_AUTH_URL: z.string().url().optional(),
+    /** Transaction Search von PayPal: nur im E2E-Durchlauf „paypal-abruf“ auf die nachgebaute API gesetzt, für Live und Sandbox */
+    PAYPAL_API_URL: z.string().url().optional(),
+    /** Stripe-API: nur im E2E-Durchlauf „stripe-abruf“ auf die nachgebaute API gesetzt, sonst gilt https://api.stripe.com */
+    STRIPE_API_URL: z.string().url().optional(),
     /** Instanzen der eigenen Firmen zum Wechseln in der Navigation (#504): „Name|https://adresse“, getrennt durch „;“ */
     HABEN_FIRMEN: z.string().optional(),
     /** Firmenportal über den Instanzen (#504, Stufe 2): die Zeile „Zum Firmenportal“ führt dorthin; nur mit SSO, nicht mit HABEN_FIRMEN */

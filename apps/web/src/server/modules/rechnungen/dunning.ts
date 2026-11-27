@@ -15,11 +15,12 @@ import { asDraft, buildDunningDraftPdf, buildDunningPdf, type DraftPdf, type Dun
 import { desc, eq, inArray } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { loadCompany } from "../stammdaten/index.ts";
+import { loadCompany, mahnstufeStandard, standardTexte } from "../stammdaten/index.ts";
 import { withActor } from "../../db/actor.ts";
 import { db, schema, type Db, type Tx } from "../../db/index.ts";
 import { type DocumentPreview, renderPreview, withDesign } from "./document-preview.ts";
-import { listInvoices, withCurrentLegalInfo } from "./invoices.ts";
+import { withCurrentBuyer, withCurrentSeller } from "./invoice-document.ts";
+import { listInvoices } from "./invoices.ts";
 import { importedDunnings, type ImportedDunning } from "./mahnung-altbestand.ts";
 import { brandProfile, loadDesign, loadLetterhead, logoInfo, withCustomLayout } from "../stammdaten/index.ts";
 
@@ -149,7 +150,7 @@ export async function dunningDraft(invoiceId: string, today: string) {
     dueDate: addDays(today, dunning.deadlineDays),
     fee: dunning.fees[String(level) as "1" | "2" | "3"] ?? 0,
     baseRate: dunning.baseRate,
-    texts: DUNNING_TEXTS,
+    texts: await mahnTexte(),
     /** Für Vorschau und Gestaltung, wie im Rechnungseditor */
     design,
     brandProfileId,
@@ -232,8 +233,8 @@ async function dunningDocument(
     level: input.level,
     date: today,
     dueDate: input.dueDate,
-    seller: withCurrentLegalInfo(invoice.seller, company),
-    buyer: invoice.buyer,
+    seller: withCurrentSeller(invoice.seller, company),
+    buyer: await withCurrentBuyer(q, invoice.buyer, invoice.contactId),
     // Gemahnt wird erst nach der Fälligkeit, also nach jeder Skontofrist: dann gilt der volle Betrag
     invoice: { number: invoice.number, issueDate: invoice.issueDate, dueDate: invoice.dueDate, skontoExpired: invoice.skonto.length > 0, gross: invoice.gross },
     payments: await invoicePaymentList(invoice.id, q),
@@ -269,7 +270,7 @@ export async function dunningPreview(input: z.output<typeof dunningPreviewSchema
   const doc = await dunningDocument(db, form, today, { ...checked, letterhead }, false);
   // Statt des GiroCodes ein Platzhalter, damit niemand eine Vorschau bezahlt; Mahnungen sind deutsch
   const { draft: _noMark, ...sheet } = asDraft(dunningPdfData(doc), texts("de", "EUR"));
-  return renderPreview("mahnung", "mahnung.typ", sheet, letterhead, () => dunningSheetText(sheet));
+  return renderPreview("mahnung", "mahnung.typ", sheet, letterhead, () => dunningSheetText(sheet), design.layoutOptions);
 }
 
 /** Erstellt die Mahnung mit PDF; Beträge werden zum heutigen Stand berechnet */
@@ -304,4 +305,14 @@ export async function loadDunningPdf(id: string) {
     .where(eq(schema.dunnings.id, id));
   if (!row) return null;
   return { pdf: row.pdf, filename: `${DUNNING_LEVELS[row.level as DunningLevel].title.replace(/ /g, "-")}-${row.number}.pdf` };
+}
+
+/** Texte je Stufe: Kopftext des Standards der Stufe als Einleitung, sein Fußtext als Schluss (#1678), sonst die Vorgabe der Stufe */
+async function mahnTexte(): Promise<typeof DUNNING_TEXTS> {
+  const stufe = async (level: DunningLevel) => {
+    const standard = await standardTexte(mahnstufeStandard(level));
+    return { intro: standard.kopf || DUNNING_TEXTS[level].intro, closing: standard.fuss || DUNNING_TEXTS[level].closing };
+  };
+  const [eins, zwei, drei] = await Promise.all([stufe(1), stufe(2), stufe(3)]);
+  return { 1: eins, 2: zwei, 3: drei };
 }

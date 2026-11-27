@@ -3,8 +3,11 @@ import { readFileSync } from "node:fs";
 import { EnableBankingApiError, EnableBankingClient, enableBankingStatement, type Aspsp, type EnableBankingClientOptions } from "@haben/import";
 import { and, desc, eq, gt, inArray, isNotNull, max, ne } from "drizzle-orm";
 import { z } from "zod";
-import { accountForIban, BankError, storeStatement, type ImportResult } from "./bank.ts";
-import { recordRefusedBatch, storeBatch } from "./import-batch.ts";
+import { accountForIban } from "./accounts.ts";
+import { BankError } from "./bank-error.ts";
+import { storeStatement, type ImportResult } from "./statement-import.ts";
+import { storeBatch } from "./import-batch.ts";
+import { recordRefusedBatch } from "./import-konflikt.ts";
 import { fremdwaehrung, kontenUebernehmen, neuAngelegt } from "./konto-uebernahme.ts";
 import { kontokennung } from "./kontokennung.ts";
 import { lastOtherBooking } from "./andere-importe.ts";
@@ -331,7 +334,7 @@ export async function completeConnection(
 /**
  * „Umsätze abrufen ab“ eines Kontos nach dem Verbinden: Ein schon abgerufenes Konto behält seinen bisherigen Tag, sonst
  * ginge der Folgeabruf nach dem Erneuern der Zustimmung wieder davor zurück (siehe followUpStart). Der neu gewählte Tag
- * gilt nur für Konten, die noch nie abgerufen wurden.
+ * gilt für alle anderen Konten, auch für ein bei FinTS abgewähltes und wieder angehaktes.
  */
 export function accountFetchFrom(previous: BankConnectionAccount | undefined, chosen: string | null): { fetchFrom?: string } {
   if (previous?.syncedTo) return previous.fetchFrom ? { fetchFrom: previous.fetchFrom } : {};
@@ -489,7 +492,7 @@ export async function syncConnection(actor: string, connectionId: string, today 
       } catch (error) {
         // Ein Konflikt hält nur dieses Konto an; gespeichert ist von diesem Abruf nichts außer der Meldung im Importprotokoll
         if (!(error instanceof BankError)) throw error;
-        await withActor(actor, (tx) => recordRefusedBatch(tx, account.bankAccountId, input, error.message));
+        await withActor(actor, (tx) => recordRefusedBatch(tx, account.bankAccountId, input, error));
         konflikte.push(`${account.name}: ${error.message}`);
         accounts[i] = { ...account, identificationHash };
       }

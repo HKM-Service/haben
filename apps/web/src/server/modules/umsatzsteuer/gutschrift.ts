@@ -1,9 +1,9 @@
 import {
   abziehbareSteuer,
+  betrieblicherAnteil,
   gespeicherterAnteil,
   paidTaxShares,
   periodRange,
-  splitPrivateShare,
   type Cents,
   type TaxShare,
   type VatPeriod,
@@ -86,15 +86,10 @@ interface Vorgang {
 }
 
 /**
- * Anteile je Vorgang, der eine Gutschrift ausgleicht, mit dem Datum des Vorgangs. Zahlungen zählen mit dem
- * Buchungstag des Bankumsatzes, Verrechnungen mit dem Tag der Aufrechnung, Ausbuchungen mit ihrem Datum.
- *
- * Gelesen werden alle Vorgänge, nicht nur die im Zeitraum: Der Anteil eines Vorgangs ist
- * der geschäftliche Teil des Stands nach ihm abzüglich dessen, was die früheren schon erfasst haben, damit die Anteile
- * zusammen genau die Vorsteuer der Gutschrift ergeben. Ausgegeben werden nur die Vorgänge im Zeitraum.
+ * Alle Vorgänge auf Gutschriften (Zahlungen, Verrechnungen, Kursdifferenzen) in der Reihenfolge, in der Haben sie
+ * erfasst hat
  */
-export async function gutschriftAnteile(period: VatPeriod, q: Db | Tx = db): Promise<GutschriftAnteil[]> {
-  const { start, end } = periodRange(period);
+async function gutschriftVorgaenge(q: Db | Tx): Promise<Vorgang[]> {
   const zahlungen = await q
     .select({
       ...beleg,
@@ -140,7 +135,20 @@ export async function gutschriftAnteile(period: VatPeriod, q: Db | Tx = db): Pro
   // In der Reihenfolge, in der Haben die Vorgänge erfasst und die Umbuchung im Journal gerechnet hat
   // (vorsteuer-ausgleich.ts), nicht nach Datum: Ein nachgereichter älterer Auszug bekäme sonst einen anderen Cent als im
   // Journal. Innerhalb einer Transaktion (Zuordnung mit Kursdifferenz) bleibt die Reihenfolge der Abfragen.
-  const vorgaenge: Vorgang[] = [...zahlungen, ...verrechnungen, ...ausbuchungen].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  return [...zahlungen, ...verrechnungen, ...ausbuchungen].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+}
+
+/**
+ * Anteile je Vorgang, der eine Gutschrift ausgleicht, mit dem Datum des Vorgangs. Zahlungen zählen mit dem
+ * Buchungstag des Bankumsatzes, Verrechnungen mit dem Tag der Aufrechnung, Ausbuchungen mit ihrem Datum.
+ *
+ * Gelesen werden alle Vorgänge, nicht nur die im Zeitraum: Der Anteil eines Vorgangs ist
+ * der geschäftliche Teil des Stands nach ihm abzüglich dessen, was die früheren schon erfasst haben, damit die Anteile
+ * zusammen genau die Vorsteuer der Gutschrift ergeben. Ausgegeben werden nur die Vorgänge im Zeitraum.
+ */
+export async function gutschriftAnteile(period: VatPeriod, q: Db | Tx = db): Promise<GutschriftAnteil[]> {
+  const { start, end } = periodRange(period);
+  const vorgaenge = await gutschriftVorgaenge(q);
   if (vorgaenge.length === 0) return [];
   const rows = await q
     .select()
@@ -174,9 +182,9 @@ export async function gutschriftAnteile(period: VatPeriod, q: Db | Tx = db): Pro
         const recorded = bisher.filter((r) => r.rate === t.rate);
         return {
           rate: t.rate,
-          base: splitPrivateShare(t.base, v.privateShare).business - recorded.reduce((sum, r) => sum + r.base, 0),
+          base: betrieblicherAnteil(t.base, v.privateShare) - recorded.reduce((sum, r) => sum + r.base, 0),
           tax:
-            abziehbareSteuer(splitPrivateShare(t.tax, v.privateShare).business, gespeicherterAnteil(v, taxes.find((a) => a.rate === t.rate)?.vorsteuerAnteil)) -
+            abziehbareSteuer(betrieblicherAnteil(t.tax, v.privateShare), gespeicherterAnteil(v, taxes.find((a) => a.rate === t.rate)?.vorsteuerAnteil)) -
             recorded.reduce((sum, r) => sum + r.tax, 0),
         };
       });

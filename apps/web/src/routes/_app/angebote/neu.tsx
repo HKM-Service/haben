@@ -23,6 +23,7 @@ function NewQuotePage() {
       issues={[]}
       numberCounters={data.numberCounters}
       numberRunning={data.numberRunning}
+      numberPerCustomer={data.numberPerCustomer}
       numberFormat={data.numberFormat}
       corrects={null}
       bundesland={data.bundesland}
@@ -32,6 +33,8 @@ function NewQuotePage() {
       textBlocks={data.textBlocks}
       planTemplates={data.planTemplates}
       contactPersons={data.contactPersons}
+      bankverbindungen={data.bankverbindungen}
+      standardIban={data.standardIban}
     />
   );
 }

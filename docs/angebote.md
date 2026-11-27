@@ -15,23 +15,25 @@ Einleitung, Texte zu Positionen und Hinweis unterstützen [fett, kursiv und unte
 
 **Neues Angebot** öffnet den Editor:
 
-- Kunde und, wenn er Personen hat, ein [Ansprechpartner](kontakte.md#ansprechpartner) („z. Hd.“ im PDF und in Auftragsbestätigung und Lieferschein)
+- Kunde und, wenn er Personen hat, ein [Ansprechpartner](kontakte.md#ansprechpartner) („z. Hd.“ im PDF und in Auftragsbestätigung und Lieferschein; der einzige aktive ist gleich ausgewählt)
 - Angebotsdatum
 - **Gültig bis**, vorbelegt mit 30 Tagen
 - optional der geplante Leistungszeitraum
 - optional **Bestellnummer**, **Eigene Auftragsnummer** und **Lieferscheinnummer**; sie stehen im Kopfblock des PDFs und gehen in die Rechnung aus dem Angebot über ([wie bei der Rechnung](rechnungen.md#bestellnummer-auftrag-und-lieferschein))
 - Umsatzsteuer: dieselbe Auswahl und ausdrückliche Zuordnung wie bei der [Rechnung](rechnungen.md#umsatzsteuer-auf-der-rechnung), auch eine eigene §-4-Befreiung neben § 19 oder ein geklärter ausländischer Leistungsort. Die Rechnung übernimmt die gespeicherte Zuordnung.
 - Sprache, vorbelegt vom Kunden (siehe [Rechnungen auf Englisch](rechnungen.md#rechnungen-auf-englisch))
+- mit weiteren Zahlungskonten das **Zahlungskonto**, vorbelegt mit dem bevorzugten des Kunden; die Rechnung aus dem Angebot übernimmt es ([Zahlungskonto](rechnungen-zahlung.md#zahlungskonto))
 - Preise netto oder brutto inklusive Umsatzsteuer, wie bei der [Rechnung](rechnungen.md#nettopreise-oder-bruttopreise)
-- Einleitung über den Positionen, Positionen und ein Hinweis, beide auch aus [Textbausteinen](rechnungen.md#textbausteine); vorbelegt ist die Einleitung der [Standardmarke](einrichtung.md#markenprofile), bei leerer Einleitung oder ohne Standardmarke die Standard-Einleitung für Angebote aus den [Firmendaten](einrichtung.md#firmendaten)
+- Einleitung über den Positionen, Positionen und ein Hinweis, beide auch aus [Textbausteinen](rechnungen.md#textbausteine) und mit [Platzhaltern](rechnungen.md#platzhalter-in-einleitung-und-hinweis) wie `{nummer}` oder `{gueltig}`; Einleitung und Hinweis sind mit dem [Standard-Textbaustein](rechnungen.md#standard-je-belegart) für Angebote vorbelegt, wenn es einen gibt
 - zu jeder Position optional ein mehrzeiliger **Text zur Position** wie bei der [Rechnung](rechnungen.md#positionen); er steht im PDF unter der Bezeichnung und geht in die Rechnung aus dem Angebot über
+- auf Wunsch der Anteil der Arbeits-, Maschinen- und Fahrtkosten unter den Summen, je Position gekennzeichnet; optionale und alternative Positionen zählen nicht mit; die Auftragsbestätigung zeigt den Satz ebenso ([§ 35a EStG](rechnungen.md#arbeits--maschinen--und-fahrtkosten--35a-estg))
 - zu jeder Position optional die **Art.-Nr.**, aus dem Artikelkatalog übernommen; sie steht im PDF, in Auftragsbestätigung und Lieferschein und geht in die Rechnung aus dem Angebot über (in der E-Rechnung BT-155, siehe [Positionen](rechnungen.md#positionen))
 - **Positionsrabatt** und **Gesamtrabatt** in Prozent oder als Betrag wie bei der [Rechnung](rechnungen.md#rabatte); die Rechnung aus dem Angebot übernimmt beide
 - je Position die **Art**: zählt zur Summe, **optional** oder **Alternative** zur Position davor (Auswahl hinter der Bezeichnung, siehe unten)
 - optional ein **Zahlungsplan** (siehe unten)
 - optional **Anhänge**: weitere PDF-Dateien wie AGB oder eine Leistungsbeschreibung (siehe unten)
 
-**Vorschau** im Kopf zeigt das Angebot, von rechts über das Formular oder neben ihm angeheftet ([wie bei der Rechnung](rechnungen.md#vorschau)). Der Entwurf lässt sich beliebig speichern, ändern und löschen. **Entwurf als PDF** lädt ihn als PDF aus der Vorlage des festgeschriebenen Angebots, mit „ENTWURF“ über jeder Seite und statt der Nummer, ohne eine Nummer zu vergeben ([wie bei der Rechnung](rechnungen.md#entwurf-als-pdf)).
+**Vorschau** im Kopf zeigt das Angebot, von rechts über das Formular oder neben ihm angeheftet ([wie bei der Rechnung](rechnungen.md#vorschau)). Der Entwurf lässt sich beliebig speichern, ändern und löschen. **Kopieren** speichert, was noch nicht gespeichert ist, und legt daraus einen neuen Entwurf an, mit denselben Angaben wie beim Kopieren eines festgeschriebenen Angebots (unten); so lässt sich ein Entwurf als Vorlage für ähnliche Angebote aufheben, dann erst kopieren und in der Kopie ändern. **Entwurf als PDF** lädt ihn als PDF aus der Vorlage des festgeschriebenen Angebots, mit „ENTWURF“ über jeder Seite und statt der Nummer, ohne eine Nummer zu vergeben ([wie bei der Rechnung](rechnungen.md#entwurf-als-pdf)).
 
 ### Optionale und alternative Positionen
 
@@ -81,7 +83,7 @@ Mit dem Festschreiben sind die Anhänge zusammen mit dem Angebot gesperrt: Die D
 
 Gebucht wird nichts: Ein Angebot ist kein Geschäftsvorfall.
 
-Ein festgeschriebenes Angebot ändert sich nicht mehr, so wie eine Rechnung. Für eine geänderte Fassung legt **Kopieren** einen neuen Entwurf an, mit Kunde, Einleitung, Positionen (samt Art und Rabatt), Hinweis, Bestell-, Auftrags- und Lieferscheinnummer, Umsatzsteuer, Preismodus, Sprache, Gesamtrabatt, Zahlungsplan und [Anhängen](#anhänge); im neuen Entwurf lassen sich die Anhänge wieder ändern. Datum und Gültigkeit sind dabei neu, die Dauer der Gültigkeit bleibt gleich; der Leistungszeitraum bleibt leer.
+Ein festgeschriebenes Angebot ändert sich nicht mehr, so wie eine Rechnung. Für eine geänderte Fassung legt **Kopieren** einen neuen Entwurf an, mit Kunde, Ansprechpartner (solange aktiv), Einleitung, Positionen (samt Art, Text, Artikelnummer, Rabatt und Kennzeichen für § 35a EStG), Hinweis, Bestell-, Auftrags- und Lieferscheinnummer, Umsatzsteuer, Preismodus, Sprache, Gesamtrabatt, Zahlungsplan und [Anhängen](#anhänge); im neuen Entwurf lassen sich die Anhänge wieder ändern. Datum und Gültigkeit sind dabei neu, die Dauer der Gültigkeit bleibt gleich; der Leistungszeitraum bleibt leer.
 
 ## Per E-Mail senden
 
@@ -107,7 +109,7 @@ Auf der Seite des Angebots hältst du die Antwort des Kunden fest:
 | Abgelehnt | als abgelehnt markiert | – |
 | Abgerechnet | aus dem Angebot ist eine Rechnung entstanden | Nummer der Rechnung, sobald sie festgeschrieben ist |
 
-**Rechnung erstellen** legt einen Rechnungsentwurf an und markiert das Angebot als angenommen. Der Entwurf übernimmt:
+Bei eingeschaltetem **Rechnungen schreiben** unter [Einstellungen › Bereiche](einrichtung.md#bereiche-ausblenden) kannst du Angebote abrechnen. **Rechnung erstellen** legt einen Rechnungsentwurf an und markiert das Angebot als angenommen. Der Entwurf übernimmt:
 
 - Kunde, Einleitung, Positionen mit ihrem Text, Leistungszeitraum und Umsatzsteuer aus dem Angebot,
 - Bestell- und Lieferscheinnummer aus dem Angebot, als eigene Auftragsnummer (in der E-Rechnung BT-14) die des Angebots, sonst die Angebotsnummer,
@@ -120,11 +122,13 @@ Vor dem Festschreiben passt du den Entwurf an, etwa die tatsächlich geleisteten
 
 Jedes Angebot lässt sich nur einmal abrechnen. Löschst du den Rechnungsentwurf, kannst du das Angebot wieder abrechnen. Ein abgelehntes Angebot rechnet Haben nicht ab; mit **Antwort zurücknehmen** setzt du es wieder auf offen.
 
+Eine Auftragsverwaltung oder ein eigenes Skript liest Angebote samt Antwort des Kunden und Rechnung über die [REST-API](api.md#angebote), angemeldet mit einem API-Token, das das Recht „Angebote und Entwürfe lesen“ (`angebote:lesen`) hat. Mit dem Recht „Angebote lesen, Entwürfe anlegen, ändern und löschen“ (`angebote:entwuerfe`) legt sie auch [Entwürfe](api.md#angebotsentwürfe) an; festgeschrieben und versendet wird in Haben.
+
 ### In Abschlägen abrechnen
 
 Bei größeren Aufträgen rechnest du das Angebot in Teilen ab (siehe [Abschlags- und Schlussrechnung](rechnungen.md#abschlags--und-schlussrechnung)):
 
-- **Mit Zahlungsplan** steht auf dem Angebot die Übersicht **Zahlungsplan**: je Zahlung Plan (netto und brutto), die Rechnung dazu mit Link und Betrag und der Status **Offen**, **Entwurf**, **Festgeschrieben** oder **Bezahlt**. **Abschlagsrechnung erstellen** legt zu einer Zahlung den Entwurf an, mit Kunde, Preismodus und Umsatzsteuer aus dem Angebot und je Steuersatz einer Position wie „2. Abschlag 40 % gemäß Angebot AN-2026-004 vom 01.10.2026“, den Betrag anteilig aus dem Auftrag nach der Auswahl des Kunden. Den Betrag kannst du im Entwurf noch ändern; die Übersicht zeigt dann Plan und Ist. Je Zahlung gibt es eine Abschlagsrechnung; nach ihrem Storno oder dem Löschen des Entwurfs wieder eine neue. Beim Rest steht **Schlussrechnung erstellen**. Darunter der Fortschritt: „Abgerechnet 7.000,00 € von 10.000,00 € (70 %), offen 3.000,00 €“, gerechnet aus den festgeschriebenen, nicht stornierten Rechnungen zum Angebot.
+- **Mit Zahlungsplan** steht auf dem Angebot die Übersicht **Zahlungsplan**: je Zahlung Plan (netto und brutto), die Rechnung dazu mit Link und Betrag und der Status **Offen**, **Entwurf**, **Festgeschrieben** oder **Bezahlt**. **Abschlagsrechnung erstellen** legt zu einer Zahlung den Entwurf an, mit Kunde, Preismodus und Umsatzsteuer aus dem Angebot und je Steuersatz einer Position wie „2. Abschlag 40 % gemäß Angebot AN-2026-004 vom 01.10.2026“, den Betrag anteilig aus dem Auftrag nach der Auswahl des Kunden; mit gekennzeichneten Positionen je Steuersatz bis zu zwei, für Arbeits-, Maschinen- und Fahrtkosten und für Material ([§ 35a EStG](rechnungen.md#arbeits--maschinen--und-fahrtkosten--35a-estg)). Den Betrag kannst du im Entwurf noch ändern; die Übersicht zeigt dann Plan und Ist. Je Zahlung gibt es eine Abschlagsrechnung; nach ihrem Storno oder dem Löschen des Entwurfs wieder eine neue. Beim Rest steht **Schlussrechnung erstellen**. Darunter der Fortschritt: „Abgerechnet 7.000,00 € von 10.000,00 € (70 %), offen 3.000,00 €“, gerechnet aus den festgeschriebenen, nicht stornierten Rechnungen zum Angebot.
 - **Ohne Zahlungsplan** legt **Abschlagsrechnung erstellen** einen Entwurf mit Rechnungsart „Abschlagsrechnung“ an, mit Kunde, Umsatzsteuer und Preismodus aus dem Angebot und einer Position „Abschlag gemäß Angebot AN-2026-004 vom …“. Den Betrag trägst du selbst ein, z. B. 30 % der Angebotssumme. Das Angebot gilt als angenommen, bleibt aber offen für weitere Abschläge.
 - **Schlussrechnung erstellen** erscheint, sobald ein Abschlag festgeschrieben ist. Der Entwurf übernimmt alle Positionen des Angebots und zieht die festgeschriebenen Abschläge **dieses** Angebots ab, nicht die anderer Aufträge desselben Kunden. Erst die Schlussrechnung rechnet das Angebot ab.
 - Unter **Rechnungen zu diesem Angebot** stehen alle Abschläge, die Schlussrechnung bzw. die Rechnung aus dem Angebot mit Datum, Betrag und Status, darunter wie viel schon in Abschlägen abgerechnet ist.
@@ -134,9 +138,9 @@ Bei größeren Aufträgen rechnest du das Angebot in Teilen ab (siehe [Abschlags
 Bei einem angenommenen Angebot stehen unter **Antwort des Kunden** zwei weitere PDFs:
 
 - **Auftragsbestätigung:** dieselben Positionen, Preise und Rabatte wie im Angebot, nach der Auswahl des Kunden bei optionalen und alternativen Positionen, datiert auf den Tag der Annahme, mit Bezug auf das Angebot, Bestell-, Auftrags- und Lieferscheinnummer und der Auftragssumme; auf Wunsch mit dem Zahlungsplan, gerechnet auf die Auftragssumme.
-- **Lieferschein:** die gewählten Positionen mit Menge und Text zur Position, ohne Preise, mit Bestell- und Auftragsnummer, mit einem Feld für die Empfangsbestätigung des Kunden. Als Lieferdatum gilt das Ende des Leistungszeitraums, sonst der Tag der Annahme.
+- **Lieferschein:** die gewählten Positionen mit Menge und Text zur Position, ohne Preise, mit Bestell- und Auftragsnummer, mit einem Feld für die Empfangsbestätigung des Kunden. Der Kopf nennt den **Leistungszeitraum**, wenn die Leistung über mehrere Tage geht, sonst als Lieferdatum den Tag der Leistung. Ohne Leistungsdatum gilt der Tag der Annahme, bei einer Rechnung der Rechnungstag.
 
-Beide entstehen bei jedem Abruf neu aus dem festgeschriebenen Angebot und buchen nichts. Positionen und Beträge bleiben gleich, solange die Antwort „angenommen“ bleibt; die Sprache folgt dem Angebot. Gestaltung, Layout und die Pflichtangaben aus den Firmendaten kommen dagegen aus dem aktuellen Stand der Einstellungen, ändern sie sich, sieht auch ein erneut abgerufenes PDF anders aus (siehe [Pflichtangaben einer GmbH oder UG](rechnungen.md#pflichtangaben-einer-gmbh-oder-ug)). Einen Lieferschein gibt es auch zu jeder festgeschriebenen Rechnung, nicht zu Storno und Korrektur (Schaltfläche **Lieferschein** auf der Rechnung).
+Beide entstehen bei jedem Abruf neu aus dem festgeschriebenen Angebot und buchen nichts. Positionen und Beträge bleiben gleich, solange die Antwort „angenommen“ bleibt; die Sprache folgt dem Angebot. Gestaltung, Layout, Name und Anschrift der Firma, ihre Pflichtangaben und Name und Anschrift des Kunden kommen dagegen aus dem aktuellen Stand der Einstellungen und des Kontakts, ändern sie sich, sieht auch ein erneut abgerufenes PDF anders aus (siehe [Pflichtangaben einer GmbH oder UG](rechnungen.md#pflichtangaben-einer-gmbh-oder-ug)); Bankverbindung, Steuernummer und Kundennummer bleiben wie im Angebot. Einen Lieferschein gibt es auch zu jeder festgeschriebenen Rechnung, nicht zu Storno und Korrektur (Schaltfläche **Lieferschein** auf der Rechnung). Hat das Angebot keine Einleitung oder keinen Hinweis, nimmt die Auftragsbestätigung dafür den aktuellen [Standard-Textbaustein](rechnungen.md#standard-je-belegart), der Lieferschein seinen Hinweis immer daraus, wenn es einen gibt; ändert er sich, steht auch in einem erneut abgerufenen PDF der neue Text.
 
 ## Aufbewahrung
 

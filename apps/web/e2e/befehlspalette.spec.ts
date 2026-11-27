@@ -12,10 +12,7 @@ test.use({ storageState: SESSION });
 test("Knopf in der Navigation und Strg+K öffnen die Befehlspalette und navigieren zu Seiten", async ({ page }) => {
   await page.goto("/", { waitUntil: "networkidle" });
 
-  await page
-    .getByRole("navigation", { name: "Hauptnavigation" })
-    .getByRole("button", { name: /Schnellsuche/ })
-    .click();
+  await page.getByRole("navigation", { name: "Hauptnavigation" }).getByRole("button", { name: "Suche", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Befehlspalette" });
   await expect(dialog).toBeVisible();
 
@@ -23,12 +20,34 @@ test("Knopf in der Navigation und Strg+K öffnen die Befehlspalette und navigier
   await expect(input).toBeFocused();
   await input.fill("Dauerbe");
   await expect(dialog.getByRole("option", { name: /Dauerbelege/ })).toBeVisible();
+  // Unter der Seite stehen ihre Gruppe und deren Satz (#1253)
+  await expect(dialog.getByRole("option", { name: /Dauerbelege/ })).toContainText("Ausgaben: Was du ausgibst, belegst und überweist");
   await page.keyboard.press("Enter");
 
   await expect(dialog).toBeHidden();
   await page.waitForURL(/\/dauerbelege$/);
   await expect(page.getByRole("heading", { level: 1, name: "Dauerbelege" })).toBeVisible();
 });
+
+// #1386: Mit dem zweiten Kürzel `/` war der Inhalt des Suchknopfs breiter als der Knopf, das letzte Kürzel ragte über den Rand
+for (const modus of ["hell", "dunkel"] as const) {
+  test(`Suchknopf in der Navigation: alle Kürzel liegen im Feld (${modus})`, async ({ page }) => {
+    // Die App folgt dem Gerät nur im Modus „system“; „dunkel“ muss also gesetzt werden, emulateMedia allein genügt nicht
+    await page.addInitScript((m) => localStorage.setItem("haben-modus", m), modus);
+    await page.goto("/", { waitUntil: "networkidle" });
+    await expect(page.locator("html")).toHaveAttribute("data-mode", modus === "hell" ? "light" : "dark");
+    const knopf = page.getByRole("navigation", { name: "Hauptnavigation" }).getByRole("button", { name: "Suche", exact: true });
+    await expect(knopf).toBeVisible();
+    const gemessen = await knopf.evaluate((el) => {
+      // Rechter Rand des Inhalts: der Knopf ohne seinen Innenabstand
+      const rand = el.getBoundingClientRect().right - Number.parseFloat(getComputedStyle(el).paddingRight);
+      const kuerzel = [...el.querySelectorAll("kbd")].map((k) => k.getBoundingClientRect().right);
+      return { anzahl: kuerzel.length, ragtHinaus: kuerzel.some((rechts) => rechts > rand + 0.5), abgeschnitten: el.scrollWidth > el.clientWidth };
+    });
+    expect(gemessen.anzahl).toBeGreaterThan(2);
+    expect(gemessen).toMatchObject({ ragtHinaus: false, abgeschnitten: false });
+  });
+}
 
 test("findet eine Rechnung über ihre Nummer und öffnet „Alle in Rechnungen anzeigen“ mit Suchfilter", async ({ page }) => {
   await page.goto("/rechnungen", { waitUntil: "networkidle" });
@@ -83,7 +102,7 @@ test("Schnellsuche ist am Handy neben dem geschlossenen Menü erreichbar", async
   await page.goto("/", { waitUntil: "networkidle" });
   const menu = page.getByRole("button", { name: "Menü" });
   await expect(menu).toHaveAttribute("aria-expanded", "false");
-  const search = page.getByRole("button", { name: "Schnellsuche" });
+  const search = page.getByRole("button", { name: "Suche", exact: true });
   const searchBox = await search.boundingBox();
   const menuBox = await menu.boundingBox();
   expect(searchBox!.x + searchBox!.width).toBeLessThan(menuBox!.x);
@@ -111,12 +130,12 @@ test("/ öffnet die Schnellsuche, außer der Fokus steht in einem Eingabefeld", 
   await expect(dialog).toBeHidden();
 });
 
-// Der Knopf in der ausgeklappten Navigation ist 200 Pixel breit: Lupe, „Schnellsuche“ und das Hauptkürzel passen hinein,
+// Der Knopf in der ausgeklappten Navigation ist 200 Pixel breit: Lupe, „Suche“ und das Hauptkürzel passen hinein,
 // ein zweites Kürzel daneben ragte über den Rand. „/“ steht deshalb nicht sichtbar im Knopf, öffnet die Suche aber weiter
 test("Im Knopf der Navigation ragt nichts über den Rand, sichtbar ist nur das Hauptkürzel", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/", { waitUntil: "networkidle" });
-  const knopf = page.getByRole("navigation", { name: "Hauptnavigation" }).getByRole("button", { name: /Schnellsuche/ });
+  const knopf = page.getByRole("navigation", { name: "Hauptnavigation" }).getByRole("button", { name: "Suche", exact: true });
   await expect(knopf).toBeVisible();
   const gemessen = await knopf.evaluate((el) => {
     const rand = el.getBoundingClientRect();

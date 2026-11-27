@@ -2021,8 +2021,358 @@
     {
       "idx": 288,
       "version": "7",
-      "when": 1795607125922,
-      "tag": "0288_markenprofile",
+      "when": 1795002778948,
+      "tag": "0288_aufladung",
+      "breakpoints": true
+    },
+    {
+      "idx": 289,
+      "version": "7",
+      "when": 1795011188607,
+      "tag": "0289_ustid_bestaetigungen",
+      "breakpoints": true
+    },
+    {
+      "idx": 290,
+      "version": "7",
+      "when": 1795011190125,
+      "tag": "0290_ustid_bestaetigungen_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 291,
+      "version": "7",
+      "when": 1795017185682,
+      "tag": "0291_importvertrag_konflikte",
+      "breakpoints": true
+    },
+    {
+      "idx": 292,
+      "version": "7",
+      "when": 1795017190700,
+      "tag": "0292_importvertrag_konflikte_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 293,
+      "version": "7",
+      "when": 1795023802154,
+      "tag": "0293_appstore_fiskalperiode",
+      "breakpoints": true
+    },
+    {
+      "idx": 294,
+      "version": "7",
+      "when": 1795031057816,
+      "tag": "0294_rueckgewaehr_kennzeichen",
+      "breakpoints": true
+    },
+    {
+      "idx": 295,
+      "version": "7",
+      "when": 1795031061130,
+      "tag": "0295_rueckgewaehr_kennzeichen_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 296,
+      "version": "7",
+      "when": 1795036081041,
+      "tag": "0296_inbox_nach_abruf",
+      "breakpoints": true
+    },
+    {
+      "idx": 297,
+      "version": "7",
+      "when": 1795036084015,
+      "tag": "0297_inbox_nach_abruf_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 298,
+      "version": "7",
+      "when": 1795074017903,
+      "tag": "0298_bank_dubletten",
+      "breakpoints": true
+    },
+    {
+      "idx": 299,
+      "version": "7",
+      "when": 1795074021287,
+      "tag": "0299_bank_dubletten_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1795085347613,
+      "tag": "0300_importvertrag_referenzen",
+      "breakpoints": true
+    },
+    {
+      "idx": 301,
+      "version": "7",
+      "when": 1795096206845,
+      "tag": "0301_fastbill_vorlagen",
+      "breakpoints": true
+    },
+    {
+      "idx": 302,
+      "version": "7",
+      "when": 1795096207968,
+      "tag": "0302_fastbill_vorlagen_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1795114370068,
+      "tag": "0303_nummernkreis_kunde",
+      "breakpoints": true
+    },
+    {
+      "idx": 304,
+      "version": "7",
+      "when": 1795114391267,
+      "tag": "0304_nummernkreis_kunde_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 305,
+      "version": "7",
+      "when": 1795126612893,
+      "tag": "0305_paypal_zugang",
+      "breakpoints": true
+    },
+    {
+      "idx": 306,
+      "version": "7",
+      "when": 1795126616239,
+      "tag": "0306_paypal_zugang_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 307,
+      "version": "7",
+      "when": 1795128803610,
+      "tag": "0307_stripe_zugang",
+      "breakpoints": true
+    },
+    {
+      "idx": 308,
+      "version": "7",
+      "when": 1795128807249,
+      "tag": "0308_stripe_zugang_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 309,
+      "version": "7",
+      "when": 1795159583896,
+      "tag": "0309_platzhalter_vorlage",
+      "breakpoints": true
+    },
+    {
+      "idx": 310,
+      "version": "7",
+      "when": 1795167811463,
+      "tag": "0310_siegel_unabgedeckte_spalten",
+      "breakpoints": true
+    },
+    {
+      "idx": 311,
+      "version": "7",
+      "when": 1795214813782,
+      "tag": "0311_siegel_aus_dem_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 312,
+      "version": "7",
+      "when": 1795274706578,
+      "tag": "0312_eingebaute_layouts_bestand",
+      "breakpoints": true
+    },
+    {
+      "idx": 313,
+      "version": "7",
+      "when": 1795324304682,
+      "tag": "0313_standard_textbaustein",
+      "breakpoints": true
+    },
+    {
+      "idx": 314,
+      "version": "7",
+      "when": 1795358642986,
+      "tag": "0314_arbeitskosten",
+      "breakpoints": true
+    },
+    {
+      "idx": 315,
+      "version": "7",
+      "when": 1795362504548,
+      "tag": "0315_wiederkehrend_wochen",
+      "breakpoints": true
+    },
+    {
+      "idx": 316,
+      "version": "7",
+      "when": 1795363246324,
+      "tag": "0316_dauerbelege_dauer",
+      "breakpoints": true
+    },
+    {
+      "idx": 317,
+      "version": "7",
+      "when": 1795425896463,
+      "tag": "0317_standard_je_mahnstufe",
+      "breakpoints": true
+    },
+    {
+      "idx": 318,
+      "version": "7",
+      "when": 1795431837210,
+      "tag": "0318_siegel_standardwert_befund",
+      "breakpoints": true
+    },
+    {
+      "idx": 319,
+      "version": "7",
+      "when": 1795439734056,
+      "tag": "0319_voranmeldung_kz50",
+      "breakpoints": true
+    },
+    {
+      "idx": 320,
+      "version": "7",
+      "when": 1795505537754,
+      "tag": "0320_steuerfrei_nach_leistung",
+      "breakpoints": true
+    },
+    {
+      "idx": 321,
+      "version": "7",
+      "when": 1795505539555,
+      "tag": "0321_steuerfrei_nach_leistung_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 322,
+      "version": "7",
+      "when": 1795543455771,
+      "tag": "0322_add_amazon_marktplatz",
+      "breakpoints": true
+    },
+    {
+      "idx": 323,
+      "version": "7",
+      "when": 1795544923442,
+      "tag": "0323_rechnungsaustausch",
+      "breakpoints": true
+    },
+    {
+      "idx": 324,
+      "version": "7",
+      "when": 1795546922547,
+      "tag": "0324_postfach_erledigt",
+      "breakpoints": true
+    },
+    {
+      "idx": 325,
+      "version": "7",
+      "when": 1795546927144,
+      "tag": "0325_postfach_erledigt_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 326,
+      "version": "7",
+      "when": 1795547499310,
+      "tag": "0326_bank_wiederzuordnung",
+      "breakpoints": true
+    },
+    {
+      "idx": 327,
+      "version": "7",
+      "when": 1795642566276,
+      "tag": "0327_kleinunternehmer_zuordnung",
+      "breakpoints": true
+    },
+    {
+      "idx": 328,
+      "version": "7",
+      "when": 1795692060163,
+      "tag": "0328_angebotsreferenz",
+      "breakpoints": true
+    },
+    {
+      "idx": 329,
+      "version": "7",
+      "when": 1795695952125,
+      "tag": "0329_curly_alex_wilder",
+      "breakpoints": true
+    },
+    {
+      "idx": 330,
+      "version": "7",
+      "when": 1795695970088,
+      "tag": "0330_sonder_afa_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 331,
+      "version": "7",
+      "when": 1795700791787,
+      "tag": "0331_psp_verbindungen",
+      "breakpoints": true
+    },
+    {
+      "idx": 332,
+      "version": "7",
+      "when": 1795700801910,
+      "tag": "0332_psp_verbindungen_umzug",
+      "breakpoints": true
+    },
+    {
+      "idx": 333,
+      "version": "7",
+      "when": 1795700807464,
+      "tag": "0333_psp_verbindungen_alte_tabellen",
+      "breakpoints": true
+    },
+    {
+      "idx": 334,
+      "version": "7",
+      "when": 1795730920584,
+      "tag": "0334_ki_warteschlange",
+      "breakpoints": true
+    },
+    {
+      "idx": 335,
+      "version": "7",
+      "when": 1795771874553,
+      "tag": "0335_bankverbindungen",
+      "breakpoints": true
+    },
+    {
+      "idx": 336,
+      "version": "7",
+      "when": 1795771882747,
+      "tag": "0336_bankverbindungen_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 337,
+      "version": "7",
+      "when": 1795773643421,
+      "tag": "0337_dauerbeleg_kleinbetrag",
+      "breakpoints": true
+    },
+    {
+      "idx": 338,
+      "version": "7",
+      "when": 1795790277045,
+      "tag": "0338_markenprofile",
       "breakpoints": true
     }
   ]

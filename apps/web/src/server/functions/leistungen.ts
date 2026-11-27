@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "../middleware.ts";
 import { today } from "../today.ts";
+import { detailId } from "./schemas.ts";
 import {
   billingSchema,
   billServiceEntries,
@@ -11,6 +12,7 @@ import {
   listServiceEntries,
   previewBilling,
   serviceEntrySchema,
+  serviceSummaryOfContact,
   updateServiceEntry,
 } from "../modules/leistungen/index.ts";
 
@@ -20,6 +22,8 @@ const filterSchema = z.object({
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
   status: z.enum(["offen", "abgerechnet", "nicht-abrechenbar"]).optional(),
+  project: z.string().trim().max(200).optional(),
+  description: z.string().trim().max(200).optional(),
 });
 
 export const getServiceEntries = createServerFn({ method: "GET" })
@@ -29,6 +33,12 @@ export const getServiceEntries = createServerFn({ method: "GET" })
     entries: await listServiceEntries(data),
     customers: await listEntryCustomers(),
   }));
+
+/** Kontaktseite (#1557): Zahl der Einträge und offene, abrechenbare Zeit des Kunden; eine kaputte Adresse gibt 404 wie die übrigen Loader */
+export const getContactServiceSummary = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator(detailId)
+  .handler(({ data }) => serviceSummaryOfContact(data));
 
 export const saveServiceEntry = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -49,13 +59,13 @@ export const removeServiceEntry = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** Was Abrechnen für Kunde und Zeitraum anlegen würde */
-export const getBillingPreview = createServerFn({ method: "GET" })
+/** Was Abrechnen für die gewählten Einträge anlegen würde; POST, weil viele Kennungen nicht in die Adresse passen */
+export const getBillingPreview = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(billingSchema)
   .handler(async ({ data }) => previewBilling(data));
 
-/** Legt aus den offenen Einträgen einen Rechnungsentwurf an (Datum: heute, deutsche Zeit) */
+/** Legt aus den gewählten offenen Einträgen einen Rechnungsentwurf an (Datum: heute, deutsche Zeit) */
 export const billEntries = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(billingSchema)

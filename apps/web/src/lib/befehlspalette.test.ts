@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildPageSection, buildRemoteSections, statusMessage } from "./befehlspalette.ts";
-import { sichtbareNavSeiten } from "./navigation.ts";
+import { NAV_GROUPS, sichtbareNavSeiten } from "./navigation.ts";
 import { SETTINGS_AREAS } from "./settings-areas.ts";
 
 describe("Befehlspalette-Ergebnisse (#617)", () => {
@@ -100,6 +100,14 @@ describe("Befehlspalette-Ergebnisse (#617)", () => {
     expect(buildPageSection(seiten, "zzzz-nicht-vorhanden")).toBeNull();
   });
 
+  it("nennt unter einer Seite ihre Gruppe mit dem Satz der Gruppe (#1253), unter der Übersicht nichts", () => {
+    const bank = buildPageSection(seiten, "Bank")?.items.find((item) => item.title === "Bank");
+    const geld = NAV_GROUPS.find((gruppe) => gruppe.label === "Geld");
+    expect(geld?.hinweis).toBeTruthy();
+    expect(bank?.meta).toBe(`Geld: ${geld?.hinweis}`);
+    expect(buildPageSection(seiten, "")?.items[0]?.meta).toBe("");
+  });
+
   // Fachwörter stehen in `keywords`, nicht im Untertext; wer sie eintippt, muss den Bereich weiter finden (#1253)
   it.each([
     ["ust", "waehrung"],
@@ -112,7 +120,11 @@ describe("Befehlspalette-Ergebnisse (#617)", () => {
     ["datev", "export"],
     ["ablage", "export"],
     ["backup", "export"],
+    ["instanz", "export"],
     ["zertifikat", "elster"],
+    ["handelsregister", "firma"],
+    ["privatanteile", "firma"],
+    ["basiszinssatz", "firma"],
   ])("findet bei „%s“ den Einstellungsbereich %s", (suche, bereich) => {
     const bereiche = seiten.filter((s) => s.settingsArea);
     expect(buildPageSection(bereiche, suche)?.items.map((item) => item.id) ?? []).toContain(`page-einstellungen-${bereich}`);
@@ -218,11 +230,22 @@ describe("Befehlspalette-Ergebnisse (#617)", () => {
         vatReturns: { hits: [vat], more: false },
         zmSubmissions: { hits: [{ id: "z1", year: 2026, month: 41, kind: "send", ok: false, code: 610001, createdAt: new Date("2026-04-10") }], more: false },
         recurringInvoices: {
-          hits: [{ id: "r1", name: "Wartung", customer: "Kunde", intervalMonths: 1, nextDate: "2026-12-01", active: false, lastError: "kaputt" }],
+          hits: [
+            {
+              id: "r1",
+              name: "Wartung",
+              customer: "Kunde",
+              recurrence: "P1M",
+              nextDate: "2026-12-01",
+              active: false,
+              lastError: "kaputt",
+            },
+            { id: "r2", name: "Support", customer: "Kunde", recurrence: "P2W", nextDate: "2026-12-07", active: true, lastError: null },
+          ],
           more: false,
         },
         recurringDocuments: {
-          hits: [{ id: "d1", name: "Miete", supplierName: "Vermieter", intervalMonths: 1, nextDate: "2026-12-01", status: "pausiert", lastError: null }],
+          hits: [{ id: "d1", name: "Miete", supplierName: "Vermieter", recurrence: "P1M", nextDate: "2026-12-01", status: "pausiert", lastError: null }],
           more: false,
         },
         pauschalen: { hits: [{ id: "p1", art: "fahrt", date: "2026-09-15", description: "Termin", amount: 3600, storniert: true }], more: false },
@@ -233,8 +256,20 @@ describe("Befehlspalette-Ergebnisse (#617)", () => {
     expect(status("vat-v1")).toMatchObject({ status: { kind: "vat", vat }, params: { zeitraum: "2026-Q1" } });
     expect(status("zm-z1")).toMatchObject({ status: { kind: "zm", ok: false, code: 610001 }, params: { quartal: "2026-Q1" } });
     expect(status("rec-inv-r1")).toMatchObject({ status: { kind: "recurringInvoice", active: false, lastError: "kaputt" } });
+    expect(status("rec-inv-r1")?.meta).toBe("Kunde · monatlich · nächster Termin 01.12.2026");
+    expect(status("rec-inv-r2")?.meta).toBe("Kunde · alle 2 Wochen · nächster Termin 07.12.2026");
     expect(status("rec-doc-d1")).toMatchObject({ status: { kind: "recurringDocument", status: "pausiert", lastError: null } });
     expect(status("pauschale-p1")).toMatchObject({ status: { kind: "pauschale", storniert: true } });
+  });
+
+  it("nennt Zeiteinträge in der Gruppe der Artikel und Textbausteine beim Namen der Seite", () => {
+    const eintrag = { id: "s1", workedOn: "2026-10-05", minutes: 90, description: "Konzept", project: "", customer: "Bergblick Software GmbH" };
+    const sections = buildRemoteSections({ ...sampleResult, serviceEntries: { hits: [eintrag], more: false } }, true);
+    const katalog = sections.find((s) => s.id === "katalog");
+    expect(katalog?.label).toBe("Artikel, Textbausteine & Zeiteinträge");
+    expect(katalog?.items[0]).toMatchObject({ title: "Konzept", icon: "clock", to: "/leistungen" });
+    const ohneText = buildRemoteSections({ ...sampleResult, serviceEntries: { hits: [{ ...eintrag, description: "" }], more: false } }, true);
+    expect(ohneText.find((s) => s.id === "katalog")?.items[0]).toMatchObject({ title: "Zeiteintrag" });
   });
 
   it("formuliert die Statusmeldung für Screenreader im Singular und Plural", () => {

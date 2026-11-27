@@ -1,141 +1,122 @@
 import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { defaultFetchFrom, fetchFromForConnect } from "../lib/bank-connect.ts";
-import { errorMessage, formatDate, formatDateTime } from "../lib/format.ts";
+import { errorMessage, formatDate } from "../lib/format.ts";
 import { useSubmitCheck } from "../lib/use-submit-check.ts";
 import type { getBankOverview } from "../server/functions/bank.ts";
-import { cancelFints, connectFints, continueFints, disconnectFints, syncFints } from "../server/functions/fints.ts";
+import { connectFints, disconnectFints, syncFints } from "../server/functions/fints.ts";
 import { today as todayInGermany } from "../server/today.ts";
-import { FintsStatus } from "./BankStatus.tsx";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { Field } from "./Field.tsx";
+import { type Offen, type Schritt, SchrittForm, useAntwort } from "./FintsSchritt.tsx";
 
 /*
  * Kontoabruf über FinTS (#654) auf der Bankseite: Verbinden mit Bankleitzahl, FinTS-Adresse, Anmeldename und PIN,
- * dann die Schritte der Bank (TAN-Verfahren wählen, TAN eingeben oder in der App freigeben), die Verbindungen mit
- * „Jetzt abrufen“, „Zugang ändern“ und „Trennen“.
+ * dann die Schritte aus FintsSchritt.tsx, die Verbindungen mit „Jetzt abrufen“, „Zugang ändern“ und „Trennen“.
  */
 
 type Fints = Awaited<ReturnType<typeof getBankOverview>>["fints"];
 type Verbindung = Fints["connections"][number];
-type Schritt = Awaited<ReturnType<typeof continueFints>>;
-type Offen = Exclude<Schritt, { art: "fertig" }>;
 type Meldung = { tone: "ok" | "danger" | "info"; text: string };
+/** Offener Schritt der Bank beim Verbinden („neu“) oder an der Zeile einer Verbindung (ihre ID); die Bankseite führt ihn */
+export type FintsOffen = { fuer: string; schritt: Offen } | null;
 
-export const FINTS_ANLEITUNG = "https://github.com/firsttris/haben/blob/main/docs/installation-anbindungen.md#kontoabruf-über-fints";
+/**
+ * Was die Bankseite für FinTS führt, damit der Dialog „Wie verbinden?“ es kennt (#1951): Formular „Über FinTS verbinden“ offen
+ * (verbinden) samt Vorlage von „Zugang ändern“, offener Schritt der Bank und die Zeile mit laufender Anfrage (busy: ihre ID
+ * beim Abruf, `x-<ID>` beim Trennen). Zugeklappt und mit neuVerbinden („Bank hinzufügen › FinTS“) gilt keine Vorlage mehr
+ */
+export function useFintsZustand() {
+  const [verbinden, setFormular] = useState(false);
+  const [vorlage, setVorlage] = useState<Verbindung | null>(null);
+  const [offen, setOffen] = useState<FintsOffen>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const setVerbinden = (v: boolean) => {
+    if (!v) setVorlage(null);
+    setFormular(v);
+  };
+  const neuVerbinden = () => {
+    setVorlage(null);
+    setFormular(true);
+  };
+  return { verbinden, setVerbinden, vorlage, setVorlage, neuVerbinden, offen, setOffen, busy, setBusy };
+}
+export type FintsZustand = ReturnType<typeof useFintsZustand>;
+
+export const FINTS_ANLEITUNG = "https://github.com/Speicherstadt/haben/blob/main/docs/installation-anbindungen.md#kontoabruf-über-fints";
 
 /** Name mit den letzten vier Ziffern der IBAN; neue Konten tragen sie schon im Namen („Testbank Girokonto …2051“) */
 const kontoName = (a: { name: string; iban: string }) => (a.name.endsWith(a.iban.slice(-4)) ? a.name : `${a.name} …${a.iban.slice(-4)}`);
+
+/**
+ * Name einer Verbindung im Grund gesperrter Knöpfe. Heißt eine andere Bank genauso, etwa bei zwei Zugängen zur selben
+ * Bank, mit der Endung der IBAN ihres ersten Kontos, wie sie an der Zeile steht: „Testbank …2051“ (#1677)
+ */
+function nameImGrund(c: Verbindung, connections: readonly Verbindung[]): string {
+  const konto = c.accounts[0];
+  const gleich = connections.some((d) => d.id !== c.id && d.bankName === c.bankName);
+  return gleich && konto ? `${c.bankName} …${konto.iban.slice(-4)}` : c.bankName;
+}
+
+/**
+ * Worauf die Knöpfe für FinTS warten, solange an der Zeile einer Verbindung ein Schritt der Bank offen ist oder ein Abruf
+ * läuft: das Satzende nach „sobald“, sonst null. Die Zeile ausser zählt nicht mit; an ihr steht der Schritt direkt
+ * darunter, und ihr Knopf zeigt „Rufe ab …“ (#1662)
+ */
+export function wartetAuf(connections: readonly Verbindung[], { offen, busy }: Pick<FintsZustand, "offen" | "busy">, ausser?: string): string | null {
+  const schritt = connections.find((c) => c.id === offen?.fuer && c.id !== ausser);
+  if (schritt) return `die Freigabe für ${nameImGrund(schritt, connections)} gesendet oder abgebrochen ist`;
+  const abruf = connections.find((c) => c.id === busy && c.id !== ausser);
+  return abruf ? `der Abruf für ${nameImGrund(abruf, connections)} fertig ist` : null;
+}
+
+/**
+ * Satzende, solange „Trennen“ an einer anderen Zeile als ausser läuft (busy `x-<ID>`); ihr Knopf zeigt „Trenne …“. Nur die
+ * Zeilen warten darauf, „Über FinTS verbinden“ nicht (#1677)
+ */
+function trenntAndere(connections: readonly Verbindung[], busy: string | null, ausser: string): string | null {
+  const c = connections.find((d) => busy === `x-${d.id}` && d.id !== ausser);
+  return c ? `die Verbindung zu ${nameImGrund(c, connections)} getrennt ist` : null;
+}
+
+/** Gesperrte Knöpfe einer Zeile, „Trennen“ nur mit trennen; ohne FINTS_PRODUKT_ID nur „Trennen“ */
+const knoepfe = (trennen: boolean, configured: boolean) => [...(trennen ? ["Trennen"] : []), ...(configured ? ["Zugang ändern", "Jetzt abrufen"] : [])];
+
+function sperrSatz(namen: string[], sobald: string): string {
+  const liste = new Intl.ListFormat("de").format(namen.map((k) => `„${k}“`));
+  return `${liste} ${namen.length > 1 ? "gehen" : "geht"} wieder, sobald ${sobald}.`;
+}
+
+/**
+ * Grund an einer Zeile mit gesperrten Knöpfen, mit trennen, wenn er auch „Trennen“ nennt. Solange oben „Über FinTS
+ * verbinden“ offen ist, stünde ein Schritt der Bank an der Zeile sonst neben dem Formular, und dessen Schritt ersetzte ihn,
+ * ohne dass Haben den Vorgang bei der Bank verwirft (#1660); „Trennen“ nur, solange die Bank beim Verbinden auf einen
+ * Schritt wartet. Ebenso ersetzte ein Schritt an der Zeile den offenen an einer anderen oder den, mit dem die Bank auf
+ * deren Abruf antwortet (#1662). Während „Trennen“ an einer anderen Zeile sind alle Knöpfe kurz gesperrt (#1677); bei
+ * offenem Formular nennt ein zweiter Satz dann „Trennen“
+ */
+export function zeilenGrund(c: Verbindung, connections: readonly Verbindung[], z: Pick<FintsZustand, "verbinden" | "offen" | "busy">, configured = true) {
+  const getrennt = trenntAndere(connections, z.busy, c.id);
+  if (z.verbinden) {
+    const schritt = z.offen?.fuer === "neu";
+    const text = sperrSatz(knoepfe(schritt, configured), "das Verbinden über FinTS oben fertig oder abgebrochen ist");
+    if (getrennt && !schritt) return { text: `${text} ${sperrSatz(["Trennen"], getrennt)}`, trennen: true };
+    return { text, trennen: schritt };
+  }
+  const sobald = wartetAuf(connections, z, c.id) ?? getrennt;
+  return sobald ? { text: sperrSatz(knoepfe(true, configured), sobald), trennen: true } : null;
+}
 
 const meldungenAus = (s: Extract<Schritt, { art: "fertig" }>): Meldung[] => [
   { tone: s.ok ? "ok" : "danger", text: s.meldung },
   ...s.hinweise.map((text) => ({ tone: "info" as const, text })),
 ];
 
-/** Was die Bank gerade will: ein TAN-Verfahren oder -Medium wählen, eine TAN eingeben oder in der App freigeben */
-function SchrittForm({ schritt, onSchritt, onAbbrechen }: { schritt: Offen; onSchritt: (s: Schritt) => Promise<void>; onAbbrechen: () => void }) {
-  const weiter = useServerFn(continueFints);
-  const verwerfen = useServerFn(cancelFints);
-  const medien = schritt.art === "verfahren" && schritt.verfahren.length === 1 ? schritt.verfahren[0]!.medien : [];
-  const [wahl, setWahl] = useState(schritt.art === "verfahren" ? (medien[0] ?? String(schritt.verfahren[0]?.id ?? "")) : "");
-  const [tan, setTan] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const {
-    form,
-    error: fehler,
-    check,
-  } = useSubmitCheck({
-    tan: schritt.art === "tan" && !schritt.entkoppelt && !tan.trim() ? "Bitte die TAN eingeben." : null,
-  });
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (busy || !check()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const data =
-        schritt.art === "tan"
-          ? { vorgang: schritt.vorgang, tan: schritt.entkoppelt ? undefined : tan }
-          : medien.length > 0
-            ? { vorgang: schritt.vorgang, verfahren: schritt.verfahren[0]!.id, medium: wahl }
-            : { vorgang: schritt.vorgang, verfahren: Number(wahl) };
-      await onSchritt(await weiter({ data }));
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function abbrechen() {
-    void verwerfen({ data: schritt.vorgang }).catch(() => undefined);
-    onAbbrechen();
-  }
-
-  return (
-    <form ref={form} onSubmit={onSubmit} className="stack" style={{ gap: 12, maxWidth: 560 }} aria-label="Freigabe bei der Bank" noValidate>
-      {schritt.art === "verfahren" ? (
-        <Field
-          label={medien.length > 0 ? "TAN-Medium" : "TAN-Verfahren"}
-          hint="Wie du Aufträge bei deiner Bank freigibst; die Bank nennt nur, was für deinen Zugang geht."
-        >
-          {(control) => (
-            <select {...control} value={wahl} onChange={(e) => setWahl(e.target.value)}>
-              {medien.length > 0
-                ? medien.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))
-                : schritt.verfahren.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
-            </select>
-          )}
-        </Field>
-      ) : (
-        <>
-          <p style={{ margin: 0, whiteSpace: "pre-line" }}>{schritt.text}</p>
-          {schritt.bild && <img src={schritt.bild} alt="Grafik der Bank für die photoTAN" style={{ maxWidth: 240 }} />}
-          {schritt.hinweis && (
-            <div className="banner banner-info" role="status">
-              {schritt.hinweis}
-            </div>
-          )}
-          {!schritt.entkoppelt && (
-            <Field label="TAN" error={fehler("tan")}>
-              {(control) => (
-                <input {...control} value={tan} onChange={(e) => setTan(e.target.value)} inputMode="numeric" autoComplete="one-time-code" required autoFocus />
-              )}
-            </Field>
-          )}
-        </>
-      )}
-      {error && (
-        <div className="banner banner-danger" role="alert">
-          {error}
-        </div>
-      )}
-      <div className="actions">
-        <button type="button" className="btn" onClick={abbrechen} disabled={busy}>
-          Abbrechen
-        </button>
-        <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? "Warte auf die Bank …" : schritt.art === "verfahren" ? "Weiter" : schritt.entkoppelt ? "Freigegeben, weiter" : "TAN senden"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
 /** Zugang zum Online-Banking; mit vorlage für „Zugang ändern“ schon ausgefüllt, nur die PIN fehlt */
 function VerbindenForm({ vorlage, onSchritt, onAbbrechen }: { vorlage: Verbindung | null; onSchritt: (s: Schritt) => Promise<void>; onAbbrechen: () => void }) {
   const connect = useServerFn(connectFints);
+  const antwort = useAntwort(onSchritt);
   const today = todayInGermany();
   const [blz, setBlz] = useState(vorlage?.bankCode ?? "");
   const [url, setUrl] = useState(vorlage?.url ?? "");
@@ -171,7 +152,7 @@ function VerbindenForm({ vorlage, onSchritt, onAbbrechen }: { vorlage: Verbindun
         pin,
         fetchFrom: fetchFromForConnect(fetchFrom, today),
       };
-      await onSchritt(await connect({ data }));
+      await antwort(await connect({ data }));
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -210,7 +191,7 @@ function VerbindenForm({ vorlage, onSchritt, onAbbrechen }: { vorlage: Verbindun
       <Field
         label="Umsätze abrufen ab"
         error={fehler("fetchFrom")}
-        hint="Gilt für Konten, die noch nie abgerufen wurden. Mit der Vorgabe holt Haben ab Jahresbeginn oder schließt an Umsätze an, die schon da sind."
+        hint="Gilt für Konten, die Haben noch nicht abruft, auch für ein wieder angehaktes. Mit der Vorgabe holt Haben ab Jahresbeginn oder schließt an Umsätze an, die schon da sind."
       >
         {(control) => <input {...control} type="date" value={fetchFrom} max={today} onChange={(e) => setFetchFrom(e.target.value)} />}
       </Field>
@@ -231,29 +212,54 @@ function VerbindenForm({ vorlage, onSchritt, onAbbrechen }: { vorlage: Verbindun
   );
 }
 
-/** FinTS im Bereich „Automatischer Abruf“: Formular zum Verbinden (verbinden) und die Verbindungen */
-export function FintsAbruf({ fints, verbinden, setVerbinden }: { fints: Fints; verbinden: boolean; setVerbinden: (v: boolean) => void }) {
+/** Rückfrage vor „Trennen“ an der Zeile einer Verbindung */
+function TrennenDialog({ verbindung, onTrennen, onClose }: { verbindung: Verbindung | null; onTrennen: (id: string) => void; onClose: () => void }) {
+  return (
+    <ConfirmDialog
+      open={verbindung !== null}
+      title={`FinTS-Verbindung zu ${verbindung?.bankName} trennen?`}
+      confirmLabel="Trennen"
+      danger
+      onConfirm={() => verbindung && onTrennen(verbindung.id)}
+      onClose={onClose}
+    >
+      <p>Haben löscht die gespeicherte PIN. Die abgerufenen Umsätze bleiben erhalten.</p>
+    </ConfirmDialog>
+  );
+}
+
+/**
+ * FinTS an den Zeilen der Konten (#1951): Abruf, „Zugang ändern“ und „Trennen“ für die Knöpfe einer Zeile, der Grund
+ * gesperrter Knöpfe je Verbindung und der Bereich mit Formular, offenem Schritt der Bank und Meldungen. Die Seite ruft
+ * den Hook einmal auf und stellt `bereich` dorthin, wo Schritte und Meldungen erscheinen sollen.
+ */
+export function useFintsAbruf(fints: Fints, z: FintsZustand) {
+  const { verbinden, setVerbinden, vorlage, setVorlage, offen, setOffen, busy, setBusy } = z;
   const router = useRouter();
   const sync = useServerFn(syncFints);
   const disconnect = useServerFn(disconnectFints);
-  const [offen, setOffen] = useState<{ fuer: string; schritt: Offen } | null>(null);
-  const [vorlage, setVorlage] = useState<Verbindung | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const grundId = useId();
   const [meldungen, setMeldungen] = useState<Meldung[]>([]);
   const [trennt, setTrennt] = useState<Verbindung | null>(null);
+  const gesperrt = busy !== null || offen !== null;
+
+  /** Grund gesperrter Knöpfe an der Zeile mit seiner ID für aria-describedby; mitTrennen, wenn er „Trennen“ nennen muss */
+  function grund(c: Verbindung, mitTrennen = false): { id: string; text: string } | null {
+    const g = zeilenGrund(c, fints.connections, { verbinden, offen, busy }, fints.configured);
+    return g && (g.trennen || !mitTrennen) ? { id: `${grundId}-${c.id}`, text: g.text } : null;
+  }
 
   async function ergebnis(fuer: string, s: Schritt) {
     if (s.art !== "fertig") {
       setOffen({ fuer, schritt: s });
       return;
     }
+    // Erst neu laden, dann Formular schließen und melden: Nach dem ersten Verbinden steht die Verbindung erst dann auf der
+    // Seite. Ohne sync endete invalidate schon mit den alten Daten und lüde im Hintergrund nach
+    await router.invalidate({ sync: true });
     setOffen(null);
-    if (fuer === "neu") {
-      setVerbinden(false);
-      setVorlage(null);
-    }
+    if (fuer === "neu") setVerbinden(false);
     setMeldungen(meldungenAus(s));
-    await router.invalidate();
   }
 
   async function run(id: string, work: () => Promise<void>) {
@@ -268,97 +274,75 @@ export function FintsAbruf({ fints, verbinden, setVerbinden }: { fints: Fints; v
     }
   }
 
+  const trennen = (id: string) =>
+    void run(`x-${id}`, async () => {
+      await disconnect({ data: id });
+      await router.invalidate();
+    });
+
   const schliessen = () => {
     setVerbinden(false);
-    setVorlage(null);
     setOffen(null);
   };
 
-  return (
+  // „Abbrechen“ bei einem Schritt der Bank: Ab dem Abruf der Umsätze hat Verbinden den Zugang schon gespeichert, beim
+  // ersten Verbinden als neue Verbindung. Erst neu laden, dann schließen; solange ein Schritt offen ist, sind die Knöpfe
+  // an den Zeilen gesperrt
+  const schrittAbbrechen = () => void router.invalidate({ sync: true }).then(schliessen);
+
+  const zeile = offen && offen.fuer !== "neu" ? fints.connections.find((c) => c.id === offen.fuer) : undefined;
+
+  // Ein offener Schritt beim Verbinden schließt nur über seine eigenen Knöpfe; kommt die Antwort der Bank erst nach dem
+  // Verlassen der Seite oder einem neuen Formular, verwirft useAntwort den Vorgang
+  const bereich = (
     <>
       {verbinden &&
         (offen?.fuer === "neu" ? (
-          <SchrittForm key={offen.schritt.vorgang} schritt={offen.schritt} onSchritt={(s) => ergebnis("neu", s)} onAbbrechen={schliessen} />
+          <SchrittForm key={offen.schritt.vorgang} schritt={offen.schritt} onSchritt={(s) => ergebnis("neu", s)} onAbbrechen={schrittAbbrechen} />
         ) : (
-          <VerbindenForm key={vorlage?.id ?? "neu"} vorlage={vorlage} onSchritt={(s) => ergebnis("neu", s)} onAbbrechen={schliessen} />
+          // Nicht die ID der Verbindung allein: mit demselben Schlüssel blieb das Formular nach „Zugang ändern“ im DOM stehen
+          <VerbindenForm key={vorlage ? `zugang-${vorlage.id}` : "neu"} vorlage={vorlage} onSchritt={(s) => ergebnis("neu", s)} onAbbrechen={schliessen} />
         ))}
-
-      <ConfirmDialog
-        open={trennt !== null}
-        title={`FinTS-Verbindung zu ${trennt?.bankName} trennen?`}
-        confirmLabel="Trennen"
-        danger
-        onConfirm={() => {
-          if (!trennt) return;
-          const { id } = trennt;
-          void run(`x-${id}`, async () => {
-            await disconnect({ data: id });
-            await router.invalidate();
-          });
-        }}
-        onClose={() => setTrennt(null)}
-      >
-        <p>Haben löscht die gespeicherte PIN. Die abgerufenen Umsätze bleiben erhalten.</p>
-      </ConfirmDialog>
-
-      {fints.connections.map((c) => (
-        <div key={c.id} className="history-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, flex: "1 1 260px" }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <span style={{ fontWeight: 600 }}>{c.bankName}</span>
-              <FintsStatus status={c.status} />
-              <span className="small muted">FinTS</span>
-            </div>
-            <span className="small muted">{c.accounts.map(kontoName).join(" · ") || "Keine Konten"}</span>
-            <span className="small muted">{c.lastSyncAt ? `Zuletzt abgerufen ${formatDateTime(c.lastSyncAt)}` : "Noch nicht abgerufen"}</span>
-            {c.lastError && <span className="field-error">{c.lastError}</span>}
-          </div>
-          <div className="actions">
-            <button type="button" className="btn btn-danger" disabled={busy !== null} onClick={() => setTrennt(c)}>
-              Trennen
-            </button>
-            {c.status === "fehler" && fints.configured && (
-              <button
-                type="button"
-                className="btn"
-                disabled={busy !== null}
-                onClick={() => {
-                  setOffen(null);
-                  setVorlage(c);
-                  setVerbinden(true);
-                }}
-              >
-                Zugang ändern
-              </button>
-            )}
-            {fints.configured && (
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busy !== null || offen !== null}
-                onClick={() => void run(c.id, async () => ergebnis(c.id, await sync({ data: c.id })))}
-              >
-                {busy === c.id ? "Rufe ab …" : "Jetzt abrufen"}
-              </button>
-            )}
-          </div>
-          {offen?.fuer === c.id && (
-            <div style={{ flexBasis: "100%" }}>
-              <SchrittForm key={offen.schritt.vorgang} schritt={offen.schritt} onSchritt={(s) => ergebnis(c.id, s)} onAbbrechen={() => setOffen(null)} />
-            </div>
-          )}
-        </div>
-      ))}
-
+      {zeile && offen && (
+        <section className="stack" style={{ gap: 8 }} aria-label={`FinTS: ${zeile.bankName}`}>
+          <span className="small muted">
+            {zeile.bankName}: {zeile.accounts.map(kontoName).join(" · ")}
+          </span>
+          <SchrittForm key={offen.schritt.vorgang} schritt={offen.schritt} onSchritt={(s) => ergebnis(zeile.id, s)} onAbbrechen={() => setOffen(null)} />
+        </section>
+      )}
+      <TrennenDialog verbindung={trennt} onTrennen={trennen} onClose={() => setTrennt(null)} />
       {meldungen.length > 0 && (
-        <ul className="upload-messages" role="status">
-          {meldungen.map((m, i) => (
-            <li key={i} className={`banner banner-${m.tone}`}>
-              {m.text}
-            </li>
-          ))}
-        </ul>
+        <div role="status">
+          <ul className="upload-messages">
+            {meldungen.map((m, i) => (
+              <li key={i} className={`banner banner-${m.tone}`}>
+                {m.text}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </>
   );
+
+  return {
+    configured: fints.configured,
+    gesperrt,
+    /** „Über FinTS verbinden“ ist offen: „Zugang ändern“ und „Jetzt abrufen“ warten */
+    verbinden,
+    grund,
+    /** Knöpfe der Zeile während einer Anfrage an diese Verbindung: „Rufe ab …“, „Trenne …“ */
+    laeuft: (c: Verbindung) => (busy === c.id ? "abruf" : busy === `x-${c.id}` ? "trennen" : null),
+    abrufen: (c: Verbindung) => run(c.id, async () => ergebnis(c.id, await sync({ data: c.id }))),
+    zugangAendern: (c: Verbindung) => {
+      setVorlage(c);
+      setVerbinden(true);
+    },
+    trennenFragen: (c: Verbindung) => setTrennt(c),
+    /** Der Bereich hat Inhalt: Formular, Schritt oder Meldungen */
+    sichtbar: verbinden || zeile !== undefined || meldungen.length > 0,
+    bereich,
+  };
 }
+export type FintsAbrufAktionen = ReturnType<typeof useFintsAbruf>;

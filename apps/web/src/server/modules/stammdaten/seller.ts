@@ -2,7 +2,12 @@ import { legalInfo } from "@haben/core";
 import type { Seller } from "@haben/einvoice";
 import type { Company } from "./company.ts";
 
-export function sellerFrom(company: Company): Seller {
+/** Zahlungskonto des Belegs statt des Standards aus den Firmendaten (#1887), nur die Felder des Kontos */
+type SellerBank = Pick<Company, "iban" | "bic" | "bank" | "kontoinhaber">;
+
+/** Verkäufer aus den Firmendaten; mit `bank` das gewählte weitere Zahlungskonto statt des Standards (#1887) */
+export function sellerFrom(company: Company, bank: SellerBank | null = null): Seller {
+  const { iban, bic, kontoinhaber, bank: bankName } = bank ?? company;
   return {
     name: company.name,
     strasse: company.strasse,
@@ -13,10 +18,10 @@ export function sellerFrom(company: Company): Seller {
     ...(company.telefon ? { telefon: company.telefon } : {}),
     ...(company.steuernummer ? { steuernummer: company.steuernummer } : {}),
     ...(company.ustId ? { ustId: company.ustId } : {}),
-    ...(company.iban ? { iban: company.iban } : {}),
-    ...(company.bic ? { bic: company.bic } : {}),
-    ...(company.bank ? { bank: company.bank } : {}),
-    ...(company.kontoinhaber ? { kontoinhaber: company.kontoinhaber } : {}),
+    ...(iban ? { iban } : {}),
+    ...(bic ? { bic } : {}),
+    ...(bankName ? { bank: bankName } : {}),
+    ...(kontoinhaber ? { kontoinhaber } : {}),
     ...sellerLegalInfo(company),
   };
 }

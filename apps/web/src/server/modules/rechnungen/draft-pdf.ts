@@ -6,8 +6,12 @@ import { directDebitFor } from "./lastschrift.ts";
 import { UserError } from "../../errors.ts";
 import { ansprechpartnerSnapshot, loadCompany, loadUnitCodes, withCustomLayout } from "../stammdaten/index.ts";
 import { invoiceDocumentTotals, invoiceTotalsById } from "./invoice-taxes.ts";
-import { buyerFrom, deductedRefs, documentFor, getInvoice, sellerFrom } from "./invoices.ts";
+import { deductedRefs } from "./advance-deductions.ts";
+import { buyerFrom, documentFor } from "./invoice-document.ts";
+import { loadReplacement } from "./invoice-replacement.ts";
+import { getInvoice } from "./invoices.ts";
 import { getQuote, quoteDocumentFor } from "./quotes.ts";
+import { angebotMitPlatzhaltern, rechnungMitPlatzhaltern } from "./beleg-platzhalter.ts";
 
 /*
  * Entwürfe als PDF (Issue #342): aus dem gespeicherten Entwurf mit derselben Vorlage wie beim Festschreiben, mit dem
@@ -31,20 +35,23 @@ export async function invoiceDraftPdf(id: string): Promise<DraftPdf | null> {
   const buyer = original?.buyer ?? (contact ? buyerFrom(contact, await ansprechpartnerSnapshot(db, invoice.contactPersonId)) : null);
   if (!buyer) throw new DraftPdfError(NO_CUSTOMER);
   const company = await loadCompany();
-  const branding = await documentBranding(sellerFrom(company), invoice.brandProfileId);
+  const branding = await documentBranding(db, company, invoice);
+  const prior = corrects ?? (await loadReplacement(invoice, db));
   // Die Nummer setzt renderInvoiceDraftPdf
-  const { number: _none, ...doc } = documentFor(
-    invoice,
-    lines,
-    await invoiceDocumentTotals(id),
-    (await invoiceTotalsById([id])).get(id)!,
-    branding.seller,
-    buyer,
-    "",
-    corrects?.number ? { number: corrects.number, issueDate: corrects.issueDate } : null,
-    await deductedRefs(lines),
-    await directDebitFor(invoice, company, db),
-    await loadUnitCodes(),
+  const { number: _none, ...doc } = rechnungMitPlatzhaltern(
+    documentFor(
+      invoice,
+      lines,
+      await invoiceDocumentTotals(id),
+      (await invoiceTotalsById([id])).get(id)!,
+      branding.seller,
+      buyer,
+      "",
+      prior?.number ? { number: prior.number, issueDate: prior.issueDate } : null,
+      await deductedRefs(lines),
+      await directDebitFor(invoice, company, db),
+      await loadUnitCodes(),
+    ),
   );
   return withCustomLayout("rechnung", branding.letterhead, (letterhead) => renderInvoiceDraftPdf({ ...doc, ...letterhead }));
 }
@@ -54,13 +61,9 @@ export async function quoteDraftPdf(id: string): Promise<DraftPdf | null> {
   const data = await getQuote(id);
   if (data?.quote.status !== "draft") return null;
   if (!data.contact) throw new DraftPdfError(NO_CUSTOMER);
-  const branding = await documentBranding(sellerFrom(await loadCompany()), data.quote.brandProfileId);
-  const { number: _none, ...doc } = quoteDocumentFor(
-    data.quote,
-    data.lines,
-    branding.seller,
-    buyerFrom(data.contact, await ansprechpartnerSnapshot(db, data.quote.contactPersonId)),
-    "",
+  const branding = await documentBranding(db, await loadCompany(), data.quote);
+  const { number: _none, ...doc } = angebotMitPlatzhaltern(
+    quoteDocumentFor(data.quote, data.lines, branding.seller, buyerFrom(data.contact, await ansprechpartnerSnapshot(db, data.quote.contactPersonId)), ""),
   );
   return withCustomLayout("angebot", branding.letterhead, (letterhead) => buildQuoteDraftPdf({ ...doc, ...letterhead }));
 }

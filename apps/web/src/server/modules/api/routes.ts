@@ -2,13 +2,18 @@ import type { z } from "zod";
 import { MAX_DOCUMENT_SIZE } from "../belege/index.ts";
 import type { TokenScope } from "../mcp/index.ts";
 import { articleQuerySchema, createArticleHandler, getArticleHandler, listArticlesHandler, updateArticleHandler } from "./articles.ts";
+import { BANK_IMPORT_DESCRIPTION, createBankImportHandler, listBankSourcesHandler } from "./bankimporte.ts";
 import { createContactHandler, getContactHandler, listContactsHandler, updateContactHandler } from "./contacts.ts";
 import type { Handler } from "./http.ts";
 import { createDocumentHandler, getDocumentHandler, listDocumentsHandler } from "./documents.ts";
 import { createInvoiceHandler, deleteInvoiceHandler, getInvoiceHandler, listInvoicesHandler, updateInvoiceHandler } from "./invoices.ts";
 import { createServiceEntryHandler, deleteServiceEntryHandler, getServiceEntryHandler, listServiceEntriesHandler } from "./leistungen.ts";
 import { serviceEntryQuerySchema } from "./leistungen-schemas.ts";
-import { contactQuerySchema, documentQuerySchema, invoiceQuerySchema } from "./schemas.ts";
+import { createQuoteHandler, deleteQuoteHandler, getQuoteHandler, listQuotesHandler, updateQuoteHandler } from "./quotes.ts";
+import { quoteQuerySchema } from "./quotes-schemas.ts";
+import { RECURRING_INVOICE_ROUTES } from "./recurring-invoices.ts";
+import { documentQuerySchema } from "./belege-schemas.ts";
+import { contactQuerySchema, invoiceQuerySchema } from "./schemas.ts";
 
 /*
  * Alle Endpunkte von /api/v1 an einer Stelle: Pfad, Recht, Handler und was die OpenAPI-Beschreibung über sie sagt.
@@ -24,7 +29,7 @@ export interface ApiRoute {
   scope: TokenScope;
   summary: string;
   description?: string;
-  tag: "Kontakte" | "Rechnungen" | "Belege" | "Artikel" | "Leistungen";
+  tag: "Kontakte" | "Rechnungen" | "Angebote" | "Belege" | "Artikel" | "Leistungen" | "Bank";
   query?: z.ZodObject;
   /** Name in requestSchemas */
   requestBody?: string;
@@ -107,6 +112,7 @@ export const API_ROUTES: ApiRoute[] = [
     },
     handler: createInvoiceHandler,
   },
+  ...RECURRING_INVOICE_ROUTES,
   {
     method: "GET",
     path: "/rechnungen/{id}",
@@ -139,6 +145,73 @@ export const API_ROUTES: ApiRoute[] = [
     responses: { 204: { schema: null, description: "Gelöscht" } },
     errors: { 409: "Die Rechnung ist festgeschrieben" },
     handler: deleteInvoiceHandler,
+  },
+  {
+    method: "GET",
+    path: "/angebote",
+    scope: "angebote:lesen",
+    tag: "Angebote",
+    summary: "Angebote auflisten",
+    description: "Entwürfe zuerst, dann nach Nummer absteigend. Mit number das Angebot zu einer Nummer finden, etwa um sie an einem Auftrag zu prüfen.",
+    query: quoteQuerySchema,
+    responses: { 200: { schema: "QuoteList", description: "Eine Seite Angebote" } },
+    handler: listQuotesHandler,
+  },
+  {
+    method: "POST",
+    path: "/angebote",
+    scope: "angebote:entwuerfe",
+    tag: "Angebote",
+    summary: "Angebotsentwurf anlegen",
+    description:
+      "Legt einen Entwurf an; festgeschrieben und versendet wird in Haben. Nicht angegebene Felder nehmen die Vorgaben eines neuen Angebots in Haben: " +
+      "Gültigkeit ab dem Angebotsdatum, Kopf- und Fußtext aus den Standard-Textbausteinen, Steuer aus den Firmendaten, die Sprache die des Kontakts; " +
+      "dazu die Standardanhänge. Mit externalSource und externalId liefert eine Wiederholung das vorhandene Angebot.",
+    requestBody: "QuoteDraftCreate",
+    responses: {
+      200: { schema: "Quote", description: "Angebot zur externen Referenz vorhanden; Location zeigt auf das Angebot" },
+      201: { schema: "Quote", description: "Entwurf angelegt; Location zeigt auf ihn" },
+    },
+    errors: { 422: "Den Kontakt gibt es nicht, oder er ist kein Kunde" },
+    handler: createQuoteHandler,
+  },
+  {
+    method: "GET",
+    path: "/angebote/{id}",
+    scope: "angebote:lesen",
+    tag: "Angebote",
+    summary: "Angebot lesen",
+    description: "Entwürfe und festgeschriebene Angebote, mit Positionen, der Antwort des Kunden und der Rechnung, die daraus entstanden ist.",
+    responses: { 200: { schema: "Quote", description: "Das Angebot" } },
+    handler: getQuoteHandler,
+  },
+  {
+    method: "PATCH",
+    path: "/angebote/{id}",
+    scope: "angebote:entwuerfe",
+    tag: "Angebote",
+    summary: "Angebotsentwurf ändern",
+    description:
+      "Nur solange Entwurf. Nur die genannten Felder ändern sich; lines ersetzt alle Positionen samt ihren Rabatten. Gesamtrabatt und Zahlungsplan " +
+      "aus Haben bleiben; wechselt der Kunde, entfällt der Ansprechpartner.",
+    requestBody: "QuoteDraftPatch",
+    responses: { 200: { schema: "Quote", description: "Der geänderte Entwurf" } },
+    errors: {
+      409: "Das Angebot ist festgeschrieben, oder Gesamtrabatt bzw. Zahlungsplan aus Haben passen nicht zu den neuen Positionen",
+      422: "Den Kontakt gibt es nicht, oder er ist kein Kunde",
+    },
+    handler: updateQuoteHandler,
+  },
+  {
+    method: "DELETE",
+    path: "/angebote/{id}",
+    scope: "angebote:entwuerfe",
+    tag: "Angebote",
+    summary: "Angebotsentwurf löschen",
+    description: "Nur solange Entwurf, mit seinen Anhängen.",
+    responses: { 204: { schema: null, description: "Gelöscht" } },
+    errors: { 409: "Das Angebot ist festgeschrieben" },
+    handler: deleteQuoteHandler,
   },
   {
     method: "GET",
@@ -272,5 +345,35 @@ export const API_ROUTES: ApiRoute[] = [
     summary: "Leistungseintrag löschen",
     responses: { 204: { schema: null, description: "Gelöscht" } },
     handler: deleteServiceEntryHandler,
+  },
+  {
+    method: "GET",
+    path: "/bankquellen",
+    scope: "bank:importieren",
+    tag: "Bank",
+    summary: "Freigegebene Quellen auflisten",
+    description: "Die am Konto freigegebenen externen Quellen mit Stichtag, Abrufstand und offenen Konflikten; daraus plant ein Dienst sein nächstes Fenster.",
+    responses: { 200: { schema: "BankSourceList", description: "Alle freigegebenen Quellen" } },
+    handler: listBankSourcesHandler,
+  },
+  {
+    method: "POST",
+    path: "/bankimporte",
+    scope: "bank:importieren",
+    tag: "Bank",
+    summary: "Bankumsätze liefern",
+    description: BANK_IMPORT_DESCRIPTION,
+    requestBody: "BankImport",
+    responses: {
+      201: { schema: "BankImportResult", description: "Angenommen; Umsätze angelegt" },
+      200: { schema: "BankImportResult", description: "Dieselbe Lieferung kam schon; nichts neu angelegt" },
+    },
+    errors: {
+      404: "Die Quelle (provider, externalAccountId) ist in Haben nicht freigegeben",
+      409: "Konflikt: eine schon übernommene Bewegung kommt mit anderem Betrag, Tag oder anderer Art, die Quelle hat noch einen offenen Konflikt, oder derselbe idempotencyKey kam mit anderem Inhalt. Klären in Haben unter Bank.",
+      413: "Mehr als 1.000 Bewegungen in einer Lieferung",
+      422: "Verstoß gegen den Importvertrag (Version, Feld, Fenster, Kontoart); eine Bewegung in anderer Währung oder vor dem Stichtag nimmt Haben nicht an und nennt sie in warnings",
+    },
+    handler: createBankImportHandler,
   },
 ];

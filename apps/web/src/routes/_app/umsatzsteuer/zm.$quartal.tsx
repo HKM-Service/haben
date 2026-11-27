@@ -4,11 +4,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { ElsterSubmit } from "../../../components/ElsterSubmit.tsx";
 import { OutcomeStatus } from "../../../components/Status.tsx";
 import { Icon } from "../../../components/Icon.tsx";
+import { EricHinweis } from "../../../components/EricHinweis.tsx";
 import { ELSTER_KIND_LABEL, elsterNotice, type ElsterKind } from "../../../lib/elster.ts";
 import { formatDate, formatDateTime, formatLongDate } from "../../../lib/format.ts";
 import { useAction } from "../../../lib/use-action.ts";
 import { getZm, submitZmMeldung } from "../../../server/functions/zm.ts";
 import { Field } from "../../../components/Field.tsx";
+import { ZmBestaetigung } from "../../../components/umsatzsteuer/ZmBestaetigung.tsx";
+import { useFokusUeberWechsel } from "../../../lib/use-fokus-ueber-wechsel.ts";
 
 export const Route = createFileRoute("/_app/umsatzsteuer/zm/$quartal")({
   loader: ({ params }) => {
@@ -27,6 +30,8 @@ type Zeile = Data["zeilen"][number];
 function ZmPage() {
   const data = Route.useLoaderData();
   const navigate = useNavigate();
+  // Die Auswahl behält beim Wechsel den Fokus, obwohl die Seite neu entsteht
+  const auswahl = useFokusUeberWechsel<HTMLSelectElement>("zm-quartal");
   const key = periodKey(data.period);
   const options = data.quartale.some((q) => periodKey(q) === key) ? data.quartale : [...data.quartale, data.period];
 
@@ -39,7 +44,15 @@ function ZmPage() {
         </div>
         <Field label="Quartal">
           {(control) => (
-            <select {...control} value={key} onChange={(event) => navigate({ to: "/umsatzsteuer/zm/$quartal", params: { quartal: event.target.value } })}>
+            <select
+              {...control}
+              ref={auswahl.ref}
+              value={key}
+              onChange={(event) => {
+                auswahl.merken();
+                void navigate({ to: "/umsatzsteuer/zm/$quartal", params: { quartal: event.target.value } });
+              }}
+            >
               {options.map((option) => (
                 <option key={periodKey(option)} value={periodKey(option)}>
                   {periodLabel(option)}
@@ -50,12 +63,7 @@ function ZmPage() {
         </Field>
       </div>
 
-      {data.mode === "simuliert" && (
-        <div className="banner banner-info" role="status">
-          <Icon name="info" />
-          <span>ERiC ist nicht eingerichtet. Prüfen und Senden laufen simuliert, nichts geht an das Bundeszentralamt für Steuern.</span>
-        </div>
-      )}
+      {data.mode === "simuliert" && <EricHinweis empfaenger="Bundeszentralamt für Steuern" />}
       {data.issues.map((issue) => (
         <div key={issue.text} className={`banner ${issue.tone === "info" ? "banner-info" : ""}`} role="status">
           <Icon name={issue.tone === "info" ? "info" : "alert"} />
@@ -118,6 +126,7 @@ function ZmPage() {
               </table>
             </details>
           )}
+          {data.bestaetigung.moeglich && data.zeilen.length > 0 && <ZmBestaetigung period={data.period} offen={data.bestaetigung.offen} />}
         </section>
         <ZmSenden data={data} />
       </div>

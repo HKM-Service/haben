@@ -7,6 +7,7 @@ import type {
   LayoutAssignment,
   LetterheadOptions,
   Millis,
+  OutgoingTaxDetails,
   PriceMode,
   SkontoStufe,
   TaxTreatment,
@@ -105,6 +106,8 @@ export interface InvoiceDocumentLine {
   discount?: Discount;
   /** Schlussrechnung: Abzug einer Abschlagsrechnung; zählt nicht zur Grundlage des Gesamtrabatts */
   deductionOf?: string;
+  /** Arbeits-, Maschinen- und Fahrtkosten (§ 35a EStG, #712); ihr Anteil steht unter den Summen, fehlt = nein */
+  arbeitskosten?: boolean;
 }
 
 /** Firmenlogo für den Briefkopf; PNG oder JPEG */
@@ -117,6 +120,8 @@ export interface Logo {
 export interface Letterhead {
   /** Gespeicherte Layoutwahl eines Markenprofils; ohne Angabe gilt die zentrale Beleggestaltung. */
   layoutAssignments?: LayoutAssignment;
+  /** Optionen je eingebautem Layout aus demselben Markenprofil; nur zusammen mit layoutAssignments */
+  layoutOptions?: Record<string, Record<string, string>>;
   logo?: Logo;
   /** Briefpapier als Bild hinter dem Beleg; nur PNG oder JPEG, ein PDF als Hintergrund geht in PDF/A-3b nicht */
   background?: Logo;
@@ -125,11 +130,21 @@ export interface Letterhead {
   /** Logo, Marken und Schalter aus dem Profil; fehlt = Vorgaben (DEFAULT_OPTIONS) */
   options?: LetterheadOptions;
   /**
-   * Eigenes Layout: bekommt die fertigen Daten der Vorlage und liefert das PDF, das statt der eingebauten Vorlage gilt.
-   * undefined = eingebaute Vorlage. Der Server nutzt das zweimal: einmal, um die Daten abzufangen, einmal mit dem PDF
-   * aus dem Render-Prozess (withCustomLayout in apps/web).
+   * Eingebautes Layout der Belegart (layout-katalog.ts in packages/core) mit den gewählten Optionen; fehlt = Klar in der Fassung „Klassisch“, das bisherige Layout.
+   * Es bestimmt Vorlage, Vorgaben für Schrift und Akzentfarbe und die erlaubten Stellen für das Logo.
    */
-  pdfFrom?: (request: PdfRequest) => Uint8Array | undefined;
+  layout?: { id: string; optionen?: Record<string, string> };
+  /**
+   * Eigenes Layout: bekommt die fertigen Daten der Vorlage und liefert das PDF, das statt der eingebauten Vorlage gilt.
+   * Der Server nutzt das zweimal: einmal, um die Daten abzufangen (dort bricht pdfFrom mit einem Fehler ab), einmal mit
+   * dem PDF aus dem Render-Prozess (withCustomLayout in apps/web).
+   */
+  pdfFrom?: (request: PdfRequest) => Uint8Array;
+  /**
+   * Eigenes Layout, das look.legalPosition nicht kennt (kenntPflichtangabenFelder): Die Pflichtangaben
+   * kommen nur über legal, ihre Platzhalter in der Fußzeile bleiben leer (#1651).
+   */
+  legalFieldOnly?: boolean;
 }
 
 /** Was eine Vorlage zum Setzen bekommt; data ist schon mit dem Briefkopf ergänzt (templateInputs) */
@@ -180,6 +195,8 @@ export interface InvoiceDocument extends Letterhead {
   propertyRetention?: boolean;
   /** Fehlt = regulär besteuert */
   taxTreatment?: TaxTreatment;
+  /** Ausdrücklich bestätigter tatsächlicher Leistungsort, nur für die Prüfung; kein Druckfeld. */
+  foreignPlace?: OutgoingTaxDetails["foreignPlace"];
   /** Fehlt = Nettopreise; brutto nur bei regulärer Besteuerung */
   priceMode?: PriceMode;
   /** Befreiungsgrund auf der Rechnung, z. B. „Steuerfrei nach § 4 Nr. 14 UStG“; sonst der Standardtext */
@@ -188,8 +205,11 @@ export interface InvoiceDocument extends Letterhead {
   language?: "de" | "en";
   /** Nur bei kind „rechnung“; fehlt = normale Rechnung */
   variant?: InvoiceVariant;
-  /** Schlussrechnung: abgezogene Abschlagsrechnungen (BT-25); die Abzüge selbst stehen als negative Positionen in lines */
-  deducted?: { number: string; issueDate: string }[];
+  /**
+   * Schlussrechnung: abgezogene Abschlagsrechnungen (BT-25); die Abzüge selbst stehen als negative Positionen in lines.
+   * arbeitskosten ist der Anteil, den die Abschlagsrechnung nach § 35a EStG nennt (#1667)
+   */
+  deducted?: { number: string; issueDate: string; arbeitskosten?: number }[];
   /** Bestell-, Auftrags- und Lieferscheinnummer (BT-13, BT-14, BT-16) */
   references?: OrderReferences;
   /** Einzug per SEPA-Lastschrift (#445); fehlt = Überweisung. Nur bei Rechnungen mit Zahlbetrag in Euro */

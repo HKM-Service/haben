@@ -1,5 +1,16 @@
 import { taxIncluded, type BasisPoints, type Cents } from "./money.ts";
-import { ACCOUNTS, EXPENSE_CATEGORIES, EXPENSE_CATEGORY_KEYS, side, type ExpenseCategory, type Kontenrahmen, type PostingLine } from "./posting.ts";
+import {
+  ACCOUNT_NAMES,
+  ACCOUNTS,
+  EXPENSE_CATEGORIES,
+  hatEigenschaft,
+  kategorieMitKonto,
+  kategorienMit,
+  side,
+  type ExpenseCategory,
+  type Kontenrahmen,
+  type PostingLine,
+} from "./posting.ts";
 
 /*
  * Direkt buchen mit Kategorie und Steuersatz (Roadmap Platz 1, #324): Ein Bankumsatz ohne Beleg geht auf eine Einnahme-
@@ -30,17 +41,8 @@ export const EINNAHME_KATEGORIEN = {
 
 export type EinnahmeKategorie = keyof typeof EINNAHME_KATEGORIEN;
 
-/**
- * Ausgabekategorien, die ohne Beleg nicht gehen: Anlagen und geringwertige Wirtschaftsgüter brauchen das
- * Anlagenverzeichnis, die Einfuhrumsatzsteuer den Bescheid des Zolls, Bewirtung den Bewirtungsbeleg (§ 4 Abs. 5 Satz 1
- * Nr. 2 Satz 2 EStG), Geschenke die Empfänger (§ 4 Abs. 7 EStG). Bankgebühren gibt es unter „Direkt buchen“ schon.
- */
-const NUR_MIT_BELEG = ["anlage", "hardware", "einfuhrumsatzsteuer", "bewirtung", "geschenke"] as const satisfies readonly ExpenseCategory[];
-const SCHON_DIREKT = ["geldverkehr"] as const satisfies readonly ExpenseCategory[];
-
-export const DIREKT_AUSGABE_KATEGORIEN = EXPENSE_CATEGORY_KEYS.filter(
-  (k) => !(NUR_MIT_BELEG as readonly string[]).includes(k) && !(SCHON_DIREKT as readonly string[]).includes(k),
-);
+/** Ausgabekategorien unter „Direkt buchen“: alle mit der Eigenschaft `direkt` im Steckbrief (kontenplan.ts) */
+export const DIREKT_AUSGABE_KATEGORIEN = kategorienMit("direkt");
 
 export type DirektKategorie = EinnahmeKategorie | ExpenseCategory;
 
@@ -77,10 +79,11 @@ export function kategorieFehler(angabe: KategorieAngabe, kleinunternehmer: boole
   const art = kategorieArt(angabe.kategorie);
   if (art === null) return "Diese Kategorie gibt es nicht.";
   if (art === "ausgabe") {
-    if ((NUR_MIT_BELEG as readonly string[]).includes(angabe.kategorie)) {
+    // Kontoführung und Gebühren hat unter „Direkt buchen“ einen eigenen Eintrag, alle anderen ohne `direkt` brauchen den Beleg
+    if (angabe.kategorie === "geldverkehr") return "Bankgebühren bitte als „Kontoführung und Bankgebühren“ buchen.";
+    if (!hatEigenschaft(angabe.kategorie, "direkt")) {
       return `„${EXPENSE_CATEGORIES[angabe.kategorie as ExpenseCategory].label}“ geht nur mit Beleg; bitte unter Belege buchen.`;
     }
-    if ((SCHON_DIREKT as readonly string[]).includes(angabe.kategorie)) return "Bankgebühren bitte als „Kontoführung und Bankgebühren“ buchen.";
     if (angabe.steuersatz !== 0) {
       return "Ohne Rechnung gibt es keine Vorsteuer (§ 15 Abs. 1 Satz 1 Nr. 1 Satz 2 UStG). Mit Rechnung bitte den Beleg unter Belege buchen.";
     }
@@ -137,4 +140,75 @@ export function kategorieText(angabe: KategorieAngabe): string {
   if (angabe.kategorie === "nichtSteuerbar") return "Nicht steuerbare Einnahme";
   const label = EINNAHME_KATEGORIEN[angabe.kategorie].label;
   return angabe.steuersatz === 0 ? `${label} (Kleinunternehmer)` : `${label} ${angabe.steuersatz / 100} %`;
+}
+
+/**
+ * Aufladung eines Guthabens (#1356): Eine Zahlung ohne Beleg an einen Anbieter, bei dem das Geld als Guthaben liegt und
+ * erst über eine spätere Rechnung verbraucht wird (etwa die Aufladung eines Mobilfunk-Guthabens). Bei der EÜR ist sie
+ * im Monat der Zahlung Betriebsausgabe (§ 11 Abs. 2 EStG). Die Aufladung selbst trägt keine Umsatzsteuer: Beim
+ * Mehrzweck-Gutschein unterliegt die vorangegangene Übertragung nicht der Umsatzsteuer (§ 3 Abs. 15 UStG); die Vorsteuer
+ * entsteht erst mit der Rechnung über die Leistung (§ 15 Abs. 1 Satz 1 Nr. 1 Satz 2 UStG). Beim Einzweck-Gutschein ist schon die
+ * Aufladung die Leistung (§ 3 Abs. 14 UStG) — dann der Weg über Belege. Gebucht wird wie „Direkt buchen“ auf eine
+ * Ausgabekategorie: Bank gegen Aufwandskonto, kein Beleg.
+ */
+export const AUFLADUNG = {
+  /** Schlüssel der Zuordnungsart in Zuordnung, Journal und Angebot */
+  kind: "aufladung",
+  /** Bezeichnung der Zuordnungsart in Listen, Abgleich und Auswertungen */
+  label: "Guthaben aufladen, Ausgabe ohne Vorsteuer",
+  /** Kurztext im Zuordnungsdialog und im Buchungstext */
+  text: "Aufladung Guthaben",
+} as const;
+
+/** Was eine Aufladung verhindert; null = buchbar. Sie ist immer eine Ausgabe und trägt nie einen Steuersatz. */
+export function aufladungFehler(angabe: KategorieAngabe): string | null {
+  if (kategorieArt(angabe.kategorie) !== "ausgabe") return "Eine Aufladung ist eine Ausgabe; bitte eine Ausgabekategorie wählen.";
+  if (angabe.steuersatz !== 0) {
+    return "Eine Aufladung trägt keine Vorsteuer, weil sie selbst nicht der Umsatzsteuer unterliegt (§ 3 Abs. 15 UStG); sie entsteht erst mit der Rechnung über die Leistung (§ 15 Abs. 1 Satz 1 Nr. 1 Satz 2 UStG).";
+  }
+  return kategorieFehler(angabe, false);
+}
+
+/** Buchung einer Aufladung: Bruttobetrag als Aufwand ohne Vorsteuer, Bank gegen das Konto der Ausgabekategorie */
+export function aufladungPosting(angabe: KategorieAngabe, amount: Cents, kontenrahmen: Kontenrahmen): PostingLine[] {
+  const fehler = aufladungFehler(angabe);
+  if (fehler) throw new RangeError(fehler);
+  return kategoriePosting(angabe, amount, kontenrahmen);
+}
+
+/** Wie `kategorieText`, nur für die Oberfläche: Ausgaben mit der Nummer des Kontos („6805 · Telefon“, #1438); der Buchungstext bleibt bei `kategorieText` */
+export function kategorieAnzeige(angabe: KategorieAngabe, kontenrahmen: Kontenrahmen): string {
+  return istEinnahme(angabe.kategorie) ? kategorieText(angabe) : kategorieMitKonto(kontenrahmen, angabe.kategorie);
+}
+
+/** Die Kategorien der Auswahl „Direkt buchen“ mit der Nummer des Kontos vor der Bezeichnung der Ausgaben (#1438); Einnahmen bleiben ohne */
+export function kategorienMitKonto(kategorien: ReturnType<typeof direktKategorienFuer>, kontenrahmen: Kontenrahmen): ReturnType<typeof direktKategorienFuer> {
+  return kategorien.map((k) => (k.art === "ausgabe" ? { ...k, label: kategorieMitKonto(kontenrahmen, k.value) } : k));
+}
+
+/** Eine Zeile des Buchungsvorschlags in der Bankliste (#1440): Konto mit Nummer, Betrag mit Vorzeichen wie auf dem Bankkonto, Steuer */
+export interface VorschlagZeile {
+  konto: string;
+  kontoName: string;
+  /** Einnahme positiv, Ausgabe negativ; die Bankzeile selbst fehlt, sie ist der Umsatz */
+  betrag: Cents;
+  /** „19 %“, „7 %“, „ohne“ (Kleinunternehmer, nicht steuerbar, Ausgabe ohne Vorsteuer) */
+  steuer: string;
+}
+
+const STEUER_ANZEIGE: Partial<Record<string, string>> = { USt19: "19 %", USt7: "7 %" };
+
+/** Was Direkt buchen auf eine Kategorie bucht, als Zeilen für die Oberfläche; die Umsatzsteuer steht als eigene Zeile */
+export function kategorieVorschlag(angabe: KategorieAngabe, amount: Cents, kontenrahmen: Kontenrahmen): VorschlagZeile[] {
+  const bank = ACCOUNTS[kontenrahmen].bank;
+  const aufwandskonto = istEinnahme(angabe.kategorie) ? null : EXPENSE_CATEGORIES[angabe.kategorie as ExpenseCategory][kontenrahmen];
+  return kategoriePosting(angabe, amount, kontenrahmen)
+    .filter((line) => line.account !== bank)
+    .map((line) => ({
+      konto: line.account,
+      // Das Aufwandskonto einer Kategorie steht nicht in ACCOUNT_NAMES; dort gilt die Bezeichnung der Kategorie
+      kontoName: ACCOUNT_NAMES[kontenrahmen][line.account] ?? (aufwandskonto === line.account ? kategorieText(angabe) : ""),
+      betrag: line.credit - line.debit,
+      steuer: (line.taxCode && STEUER_ANZEIGE[line.taxCode]) || "ohne",
+    }));
 }

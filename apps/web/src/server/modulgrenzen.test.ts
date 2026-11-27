@@ -99,10 +99,12 @@ describe("Modulgrenzen", () => {
     expect(lint("scheduler.ts", `import { runReminders } from "./modules/finanzamt/index.ts";`)).toEqual([]);
   });
 
-  it("eine Ausnahme gilt nur für ihre Datei und ihr Modul", () => {
-    expect(lint("modules/rechnungen/umsatzgrenze.ts", `import { kleinunternehmerStand } from "../auswertungen/index.ts";`)).toEqual([]);
+  it("der frühere Ring rechnungen → auswertungen hat keine Ausnahme mehr (#1108)", () => {
+    expect(lint("modules/rechnungen/umsatzgrenze.ts", `import { kleinunternehmerStand } from "../auswertungen/index.ts";`)).toHaveLength(1);
     expect(lint("modules/rechnungen/invoices.ts", `import { kleinunternehmerStand } from "../auswertungen/index.ts";`)).toHaveLength(1);
     expect(lint("modules/rechnungen/umsatzgrenze.ts", `import { annualOverview } from "../jahreserklaerung/index.ts";`)).toHaveLength(1);
+    // Wer festschreibt, übergibt den Umsatz von oben: eine Server Function darf beide Module importieren
+    expect(lint("functions/invoices.ts", `import { kleinunternehmerStand } from "../modules/auswertungen/index.ts";`)).toEqual([]);
   });
 
   it("ein Modul, das in der Schichtenfolge fehlt, meldet die Prüfung", () => {
@@ -227,6 +229,9 @@ describe("Struktur der Module", () => {
         "first-passkey-session.ts",
         "grenzen.ts",
         "lese-route.ts",
+        "log-kontext.ts",
+        "log.ts",
+        "metriken.ts",
         "middleware.ts",
         "rollen.ts",
         "scheduler.ts",
@@ -241,6 +246,7 @@ describe("Struktur der Module", () => {
         "storage.ts",
         "test-db.ts",
         "test-eric.ts",
+        "test-evatr.ts",
         "today.ts",
       ].sort(),
     );

@@ -1,14 +1,15 @@
+import { waehleKategorie } from "./kategorie.ts";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import postgres from "postgres";
 import { currentDay } from "./daten.ts";
-import { databaseUrlFuer } from "./durchlaeufe.ts";
+import { type Durchlauf, databaseUrlFuer } from "./durchlaeufe.ts";
 import { bestaetigen } from "./einrichtung.ts";
 
-/** Im serialisierten Durchlauf belege-steuern registriert; die globale Firmenvorgabe bleibt dadurch isoliert. */
-export function vorsteuerPruefen(getPage: () => Page) {
+/** In einem seriellen Abschnitt von belege-steuern registriert; die globale Firmenvorgabe bleibt dadurch isoliert. */
+export function vorsteuerPruefen(getPage: () => Page, durchlauf: Durchlauf) {
   test("Vorsteueranteile je Beleg und Satz speichern, vorrechnen und beim Buchen festhalten (#433)", async ({ browser }) => {
     const page = getPage();
-    const sql = postgres(databaseUrlFuer("belege-steuern"), { max: 1 });
+    const sql = postgres(databaseUrlFuer(durchlauf), { max: 1 });
     const [company] = await sql`select ohne_vorsteuerabzug from company`;
     try {
       const route = await belegAnlegen(page, browser);
@@ -83,7 +84,7 @@ export function vorsteuerPruefen(getPage: () => Page) {
     }
   });
   steuerspaltePruefen(getPage);
-  einfuhrumsatzsteuerPruefen(getPage);
+  einfuhrumsatzsteuerPruefen(getPage, durchlauf);
   privatanteilVorschauPruefen(getPage);
 }
 
@@ -109,12 +110,12 @@ function privatanteilVorschauPruefen(getPage: () => Page) {
   });
 }
 
-function einfuhrumsatzsteuerPruefen(getPage: () => Page) {
+function einfuhrumsatzsteuerPruefen(getPage: () => Page, durchlauf: Durchlauf) {
   test("Einfuhrumsatzsteuer: Zollbetrag ist Vorsteuer ohne Aufwand, kein Teilabzug (#433)", async ({ browser }) => {
     const page = getPage();
     const route = await belegAnlegen(page, browser);
     try {
-      await page.getByLabel("Kategorie").selectOption("einfuhrumsatzsteuer");
+      await waehleKategorie(page.getByLabel("Kategorie"), "einfuhrumsatzsteuer");
       await page.getByLabel("Satz", { exact: true }).selectOption("0");
       await page.getByLabel("Netto", { exact: true }).fill("380,00");
       const share = page.getByLabel("Abziehbare Vorsteuer in %", { exact: true });
@@ -134,7 +135,7 @@ function einfuhrumsatzsteuerPruefen(getPage: () => Page) {
       await bestaetigen(page, "Beleg löschen");
       // Weitere offene Belege führen zum nächsten Beleg, sonst zur Liste; die eigene Fixture muss in beiden Fällen weg sein.
       await page.waitForURL((url) => url.pathname !== route && /^\/belege(?:\/[0-9a-f-]{36})?$/.test(url.pathname));
-      const sql = postgres(databaseUrlFuer("belege-steuern"), { max: 1 });
+      const sql = postgres(databaseUrlFuer(durchlauf), { max: 1 });
       try {
         const id = route.split("/").at(-1)!;
         await expect.poll(async () => (await sql`select id from documents where id=${id}`).length).toBe(0);
@@ -171,7 +172,7 @@ async function belegAnlegen(page: Page, browser: Browser): Promise<string> {
   await page.getByLabel("Lieferant", { exact: true }).fill("Musterbedarf GmbH");
   await page.getByLabel("Rechnungsnummer").fill("TEST-433");
   await page.getByLabel("Belegdatum").fill(currentDay());
-  await page.getByLabel("Kategorie").selectOption("software");
+  await waehleKategorie(page.getByLabel("Kategorie"), "software");
   await page.getByLabel("Netto", { exact: true }).fill("100,00");
   return new URL(page.url()).pathname;
 }

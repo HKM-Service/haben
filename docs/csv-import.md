@@ -54,7 +54,7 @@ Haben legt nichts doppelt an und überschreibt nichts:
 | Art | Wiedererkannt an |
 | --- | --- |
 | Kontakte | Kundennummer, Lieferantennummer, Debitor, Kreditor, jeder E-Mail-Adresse, USt-IdNr. oder Name (Groß- und Kleinschreibung egal) |
-| Kontakte aus DATEV | Debitor oder Kreditor, nicht am Namen ([Kontakte aus DATEV](#kontakte-aus-datev)) |
+| Kontakte aus DATEV | Debitor oder Kreditor; am Namen nur als Vorschlag ([Kontakte aus DATEV](#kontakte-aus-datev)) |
 | Artikel | Artikelnummer; eine Zeile ohne Nummer an der Bezeichnung, auch gegen einen Artikel mit Nummer |
 | Anlagen | Bezeichnung, Anschaffungsdatum und Anschaffungskosten zusammen |
 
@@ -75,7 +75,7 @@ Bei Kontakten zählt auch der Name, wie beim [Abruf aus Lexware Office](lexoffic
 | Straße, PLZ, Ort, Land | Straße, PLZ, Ort, Land, auch „Straße (Rechnungsadresse)“ … und „Straße 1“ … wie bei Lexware Office | Land siehe [Werte](#werte). Die Lieferadresse („… (Lieferadresse)“, „Straße 2“ …) übernimmt Haben nicht |
 | E-Mail | E-Mail, Email, E-Mail-Adresse, Geschäftlich (E-Mail), E-Mail 1 | Mehrere Adressen mit Komma oder Semikolon, höchstens fünf, wie im Formular |
 | Telefon | Telefon, Telefonnummer, Rufnummer, Geschäftlich (Rufnummer), Telefon 1 | Ziffern, Leerzeichen und `+ ( ) / - .`, wie im Formular |
-| USt-IdNr. | USt-IdNr., USt-ID, Umsatzsteuer-ID, Umsatzsteuer ID, Umsatzsteuernummer | Form wie `DE123456789`; die deutsche auch mit Prüfziffer (ISO 7064). Ob sie erteilt ist, weiß nur das BZSt |
+| USt-IdNr. | USt-IdNr., USt-ID, Umsatzsteuer-ID, Umsatzsteuer ID, Umsatzsteuernummer | Form wie `DE123456789`; die deutsche auch mit Prüfziffer (ISO 7064). Ob sie erteilt ist, bestätigt das BZSt auf der [Detailseite des Kontakts](kontakte.md#ust-idnr-beim-bzst-bestätigen); der Import fragt nicht an |
 | IBAN | IBAN | Prüfziffer nach ISO 13616; Leerzeichen fallen weg |
 | Leitweg-ID | Leitweg-ID | |
 | Rolle | Rolle, Typ, Kontaktart | „Kunde“, „Lieferant“ oder beides. Ohne Spalte: Lieferant, wenn nur eine Lieferantennummer oder ein Kreditor dasteht, beides bei Nummern für beide Rollen, sonst Kunde. Hat die Datei eine Spalte Lieferantennummer, aber keine Kundennummer (Lieferanten-Vorlage von Lexware Office), ist auch eine Zeile ohne Nummer ein Lieferant |
@@ -105,7 +105,7 @@ Wiedererkannt wird ein Kontakt am Personenkonto, nicht am Namen:
 
 - **Zweiter Import:** Trägt ein Kontakt schon alle Personenkonten des Partners, ist die Zeile eine Dublette, auch wenn sich der Name geändert hat. Derselbe Import ein zweites Mal ändert nichts.
 - **Debitor und Kreditor eines Partners:** Haben sie dieselbe USt-IdNr. oder Steuernummer, wird daraus ein Kontakt mit beiden Rollen; die Vorschau zeigt beide Zeilen. Leere Felder des Debitors füllt der Kreditor, die Anschrift aber nur ganz: Straße, PLZ, Ort und Land kommen aus derselben Zeile.
-- **Gleicher Name allein** führt nicht zusammen, denn zwei Kunden dürfen gleich heißen: Die Zeile wird ein eigener Kontakt, die Vorschau nennt den gleichnamigen.
+- **Gleicher Name allein** führt nie still zusammen, denn zwei Kunden dürfen gleich heißen. Heißt genau ein Kontakt in Haben so, fehlt ihm die Nummer für die Rolle und widerspricht seine USt-IdNr. nicht, zeigt die Vorschau einen Vorschlag mit drei Wegen: **Zuordnen** gibt ihm die Nummer, **Neu anlegen** legt die Zeile als eigenen Kontakt an, **Überspringen** (vorgewählt) übernimmt nichts. Hat der gleichnamige Kontakt für die Rolle schon eine andere Nummer oder eine andere USt-IdNr., ist er schon einer früheren Zeile vorgeschlagen, schlägt ihn eine andere Zeile über USt-IdNr., Kundennummer oder Personenkonto vor (das geht vor, auch aus einer späteren Zeile) oder heißen mehrere so, wird die Zeile ein eigener Kontakt mit Hinweis.
 - **Vorhandener Kontakt ohne Personenkonto für die Rolle,** mit gleicher USt-IdNr. oder Kundennummer oder mit dem anderen Personenkonto desselben Partners: Die Vorschau zeigt einen Vorschlag. Die Nummer bekommt der Kontakt nur, wenn du ihn mit **Bestätigen** annimmst; er wird dabei Kunde bzw. Lieferant, sonst ändert sich nichts an ihm. Ohne Bestätigung überspringt Haben die Zeile und legt keinen zweiten Kontakt an.
 - **Fehler:** Trägt ein Kontakt mit anderer USt-IdNr. die Nummer oder dieselbe Kundennummer schon, hat der passende Kontakt für diese Rolle eine andere Nummer oder passen mehrere Kontakte, übernimmt Haben die Zeile nicht. Eine Nummer, die schon in einem DATEV-Export stand, bleibt fest.
 
@@ -121,6 +121,8 @@ Wiedererkannt wird ein Kontakt am Personenkonto, nicht am Namen:
 | Bruttopreis | Bruttopreis, Preis brutto | Nur ohne Nettopreis: dann ein Artikel mit Endpreis |
 | Steuersatz | Umsatzsteuer, Steuersatz, Steuerart, USt, MwSt | Pflicht, ohne stille Vorgabe: Kleinunternehmer brauchen 0 %, alle anderen meist 19 % |
 | Notiz | Notiz, Bemerkung | |
+
+Die Vorgabe **Kosten für § 35a EStG** kennt der Import nicht; importierte Artikel kommen als „Material und Sonstiges“ an. Arbeit, Maschinen und Fahrt stellst du danach im Artikel um ([Arbeits-, Maschinen- und Fahrtkosten](rechnungen.md#arbeits--maschinen--und-fahrtkosten--35a-estg)).
 
 Die Namen folgen der [Mustervorlage für Produkte und Services](https://help.lexware.de/de-form/articles/548269-produkte-und-services-per-csv-datei-importieren) von Lexware Office. Deren Spalte „Verkaufspreis“ ist netto oder brutto, je nachdem, was in Lexware Office unter den Allgemeinen Einstellungen steht. Haben ordnet sie deshalb nicht selbst zu; du wählst sie in der Vorschau als Netto- oder Bruttopreis.
 
@@ -144,6 +146,10 @@ Der Import ist eine [Übernahme aus der bisherigen Buchhaltung](anlagen.md#über
 | Restbuchwert zum Stichtag | Restbuchwert, Buchwert | Buchwert am Tag vor dem Stichtag, also zum 31.12. des Vorjahres |
 | Bisherige AfA | bisherige AfA, kumulierte AfA | Statt des Restbuchwerts: Anschaffungskosten minus bisherige AfA. Stehen beide da, müssen sie zusammenpassen |
 | Notiz | Notiz, Bemerkung, Inventarnummer | |
+
+Bei der Dublettenprüfung vergleicht Haben Bezeichnung, Anschaffungsdatum und Anschaffungskosten. Ist die Notiz oder Inventarnummer in der Importzeile ausgefüllt, muss sie ebenfalls übereinstimmen. So kannst du baugleiche Anlagen mit unterschiedlichen Inventarnummern einzeln übernehmen.
+
+Steht dieselbe Anlage mit und ohne Inventarnummer oder Notiz in einer Datei, zählt die Zeile ohne diese Angabe als Dublette. Die Zeilen mit verschiedenen Inventarnummern bleiben einzeln sichtbar.
 
 Lexware Office liefert das Anlagenverzeichnis weder über die Schnittstelle noch als Datei; die Liste schreibst du aus dem Anlagenverzeichnis ab oder exportierst sie aus der bisherigen Buchhaltung.
 

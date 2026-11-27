@@ -1,13 +1,14 @@
 ---
-title: "REST-API für Kontakte, Artikel und Rechnungsentwürfe"
+title: "REST-API für Kontakte, Artikel, Rechnungsentwürfe, Angebote und Bankumsätze"
 description: >-
-  Kontakte, Katalogartikel und Rechnungsentwürfe aus eigenen Werkzeugen über die REST-API in Haben pflegen.
+  Kontakte, Artikel, Rechnungs- und Angebotsentwürfe aus eigenen Werkzeugen über die REST-API in Haben pflegen
+  und Bankumsätze liefern.
   Mit OpenAPI-Beschreibung.
 ---
 
 # REST-API
 
-Über die REST-API legen eigene Werkzeuge und Automationen Kontakte und Rechnungsentwürfe in Haben an, etwa eine Automation, die Bestellungen aus Etsy oder eBay holt. Haben bekommt dafür keine eigene Bestellverwaltung: Die Bestellung bleibt auf der Plattform, Haben schreibt die Rechnung dazu. Ebenso liefern eigene Werkzeuge, Dokumentenarchive und Skripte Eingangsbelege an Haben, die dort unter **Belege** als „Zu prüfen“ landen.
+Über die REST-API legen eigene Werkzeuge und Automationen Kontakte, Rechnungs- und Angebotsentwürfe in Haben an, etwa eine Automation, die Bestellungen aus Etsy oder eBay holt. Haben bekommt dafür keine eigene Bestellverwaltung: Die Bestellung bleibt auf der Plattform, Haben schreibt die Rechnung dazu. Ebenso liefern eigene Werkzeuge, Dokumentenarchive und Skripte Eingangsbelege an Haben, die dort unter **Belege** als „Zu prüfen“ landen.
 
 Die Oberfläche einer solchen Automation kannst du als [eigene Seite](eigene-seiten.md) ins Menü von Haben hängen.
 
@@ -17,9 +18,12 @@ Die API **bucht nichts, schreibt nichts fest und versendet nichts**. Ein Entwurf
 | --- | --- |
 | Kontakte | auflisten und suchen, lesen, anlegen, ändern (nicht löschen: Kontakte sind versioniert) |
 | Rechnungen | alle lesen, auch festgeschriebene; Entwürfe anlegen, ändern und löschen, solange sie Entwurf sind |
+| Wiederkehrende Rechnungen | [Vorlagen anlegen, ändern und löschen](#wiederkehrende-rechnungen) |
+| Angebote | alle lesen, auch festgeschriebene, mit der Antwort des Kunden und der Rechnung daraus; [Entwürfe](#angebotsentwürfe) anlegen, ändern und löschen, solange sie Entwurf sind |
 | Belege | hochladen (landen als „Zu prüfen“), auflisten und lesen, ob sie schon geprüft und gebucht sind; nicht ändern oder löschen |
 | Artikel | Katalogartikel auflisten, suchen, lesen, anlegen und ändern |
 | Leistungen | Zeiteinträge je Kunde auflisten, lesen, anlegen (mit Kennung wiederholbar) und löschen, etwa aus Kimai |
+| Bank | Umsätze in eine am Konto freigegebene Quelle liefern und die Quellen mit ihrem Stand lesen; keine Umsätze lesen, nichts zuordnen |
 
 Die vollständige Beschreibung als OpenAPI 3.1 liefert Haben selbst unter `https://<deine Adresse>/api/v1/openapi.json`, ohne Token. Werkzeuge wie Swagger UI, Bruno oder Postman lesen sie ein.
 
@@ -37,15 +41,20 @@ Es sind dieselben Tokens wie für die [KI-Assistenten](ki-assistenten.md); was e
 | `kontakte:schreiben` | dazu `POST /kontakte`, `PATCH /kontakte/{id}` |
 | `rechnungen:lesen` | `GET /rechnungen`, `GET /rechnungen/{id}` |
 | `rechnungen:entwuerfe` | dazu `POST /rechnungen`, `PATCH /rechnungen/{id}`, `DELETE /rechnungen/{id}` |
+| `rechnungen:vorlagen-anlegen` | `POST /rechnungen/wiederkehrend` |
+| `rechnungen:vorlagen-bearbeiten` | `PATCH /rechnungen/wiederkehrend/{id}`, `DELETE /rechnungen/wiederkehrend/{id}` |
+| `angebote:lesen` | `GET /angebote`, `GET /angebote/{id}` |
+| `angebote:entwuerfe` | dazu `POST /angebote`, `PATCH /angebote/{id}`, `DELETE /angebote/{id}` |
 | `belege:lesen` | `GET /belege`, `GET /belege/{id}` |
 | `belege:anlegen` | dazu `POST /belege` |
 | `artikel:lesen` | `GET /artikel`, `GET /artikel/{id}` |
 | `artikel:schreiben` | dazu `POST /artikel`, `PATCH /artikel/{id}` |
 | `leistungen:lesen` | `GET /leistungen`, `GET /leistungen/{id}` |
 | `leistungen:schreiben` | dazu `POST /leistungen`, `DELETE /leistungen/{id}` |
+| `bank:importieren` | `GET /bankquellen`, `POST /bankimporte` |
 | `haben:lesen` | nur die Werkzeuge über [MCP](ki-assistenten.md), nicht die REST-API |
 
-Schreiben und anlegen schließen lesen ein. Ein Token ohne das nötige Recht bekommt `403`.
+„Dazu“ bedeutet, dass das Recht auch die Lesezugriffe der Zeile darüber erlaubt. Ein Token ohne das nötige Recht bekommt `403`.
 
 ## Grundlagen
 
@@ -78,11 +87,11 @@ Jeder Fehler hat dieselbe Form, mit einer deutschen Meldung und bei ungültigen 
 | 403 | `forbidden` | Dem Token fehlt das Recht; die Meldung nennt es |
 | 404 | `not_found` | Unbekannter Pfad oder Datensatz |
 | 405 | `method_not_allowed` | Methode gibt es hier nicht; `Allow` nennt die erlaubten |
-| 409 | `conflict` | Die Rechnung ist festgeschrieben, oder ein Entwurf, den nur Haben selbst bearbeitet (Storno, Korrektur, Abschlag, Schlussrechnung, aus einem Angebot); bei Belegen: dieselbe Datei liegt mit einer anderen oder ohne Referenz schon vor, `existingId` nennt den Beleg |
+| 409 | `conflict` | Die Rechnung oder das Angebot ist festgeschrieben, Gesamtrabatt oder Zahlungsplan eines Angebotsentwurfs passen nicht zu den neuen Positionen, oder ein Entwurf, den nur Haben selbst bearbeitet (Storno, Korrektur, Abschlag, Schlussrechnung, aus einem Angebot); bei Belegen: dieselbe Datei liegt mit einer anderen oder ohne Referenz schon vor, `existingId` nennt den Beleg |
 | 413, 415 | `payload_too_large`, `unsupported_media_type` | Body größer als 1 MB (Beleg: Datei größer als 20 MB) oder nicht als JSON (Beleg: nicht als `multipart/form-data`, oder die Datei ist kein PDF, Bild oder E-Rechnungs-XML) |
 | 422 | `unprocessable` | Fachlich abgelehnt, etwa ein unbekannter Kontakt |
 | 429 | `rate_limited` | Zu viele Anfragen |
-| 500 | `internal_error` | Fehler im Server; die Details stehen nur im Server-Log |
+| 500 | `internal_error` | Fehler im Server; die Meldung nennt eine Fehler-ID, die Details stehen nur unter ihr im [Server-Log](installation-probleme.md) |
 
 ## Bereits bezahlte Rechnungen
 
@@ -114,10 +123,14 @@ Ein Rechnungsentwurf nimmt `buyerOrderReference` (Bestellnummer des Kunden, BT-1
 
 - `exemption`: Vorschrift mit `number` und gegebenenfalls `letter`, etwa `{ "number": "14", "letter": "a" }`. Für eine zugeordnete Vorschrift entsteht der Befreiungshinweis daraus; ein alter Freitext wird nicht als Vorschrift ausgewertet.
 - `ancillary`: `true` oder `false` für einen Hilfsumsatz, `null` für ungeklärt. Das betrifft die Zählung bestimmter Befreiungen im [Gesamtumsatz nach § 19 UStG](auswertungen.md#gesamtumsatz-nach--19-ustg).
-- `foreignPlace`: `null` oder der tatsächliche Leistungsort mit Ländercode und bestätigter Behandlung, etwa `{ "country": "AT", "noForeignVat": true }`. Die Kundenanschrift ersetzt diese Prüfung nicht. `eu_sonstige` setzt einen anderen EU-Leistungsort ohne auszuweisende ausländische Umsatzsteuer voraus; ausländische Steuersätze, OSS und § 19a sind nicht enthalten.
+- `foreignPlace`: `null` oder der tatsächliche Leistungsort mit Ländercode und bestätigter Behandlung, etwa `{ "country": "AT", "noForeignVat": true }`. Für ein [umsatzsteuerliches Sondergebiet](umsatzsteuer-sondergebiete.md) ist `postalCode` optional, etwa `{ "country": "DE", "postalCode": "27498", "noForeignVat": true }` für Helgoland. Die Kundenanschrift ersetzt diese ausdrückliche Prüfung nicht; änderst du den Ort, bestätigst du die Behandlung neu. `eu_sonstige` setzt einen anderen EU-Leistungsort ohne auszuweisende ausländische Umsatzsteuer voraus; ausländische Steuersätze, OSS und § 19a sind nicht enthalten.
 - `assetDisposal`: `true` beim Verkauf eines Wirtschaftsguts des Anlagevermögens, sonst `false`.
 
 Ohne `taxDetails` wird beim Anlegen `null` gespeichert; ein `PATCH` ohne Feld behält die gespeicherte Zuordnung, `null` hebt sie auf. Fehlende Angaben bleiben in der Gesamtumsatz-Auswertung ungeklärt. Beim Festschreiben gelten dieselben Prüfungen wie im Editor, einschließlich der Kleinunternehmer-Sperren.
+
+## Rechnungsaustausch
+
+Ein normaler Rechnungsentwurf kann in `replacesInvoiceId` die ID einer früheren festgeschriebenen Rechnung nennen. `PATCH` ohne das Feld behält den Bezug, `null` entfernt ihn. Beim Festschreiben in Haben muss die frühere Rechnung storniert sein. Kunde, Leistung, Steuerbehandlung, Währung, Kurs und Beträge je Steuersatz müssen übereinstimmen. Haben übernimmt ein hinterlegtes Angebot des Vorgängers. Bereits erfasste Zahlungen bleiben an der ursprünglichen Rechnung.
 
 ## Externe Referenz: eine Rechnung je Bestellung
 
@@ -149,7 +162,7 @@ curl -s -X POST "$HABEN/kontakte" -H "Authorization: Bearer $TOKEN" -H "Content-
   -d '{"name": "Anna Muster", "strasse": "Lindenweg 3", "plz": "10115", "ort": "Berlin", "email": "anna@example.com"}'
 ```
 
-Rechnungsentwurf zu einer Etsy-Bestellung, zwei Becher zu je 24,00 € netto mit 19 %. Nicht genannte Felder nehmen die Vorgaben aus den Firmendaten (Zahlungsziel, Format, Einleitung, Kleinunternehmer), Format, Sprache und Skonto wie im Rechnungseditor vom Kontakt (sein Standardformat, mit Leitweg-ID XRechnung), das Datum ist heute:
+Rechnungsentwurf zu einer Etsy-Bestellung, zwei Becher zu je 24,00 € netto mit 19 %. Nicht genannte Felder nehmen die Vorgaben aus den Firmendaten (Zahlungsziel, Format, Kleinunternehmer) und Einleitung und Hinweis aus dem [Standard-Textbaustein für Rechnungen](rechnungen.md#standard-je-belegart), Format, Sprache, Skonto und [Zahlungskonto](rechnungen-zahlung.md#zahlungskonto) wie im Rechnungseditor vom Kontakt (sein Standardformat, mit Leitweg-ID XRechnung), das Datum ist heute:
 
 ```sh
 curl -s -X POST "$HABEN/rechnungen" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
@@ -163,7 +176,7 @@ curl -s -X POST "$HABEN/rechnungen" -H "Authorization: Bearer $TOKEN" -H "Conten
 }'
 ```
 
-Je Position nimmt die API optional `detail` (Text unter der Bezeichnung, BT-154) und `itemNumber` (Artikelnummer, BT-155, bis 50 Zeichen) an.
+Je Position nimmt die API optional `detail` (Text unter der Bezeichnung, BT-154), `itemNumber` (Artikelnummer, BT-155, bis 50 Zeichen) und `arbeitskosten` an. `arbeitskosten: true` kennzeichnet Arbeits-, Maschinen- und Fahrtkosten; ihr Anteil steht dann unter den Summen und in BT-22 ([§ 35a EStG](rechnungen.md#arbeits--maschinen--und-fahrtkosten--35a-estg)). Ohne Feld gilt `false`.
 
 Die Antwort enthält Summen, Positionen und `url`, den Link auf den Entwurf in Haben:
 
@@ -209,17 +222,55 @@ Ist die Rechnung schon festgeschrieben, antworten Ändern und Löschen mit `409`
 3. `POST /rechnungen` mit `contactId`, `externalSource`, `externalId` und den Positionen. Läuft der Abruf doppelt, kommt `200` mit der vorhandenen Rechnung statt eines Duplikats.
 4. In Haben die Entwürfe prüfen und festschreiben, dann wie gewohnt versenden.
 
+## Wiederkehrende Rechnungen
+
+`POST /rechnungen/wiederkehrend` legt eine [Vorlage](rechnungen.md#wiederkehrende-rechnungen) für einen vorhandenen Kunden an. Beispiel für einen monatlichen Termin:
+
+```json
+{
+  "name": "Monatlicher Service",
+  "contactId": "00000000-0000-4000-8000-000000000000",
+  "nextDate": "2027-01-31",
+  "recurrence": "P1M",
+  "lines": [
+    { "description": "Servicepauschale", "quantity": 1000, "unit": "Stk.", "unitPrice": 5000, "taxRate": 1900 }
+  ]
+}
+```
+
+`recurrence` ist das Intervall als Dauer nach ISO 8601: `P1W`, `P2W` oder `P4W` für jede, jede zweite oder vierte Woche, `P1M`, `P2M`, `P3M` oder `P6M` für Monate und `P1Y` für jährlich. Die Antwort `201 Created` enthält die ID und unter `url` den Link zur Vorlage. Öffne die pausierte Vorlage in Haben, prüfe die Daten und aktiviere sie dort. Nach der Aktivierung legt Haben zu jedem Termin einen Rechnungsentwurf an. Pro erfolgreichem Aufruf entsteht eine Vorlage.
+
+`PATCH /rechnungen/wiederkehrend/{id}` ändert eine pausierte Vorlage. Sende die Felder, die du ändern willst, etwa `{"name":"Neuer Name"}`. `lines` ersetzt alle Positionen, `"endDate": null` entfernt das Enddatum. Je nach Steuerbehandlung leitet Haben die Preisart und den Befreiungshinweis ab. Ablaufmodus und E-Mail-Versand stellst du in Haben ein. Die Antwort `200 OK` enthält `id`, `active: false` und `url`. Für eine aktive Vorlage meldet Haben `409 Conflict`.
+
+`DELETE /rechnungen/wiederkehrend/{id}` löscht eine Vorlage und antwortet mit `204 No Content`. Solange eine daraus erzeugte Rechnung oder ein Entwurf vorhanden ist, meldet Haben `409 Conflict`. Fehlt die Vorlage, antworten beide Endpunkte mit `404 Not Found`.
+
+## Angebote
+
+`GET /angebote` listet alle Angebote, Entwürfe zuerst, dann nach Nummer absteigend; `status` (`draft` oder `final`), `contactId` und `number` grenzen die Liste ein. Mit `number` prüft etwa eine Auftragsverwaltung die Angebotsnummer an einem Auftrag. `GET /angebote/{id}` liefert das Angebot mit Positionen.
+
+`listStatus` ist der Stand wie in der Angebotsliste: `entwurf`, `offen`, `abgelaufen` (nach `validUntil`), `angenommen`, `abgelehnt` oder `abgerechnet`, sobald es eine nicht stornierte Rechnung über das ganze Angebot gibt, also die Rechnung aus dem Angebot oder die Schlussrechnung (`invoiceId`, `invoiceNumber`, auch als Entwurf). Abschlagsrechnungen zählen dabei nicht: Nach einem Abschlag bleibt das Angebot `angenommen` und `invoiceId` leer. Optionale Positionen und Alternativen tragen `kind` (`optional` oder `alternative`) und zählen nicht zu `net`, `tax` und `gross`; welche davon der Kunde gewählt hat, steht in `choices` (Positionsnummern). Rabatte sind wie bei Rechnungen in den Beträgen enthalten, aber nicht einzeln ausgewiesen.
+
+Die Antwort des Kunden und die Rechnung aus dem Angebot bleiben ein Klick in [Angebote](angebote.md); `url` führt zur Seite des Angebots.
+
+### Angebotsentwürfe
+
+Mit `angebote:entwuerfe` legt `POST /angebote` einen Entwurf an, etwa aus einer Kalkulation oder einer Notiz, die ein KI-Assistent ausgelesen hat. Pflicht sind nur die Positionen (`lines`), aufgebaut wie bei der Rechnung. `kind` (`optional` oder `alternative`) macht eine Position zur [Wahlmöglichkeit](angebote.md#optionale-und-alternative-positionen); ohne `kind` zählt sie zur Summe. Was fehlt, nimmt die Vorgaben eines neuen Angebots in Haben: `issueDate` heute, `validUntil` 30 Tage nach dem Angebotsdatum, Einleitung und Hinweis aus den [Standard-Textbausteinen](rechnungen.md#standard-je-belegart) für Angebote, die Steuer aus den Firmendaten, die Sprache des Kunden und die [Standardanhänge](angebote.md#anhänge). `contactId` muss ein Kunde sein.
+
+Mit `externalSource` (z. B. `desk`) und `externalId` (stabile Vorgangs-ID) legst du je Referenz ein Angebot an. Beide Felder gehören zusammen. Beim Anlegen antwortet Haben mit `201`. Wiederholungen liefern mit `200` dasselbe Angebot in seinem aktuellen Stand zurück, auch nach dem Festschreiben. Beide Antworten haben einen `Location`-Header. Eine Wiederholung ändert das Angebot nicht. Wurde der Entwurf bewusst gelöscht, kann die Referenz erneut verwendet werden. Ohne Referenz legt jeder Aufruf einen eigenen Entwurf an.
+
+`PATCH /angebote/{id}` ändert nur die genannten Felder, `lines` ersetzt alle Positionen. Rabatte, Zahlungsplan, Ansprechpartner und Zahlungskonto setzt nur Haben: Ein Gesamtrabatt, ein Zahlungsplan und das Zahlungskonto bleiben bei einem `PATCH` stehen, Positionsrabatte gehen mit den alten Positionen, und wechselt der Kunde, entfällt der Ansprechpartner und es gilt das bevorzugte Zahlungskonto des neuen Kunden. Passen Gesamtrabatt oder Zahlungsplan nicht zu den neuen Positionen, etwa ein fester Rabatt über der neuen Summe, antwortet die API mit `409`, und der Entwurf bleibt, bis du sie in Haben anpasst. `DELETE /angebote/{id}` löscht den Entwurf mit seinen Anhängen. Ein festgeschriebenes Angebot lässt sich über die API weder ändern noch löschen (`409`).
+
 ## Artikelkatalog
 
 `GET /artikel` listet aktive Artikel, sortiert nach Nummer und Bezeichnung. Mit `q` suchst du nach einem Teil der Nummer oder Bezeichnung. Mit `archived=true` enthält die Liste auch archivierte Artikel. `GET /artikel/{id}` liefert den Artikel zur ID.
 
-Für `POST /artikel` brauchst du eine einzeilige Bezeichnung (`description`), Einheit (`unit`), Einzelpreis in Cent (`unitPrice`) und Steuersatz in Basispunkten (`taxRate`). Die Einheit muss in Haben vorhanden sein. Mit `priceIncludesTax: true` gibst du einen Bruttopreis an. Du kannst Artikelnummer (`number`), Positionstext (`detail`) und interne Notiz (`note`) mitsenden. Bei Erfolg liefert Haben `201`, den angelegten Artikel und seinen API-Pfad im Header `Location`. Auch bei gleicher Artikelnummer legt `POST` einen neuen Artikel an.
+Für `POST /artikel` brauchst du eine einzeilige Bezeichnung (`description`), Einheit (`unit`), Einzelpreis in Cent (`unitPrice`) und Steuersatz in Basispunkten (`taxRate`). Die Einheit muss in Haben vorhanden sein. Mit `priceIncludesTax: true` gibst du einen Bruttopreis an. Du kannst Artikelnummer (`number`), Positionstext (`detail`), die Vorgabe `arbeitskosten` für § 35a EStG und interne Notiz (`note`) mitsenden. Bei Erfolg liefert Haben `201`, den angelegten Artikel und seinen API-Pfad im Header `Location`. Auch bei gleicher Artikelnummer legt `POST` einen neuen Artikel an.
 
 `PATCH /artikel/{id}` speichert die gesendeten Felder und liefert den Artikel mit `200` zurück. Für eine Preisänderung genügt etwa `{"unitPrice": 2380}`. Speichere für spätere Änderungen die `id` des Artikels. Zum Archivieren öffnest du den [Artikelkatalog](rechnungen.md#artikelkatalog) in Haben.
 
 ## Leistungen und Zeiterfassung
 
-Ein Zeiterfassungsprogramm wie Kimai oder Toggl schickt seine Zeiteinträge mit `POST /leistungen` an Haben; sie stehen dort unter [Leistungen](leistungen.md). Der Eintrag gehört einem Kunden (`contactId`), hat einen Arbeitstag (`workedOn`), eine Dauer in ganzen Minuten (`minutes`, 1 bis 1440) und optional `description`, `hourlyRateCents`, `project` (freier Text), `billableMinutes` (abrechenbare Dauer, wenn sie von der erfassten abweicht) und `nonBillable` (`true`: erfasst, kommt aber nie in einen Rechnungsentwurf). Der Kontakt muss ein Kunde und darf nicht archiviert sein, sonst `422`. Ohne Stundensatz nimmt Haben den des Kunden; er bleibt als Kopie am Eintrag. Den Satz am Kunden setzt `PATCH /kontakte/{id}` mit `hourlyRateCents`.
+Ein Zeiterfassungsprogramm wie Kimai oder Toggl schickt seine Zeiteinträge mit `POST /leistungen` an Haben; sie stehen dort unter [Zeiteinträge](leistungen.md). Der Eintrag gehört einem Kunden (`contactId`), hat einen Arbeitstag (`workedOn`), eine Dauer in ganzen Minuten (`minutes`, 1 bis 1440) und optional `description`, `hourlyRateCents`, `project` (freier Text), `billableMinutes` (abrechenbare Dauer, wenn sie von der erfassten abweicht) und `nonBillable` (`true`: erfasst, kommt aber nie in einen Rechnungsentwurf). Der Kontakt muss ein Kunde und darf nicht archiviert sein, sonst `422`. Ohne Stundensatz nimmt Haben den des Kunden; er bleibt als Kopie am Eintrag. Den Satz am Kunden setzt `PATCH /kontakte/{id}` mit `hourlyRateCents`.
 
 Mit `source` und `externalId` ist der Aufruf wiederholbar: Die Kennung der Zeile in der Quelle steht in `externalId`, der Name der Quelle in `source`. Gibt es die Kennung schon, antwortet Haben mit `200` und dem aktualisierten Eintrag, sonst mit `201`. Fehlen Stundensatz, `project`, `billableMinutes` oder `nonBillable` im Aufruf, behält ein vorhandener Eintrag seine Werte; `billableMinutes: null` nimmt eine abrechenbare Dauer zurück. Den Stundensatz des Kunden liefert `GET /kontakte/{id}` als `hourlyRateCents`.
 
@@ -229,7 +280,7 @@ curl -X POST "$HABEN/leistungen" \
   -d '{"contactId":"<Kunden-ID>","workedOn":"2026-03-02","minutes":90,"description":"Konzept Datenmodell","source":"kimai","externalId":"4711"}'
 ```
 
-Gelöscht wird mit `DELETE /leistungen/{id}`, gelesen mit `GET /leistungen/{id}`; `GET /leistungen` mit `contactId`, `from`, `to` und `status` (`offen`, `abgerechnet`, `nicht-abrechenbar`) listet. Jeder Eintrag trägt `invoiceId`, `invoiceNumber` und `invoiceStatus` (`draft` oder `final`) der Rechnung, auf der er steht; `null` heißt offen, auch nach dem Storno der Rechnung. Ein Eintrag auf einer Rechnung lässt sich nicht löschen (`422`), und ein erneutes `POST` mit seiner Kennung ändert ihn nicht. Einen anderen Kunden für einen Rechnungsentwurf mit Einträgen lehnt `PATCH /rechnungen/{id}` ab (`422`). Abgerechnet wird in Haben unter [Leistungen](leistungen.md#abrechnen).
+Gelöscht wird mit `DELETE /leistungen/{id}`, gelesen mit `GET /leistungen/{id}`; `GET /leistungen` mit `contactId`, `from`, `to` und `status` (`offen`, `abgerechnet`, `nicht-abrechenbar`) listet. Jeder Eintrag trägt `invoiceId`, `invoiceNumber` und `invoiceStatus` (`draft` oder `final`) der Rechnung, auf der er steht; `null` heißt offen, auch nach dem Storno der Rechnung. Ein Eintrag auf einer Rechnung lässt sich nicht löschen (`422`), und ein erneutes `POST` mit seiner Kennung ändert ihn nicht. Einen anderen Kunden für einen Rechnungsentwurf mit Einträgen lehnt `PATCH /rechnungen/{id}` ab (`422`). Abgerechnet wird in Haben unter [Zeiteinträge](leistungen.md#abrechnen).
 
 ### Zeitbuchungen aus Kimai holen
 
@@ -249,7 +300,7 @@ Ein Skript ruft regelmäßig die beendeten, noch nicht exportierten Zeitbuchunge
 
 `hourlyRateCents` lässt das Skript weg: Dann gilt der Satz des Kunden in Haben. Weil die Kennung der Zeitbuchung `externalId` ist, ändert ein erneuter Abruf, etwa nach `modified_after`, vorhandene Einträge statt neue anzulegen. Wer eine Zeitbuchung in Kimai nachträglich ändert, schickt sie noch einmal.
 
-Kimai merkt sich, was schon abgerechnet ist, mit dem Kennzeichen `exported` (`PATCH /api/timesheets/{id}/export` schaltet es um). Setzen soll es der Abgleich, sobald Haben die Einträge zu einer Rechnung gemacht hat; das kommt mit dem Abrechnen, einem späteren Teil von [#417](https://github.com/firsttris/haben/issues/417).
+Kimai merkt sich, was schon abgerechnet ist, mit dem Kennzeichen `exported` (`PATCH /api/timesheets/{id}/export` schaltet es um). Setzen soll es der Abgleich, sobald Haben die Einträge zu einer Rechnung gemacht hat; das kommt mit dem Abrechnen, einem späteren Teil von [#417](https://github.com/Speicherstadt/haben/issues/417).
 
 > [!NOTE]
 > Diese Zuordnung folgt der Kimai-Dokumentation und dem Quelltext von Kimai. Sie ist noch nicht gegen eine laufende Kimai-Installation ausprobiert; welche Felder die Antwort genau enthält, zeigt `/api/doc` der eigenen Installation.
@@ -259,8 +310,9 @@ Kimai merkt sich, was schon abgerechnet ist, mit dem Kennzeichen `exported` (`PA
 Ein Dokumentenarchiv, ein Scanner mit eigenem Skript oder ein Werkzeug, das Rechnungen aus einem Postfach oder Kundenportal holt, schickt Eingangsbelege mit `POST /belege` an Haben. Der Beleg geht denselben Weg wie ein Upload unter **Belege**:
 
 - **Formate und Größe** wie beim Upload: PDF, JPEG, PNG, WebP, HEIC und E-Rechnungs-XML (XRechnung, ZUGFeRD), höchstens 20 MB. Haben erkennt das Format am Inhalt, nicht am Dateinamen. Genau eine Datei je Anfrage, im Feld `datei` oder `file` (für Werkzeuge mit festem Feldnamen wie [Paperless-ngx](#paperless-ngx)); beide zugleich lehnt die API mit `400` ab.
-- **Auslesen:** Eine E-Rechnung liest Haben sofort, die Antwort enthält dann schon Lieferant, Nummer, Datum und Beträge. Andere PDFs und Fotos liest die [KI-Auslesung](belege.md#ki-auslesung) im Hintergrund, wenn sie eingerichtet ist; bis dahin steht `extractionStatus` auf `laeuft`.
+- **Auslesen:** Eine E-Rechnung liest Haben sofort, die Antwort enthält dann schon Lieferant, Nummer, Datum und Beträge. Andere PDFs und Fotos liest die [KI-Auslesung](belege.md#ki-auslesung) im Hintergrund, wenn sie eingerichtet ist, der Reihe nach ([Warteschlange](belege.md#warteschlange-und-grenzen)); bis dahin steht `extractionStatus` auf `wartet` und dann auf `laeuft`.
 - **Nichts wird gebucht.** Der Beleg steht unter Belege als „Zu prüfen“ (`status: "neu"`). Kategorie, Zahlungsweg und Buchen bleiben in Haben.
+- **Anzeigename:** Schickt die Quelle die Datei unter einem festen Namen und kennt den richtigen daneben, gibt sie ihn im Feld `dateiname` mit (optional, höchstens 200 Zeichen); Haben nimmt ihn statt des Namens aus dem Upload, lässt Pfadanteile und Steuerzeichen weg und ergänzt die Endung des erkannten Formats, wenn der Name auf keine der angenommenen endet. Bleibt kein Name übrig (leer oder nur `.pdf`), gilt der aus dem Upload.
 - **Vorbelegen** lässt sich nur eine Notiz (`note`). Lieferant, Nummer, Datum und Beträge nimmt die API bewusst nicht an: Sie kommen aus der E-Rechnung oder der Auslesung, die sie sonst überschriebe, und geprüft werden sie ohnehin in Haben.
 
 Hochladen, mit einer Referenz auf das Dokument im Archiv:
@@ -318,14 +370,83 @@ Paperless-ngx schickt neue Dokumente mit einem Workflow ohne eigenen Code an Hab
 
 - **Auslöser:** „Dokument hinzugefügt“, gefiltert etwa auf einen Tag oder Dokumenttyp wie „Eingangsrechnung“.
 - **Aktion „Webhook“:** URL `https://<haben>/api/v1/belege`, Header `Authorization: Bearer <Token>` (Token mit `belege:anlegen`), Parameter statt JSON-Body, „Dokument anhängen“ an.
-- **Parameter:** `externalSource` = `paperless`, `externalId` = `{{ doc_id }}`, `note` = `Paperless: {{ doc_title }} ({{ correspondent }}) {{ doc_url }}`. Die Platzhalter rendert Paperless mit Jinja, also in doppelten geschweiften Klammern.
+- **Parameter:** `externalSource` = `paperless`, `externalId` = `{{ doc_id }}`, `note` = `Paperless: {{ doc_title }} ({{ correspondent }}) {{ doc_url }}`, `dateiname` = `{{ doc_title | replace("/", "-") }}`. Die Platzhalter rendert Paperless mit Jinja, also in doppelten geschweiften Klammern.
 
-Über `externalSource` und `externalId` legt ein doppelt ausgelöster Workflow nichts doppelt an (siehe oben). Die Platzhalter im Header ersetzt Paperless nicht; das Token steht dort im Klartext, also nur ein Token mit `belege:anlegen`.
+Für `dateiname` gilt:
+
+- `{{ doc_title }}` ist der Titel des Dokuments, wenn der Workflow läuft; benennt Paperless das Dokument später um, behält der Beleg in Haben seinen Namen. `replace` ersetzt Schrägstriche im Titel, die Haben sonst als Pfad wegließe.
+- `{{ filename }}`, der Name der abgelegten Datei ohne Endung, ist beim Auslöser „Dokument hinzugefügt“ noch leer, weil Paperless die Datei erst nach den Workflows ablegt. Er passt zum Auslöser „Dokument aktualisiert“. [Platzhalter in Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx/blob/v3.4.2/docs/usage.md#workflow-placeholders)
+- Ohne den Parameter heißt der Beleg wie die Datei, unter der Paperless das Dokument aufgenommen hat, beim Einwurf über den Consume-Ordner also etwa `document.pdf`; die Webhook-Aktion schickt den ursprünglichen Dateinamen, nicht den aktuellen (#1904).
+
+Ein endgültig fehlgeschlagener Webhook wird später nicht automatisch nachgeholt. Bei einem abgelaufenen oder widerrufenen Token antwortet Haben mit `401`. Ein Token gilt höchstens ein Jahr; trage vor dem Datum, das unter **API-Tokens** bei „gültig bis“ steht, ein neues in den Header des Workflows ein. Behebe die Ursache und sende die Dokumente erneut, etwa über den Auslöser „Dokument aktualisiert“ mit einem Tag als Filter für die betroffenen Dokumente. [Workflow-Auslöser in Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx/blob/v3.4.2/docs/usage.md#workflow-trigger-types)
+
+Verwende beim Nachversand dieselben Werte für `externalSource` und `externalId`. So erkennt Haben einen bereits angelegten Beleg (siehe oben). Die Platzhalter im Header ersetzt Paperless nicht; das Token steht dort im Klartext, also nur ein Token mit `belege:anlegen`.
+
+## Bankumsätze
+
+Ein eigener Dienst, der Zahlungen bei einem Anbieter abholt, liefert sie mit `POST /bankimporte` als Umsätze an Haben. Die Lieferung folgt dem Importvertrag aus [#306](https://github.com/Speicherstadt/haben/issues/306) (Schema `BankImport` in der OpenAPI-Beschreibung). Haben legt die Umsätze an; zugeordnet wird wie bei jedem Import im Bankabgleich.
+
+1. **Quelle freigeben:** in Haben unter **Geld › Verbindungen** an der Zeile des Kontos [Externe Quelle hinzufügen](bank.md#externe-quelle). Anbieter und Kennung dort sind `provider` und `externalAccountId` jeder Lieferung. Ein Token allein legt keine Quelle an; ohne Freigabe antwortet die API mit `404`.
+2. **Token** mit dem Recht „Bankumsätze in freigegebene Quellen liefern“ (`bank:importieren`).
+3. **Liefern** wie unten.
+
+Jede Bewegung hat eine feste Kennung beim Anbieter (`sourceEventId`) und eine Komponente: `main` für den Betrag, `fee` für die Gebühr, die der Anbieter einbehält. Ein Netto liefert der Dienst nicht, sonst zählte die Gebühr doppelt. Beträge in Cent, nur Euro; eine Bewegung in anderer Währung oder vor dem Stichtag übernimmt Haben nicht und nennt sie in `warnings`.
+
+- **Gebühren und Auszahlungen:** Die Gebühr wird ein eigener Umsatz mit „Gebühr“ vorn im Verwendungszweck, eine Auszahlung (`kind: "payout"`) schlägt der Abgleich als Geldtransit zum Eingang auf der Bank vor. Bezug einer Erstattung (`relatedEventId`) und Bestellung (`orderId`) stehen im Verwendungszweck.
+- **Wiederholen:** Dieselbe Lieferung (gleicher `idempotencyKey`, gleicher Inhalt) noch einmal gibt das bisherige Ergebnis mit `200` zurück, ohne etwas anzulegen; derselbe Schlüssel mit anderem Inhalt ist ein Konflikt. Bekannte Bewegungen in einem überlappenden Fenster überspringt Haben.
+- **Seiten:** höchstens 1.000 Bewegungen je Lieferung. Mehr kommen als Teile desselben Abrufs: gleiche `part.fetchId`, `part.index` ab 0, beim letzten `part.last: true`. Erst mit allen Teilen gilt der Zeitraum als vollständig; Ereignisse unter `unsupported` halten ihn offen, außer mit `final: true` (Endzustand wie storniert oder abgelehnt).
+- **Konflikt:** Kommt eine schon übernommene Bewegung mit anderem Betrag, Tag oder anderer Art, überschreibt Haben nichts, antwortet mit `409` und nimmt aus der Quelle nichts mehr an, bis du ihn am Konto mit **Klären** löst ([Externe Quelle](bank.md#externe-quelle)).
+- **Stand:** `GET /bankquellen` nennt je Quelle Stichtag, bis wann vollständig geliefert ist (`checkpoint`) und offene Konflikte.
+
+Eine Zahlung mit Gebühr liefern (erfundene Daten):
+
+```sh
+curl -s -X POST "$HABEN/bankimporte" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d @lieferung.json
+```
+
+```json
+{
+  "contractVersion": 1,
+  "provider": "haben-ebay",
+  "externalAccountId": "verkaeufer-beispiel",
+  "idempotencyKey": "finanzen-2026-10-teil-0",
+  "fetchedAt": "2026-11-01T06:00:00+01:00",
+  "coverage": { "from": "2026-10-01", "to": "2026-10-31" },
+  "part": { "fetchId": "finanzen-2026-10", "index": 0, "last": true },
+  "movements": [
+    {
+      "sourceEventId": "SALE-0001", "component": "main", "kind": "payment", "bookingDate": "2026-10-03",
+      "amount": 4999, "currency": "EUR", "counterpartyName": "Erika Beispiel", "purpose": "Bestellung 01-00000-00001",
+      "references": { "orderId": "01-00000-00001", "payoutId": "PAYOUT-0001" }
+    },
+    {
+      "sourceEventId": "SALE-0001", "component": "fee", "kind": "payment", "bookingDate": "2026-10-03",
+      "amount": -1006, "currency": "EUR", "purpose": "Gebühren zu Bestellung 01-00000-00001",
+      "references": { "orderId": "01-00000-00001", "payoutId": "PAYOUT-0001" }
+    }
+  ]
+}
+```
+
+Die Antwort (`201`):
+
+```json
+{ "replay": false, "added": 2, "skipped": 0, "checkpoint": "2026-10-31", "complete": true, "reason": null, "warnings": [] }
+```
+
+| Status | Bedeutung |
+| --- | --- |
+| 201 | Angenommen, Umsätze angelegt |
+| 200 | Dieselbe Lieferung kam schon; nichts neu angelegt |
+| 404 | Quelle nicht freigegeben |
+| 409 | Konflikt mit einer übernommenen Bewegung (`issues` nennt sie), ein noch offener Konflikt der Quelle oder derselbe Schlüssel mit anderem Inhalt |
+| 413 | Mehr als 1.000 Bewegungen |
+| 422 | Verstoß gegen den Vertrag, etwa andere Version, ungültiges Feld oder ein Fenster, das nach dem Abruf endet; `issues` nennt den Grund |
 
 ## Sicherheit
 
 - Der Zugang ist standardmäßig aus. Tokens laufen nach 30, 90 oder 365 Tagen ab und lassen sich einzeln widerrufen. Gespeichert ist nur ihr SHA-256-Hash.
-- Jedes Token hat nur die Rechte, die du ihm gibst. Keines kann buchen, festschreiben, stornieren, versenden oder etwas an ELSTER schicken, und keines sieht Zertifikat, Passwörter, API-Schlüssel oder Steuer-ID. Ein Token mit `belege:anlegen` kann Belege nur hinzufügen, nicht ändern, löschen oder herunterladen.
+- Jedes Token hat nur die Rechte, die du ihm gibst. Keines kann buchen, festschreiben, stornieren, versenden oder etwas an ELSTER schicken, und keines sieht Zertifikat, Passwörter, API-Schlüssel oder Steuer-ID. Ein Token mit `belege:anlegen` kann Belege nur hinzufügen, nicht ändern, löschen oder herunterladen. Ein Token mit `bank:importieren` liefert nur in Quellen, die du am Konto freigegeben hast, und liest keine Umsätze.
 - Die API meldet sich nur mit dem Token an, nie mit dem Sitzungscookie. Eine fremde Webseite, die du im selben Browser öffnest, kann sie deshalb nicht in deinem Namen aufrufen.
 - Ein Token ist so viel wert wie seine Rechte. Halte es in den Zugangsdaten deines Werkzeugs, nicht im Klartext in Skripten oder Workflows, und erreichst du Haben aus dem Internet, dann nur über HTTPS.
 - Im SSO-Modus hat jedes Token einen verantwortlichen Inhaber; verliert er die Inhaberrolle, deaktiviert Haben seine Tokens, siehe [Tokens nach Gruppenentzug](installation-sso.md#tokens-nach-gruppenentzug).

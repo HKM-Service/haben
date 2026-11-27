@@ -63,6 +63,19 @@ describe("Umsatzsteuererklärung (E50)", () => {
     expect(tag(xml, "E3011401")).toBe("-100,00");
   });
 
+  it("meldet Überschuss und Erstattung weiter mit Minus, auch wenn die Jahreserklärung sie ohne Vorzeichen zeigt (#1412)", () => {
+    const ueberschuss = { base19: 0, tax19: 0, base7: 0, tax7: 0, vorsteuer: 11_638 };
+    const ohneVorauszahlung = buildUstErklaerungXml({ ...base, versteuerung: "ist", figures: { ...ueberschuss, vorauszahlungen: 0 } });
+    expect(tag(ohneVorauszahlung, "E3010601")).toBe("-116,38");
+    expect(tag(ohneVorauszahlung, "E3011101")).toBe("-116,38");
+    expect(tag(ohneVorauszahlung, "E3011401")).toBe("-116,38");
+    // Überschuss 116,38 und 200,00 schon gezahlt: Erstattung 316,38, im XML negativ
+    const mitVorauszahlung = buildUstErklaerungXml({ ...base, versteuerung: "ist", figures: { ...ueberschuss, vorauszahlungen: 20_000 } });
+    expect(tag(mitVorauszahlung, "E3011101")).toBe("-116,38");
+    expect(tag(mitVorauszahlung, "E3011301")).toBe("200,00");
+    expect(tag(mitVorauszahlung, "E3011401")).toBe("-316,38");
+  });
+
   it("lehnt eine leere Erklärung und alte Jahre ab", () => {
     const zero = { base19: 0, tax19: 0, base7: 0, tax7: 0, vorsteuer: 0, vorauszahlungen: 0 };
     expect(() => buildUstErklaerungXml({ ...base, versteuerung: "ist", figures: zero })).toThrow(/Nullerklärung/);
@@ -325,5 +338,43 @@ describe("Umsatzsteuererklärung (E50)", () => {
     expect(ustErklaerungLeer({ ...leer, vorauszahlungen: 50_000 })).toBe(true);
     // Jeder einzelne Betrag hebt die Leere auf, hier nur eine ergänzende Angabe
     expect(ustErklaerungLeer({ ...leer, kz45: 80_000 })).toBe(false);
+    expect(ustErklaerungLeer({ ...leer, kz50: 150_000 })).toBe(false);
+  });
+
+  // Jahresdokumentation E50 2025 (ERiC 44.3.6.0), Zeile 78: Kz 650 „in Abschnitt B enthalten“, volle Euro ohne Vorzeichen;
+  // Anleitung zur Umsatzsteuererklärung 2026, Zeile 84: die Minderung „zusätzlich“ eintragen (#1809)
+  it("meldet die Minderung bei Uneinbringlichkeit zusätzlich in E3106101, die Umsätze und die Steuer bleiben", () => {
+    const ohne = buildUstErklaerungXml({ ...base, versteuerung: "soll", figures: { ...figures, kz45: 80_000 } });
+    const mit = buildUstErklaerungXml({ ...base, versteuerung: "soll", figures: { ...figures, kz45: 80_000, kz50: 150_099 } });
+    expect(checkXml(mit)).toBeUndefined();
+    expect(tag(mit, "E3106101")).toBe("1500");
+    expect(tag(ohne, "E3106101")).toBeUndefined();
+    // Schema: E3106101 hinter E3105801 in Erg_Ang_Ums
+    const [kz45, kz650, ende] = [mit.indexOf("<E3105801>"), mit.indexOf("<E3106101>"), mit.indexOf("</Erg_Ang_Ums>")];
+    expect(kz45 < kz650 && kz650 < ende).toBe(true);
+    expect(mit.replace(/\s*<E3106101>1500<\/E3106101>/, "")).toBe(ohne);
+  });
+
+  it("schreibt die Zeile zu 19 % mit 0, wenn sich Rechnung und Forderungsausfall im Jahr aufheben (USt_2021_30940)", () => {
+    const xml = buildUstErklaerungXml({
+      ...base,
+      versteuerung: "soll",
+      figures: { base19: 0, tax19: 0, base7: 0, tax7: 0, vorsteuer: 0, vorauszahlungen: 0, kz50: 150_000 },
+    });
+    expect(checkXml(xml)).toBeUndefined();
+    expect(tag(xml, "E3003303")).toBe("0");
+    expect(tag(xml, "E3003304")).toBe("0,00");
+    expect(xml).not.toContain("<Ums_erm>");
+    expect(tag(xml, "E3006001")).toBe("0,00");
+    expect(tag(xml, "E3009201")).toBe("0,00");
+    expect(tag(xml, "E3106101")).toBe("1500");
+    // Mit einer Zeile zu 7 % genügt diese
+    const nurSieben = buildUstErklaerungXml({
+      ...base,
+      versteuerung: "soll",
+      figures: { base19: 0, tax19: 0, base7: 10_000, tax7: 700, vorsteuer: 0, vorauszahlungen: 0, kz50: 150_000 },
+    });
+    expect(nurSieben).not.toContain("<Ums_allg>");
+    expect(tag(nurSieben, "E3004401")).toBe("100");
   });
 });

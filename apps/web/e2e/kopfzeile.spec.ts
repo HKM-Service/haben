@@ -113,7 +113,7 @@ test("Einstellungen am Handy: der Link aus dem Mahnwesen öffnet die Firma", asy
   await expect(page.getByLabel("Basiszinssatz in %")).toBeVisible();
 });
 
-// Das Angebot prüft rechnungen.spec.ts: seit #381 legt app.spec.ts keine Angebote mehr an
+// Das Angebot prüft rechnungen-angebote.spec.ts: seit #381 legt app.spec.ts keine Angebote mehr an
 test("Rechnung am Handy: Status bleibt neben dem Titel sichtbar", async ({ page }) => {
   const rechnung = await firstLink(page, "/rechnungen", /^\/rechnungen\/[0-9a-f-]{36}$/);
   expect(rechnung).not.toBeNull();
@@ -217,6 +217,8 @@ test("Festschreiben in der Aktionsleiste am Handy: die Rückfrage erscheint im F
 test("Einstellungen am Handy, rückwärts tabben: kein Feld mit Fokus liegt unter dem Kopf", async ({ page }) => {
   await page.setViewportSize(HANDY);
   await page.goto("/einstellungen?bereich=firma");
+  // Felder in zugeklappten Abschnitten erreicht der Fokus nicht (#1253)
+  for (const abschnitt of await page.locator(".settings-content details > summary").all()) await abschnitt.click();
   const felder = page.locator(".settings-content").locator("input:not([type=hidden]), select, textarea");
   await felder.last().focus();
   let geprueft = 0;
@@ -254,6 +256,8 @@ for (const [geraet, viewport] of [
     expect(await groesse(titel)).toBeGreaterThan(await groesse(dialog.getByRole("heading", { name: "Allgemein" })));
     expect(await groesse(titel)).toBeGreaterThanOrEqual(20);
 
+    // Das Letzte im Formular steckt in „Weitere Angaben“ (#1253); aufgeklappt wie vor dem Einklappen
+    await dialog.getByText("Weitere Angaben").click();
     const unten = dialog.locator(".form-section select").last();
     await unten.focus();
     await sichtbar(titel);
@@ -455,18 +459,18 @@ test("Aktionen unter dem Titel stehen rechtsbündig, wenn der Kopf umbricht", as
   expect(Math.abs(ende - rechts)).toBeLessThanOrEqual(1);
 });
 
-test("Bank: Importknöpfe unter dem Titel stehen rechtsbündig, wenn der Kopf umbricht", async ({ page }) => {
-  // Mit Seitenleiste (ab 861 px) zu schmal für Titel, Kontowahl und Knöpfe in einer Zeile
+// Bis #1951 brach der Kopf der Bankseite mit der Kontowahl bei 900 px um; ohne sie passen Titel und Knöpfe in eine Zeile.
+// Die Knöpfe stehen weiter rechtsbündig an der Innenkante des Kopfs
+test("Bank: Knöpfe im Kopf stehen rechtsbündig, „Konto verbinden“ zuletzt", async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 800 });
   await page.goto("/bank");
   const head = page.locator(".main > .page-head");
-  const titel = head.getByRole("heading", { level: 1 });
-  const importieren = head.getByRole("button", { name: "CSV / CAMT importieren" });
-  await expect(importieren).toBeVisible();
-  const titelBox = await titel.boundingBox();
-  const knopfBox = await importieren.boundingBox();
-  // Sonst prüft der Test nichts: die Knöpfe müssen wirklich unter dem Titel stehen
-  expect(knopfBox?.y).toBeGreaterThanOrEqual((titelBox?.y ?? 0) + (titelBox?.height ?? 0));
+  const verbinden = head.getByRole("button", { name: "Konto verbinden" });
+  const importieren = head.getByRole("button", { name: "Datei importieren" });
+  await expect(verbinden).toBeVisible();
+  const knopfBox = await verbinden.boundingBox();
+  const davor = await importieren.boundingBox();
+  expect((davor?.x ?? 0) + (davor?.width ?? 0)).toBeLessThanOrEqual(knopfBox?.x ?? 0);
   const { rechts } = await kopfInnen(head);
   expect(Math.abs((knopfBox?.x ?? 0) + (knopfBox?.width ?? 0) - rechts)).toBeLessThanOrEqual(1);
 });

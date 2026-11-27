@@ -3,6 +3,7 @@ import {
   joinEmails,
   MAX_EMAIL_RECIPIENTS,
   normalizeTelefon,
+  normalizeUstId,
   PERSONENKONTO_LABEL,
   type PersonenkontoRolle,
   personenkontoProblem,
@@ -20,7 +21,9 @@ import { withActor } from "../../db/actor.ts";
 import { db, schema, type Db, type Tx } from "../../db/index.ts";
 import { firstHits, runSearchParts, searchPart } from "../../db/search-parts.ts";
 import { isUniqueViolation } from "../../errors.ts";
+import { assertBankverbindungWaehlbar } from "./bankverbindungen.ts";
 import { takeCustomerNumber } from "./customer-numbers.ts";
+import { customerNumberLocked } from "./kundennummer-sperre.ts";
 
 function personenkonto(rolle: PersonenkontoRolle) {
   return z.optional(
@@ -72,9 +75,9 @@ export const contactSchema = z.object({
       .trim()
       .regex(/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/, "IBAN ohne Leerzeichen"),
   ]),
-  leitwegId: z.string().trim().max(46),
+  leitwegId: z.string().trim().max(46, "Leitweg-ID: höchstens 46 Zeichen"),
   /** Unsere Lieferantennummer beim Kunden (#711), im XML Verkäuferkennung BT-29; fehlt = leer */
-  unsereLieferantennummer: z.string().trim().max(40).default(""),
+  unsereLieferantennummer: z.string().trim().max(40, "Unsere Lieferantennummer: höchstens 40 Zeichen").default(""),
   defaultFormat: z.enum(["zugferd", "xrechnung-cii", "xrechnung-ubl"]).nullable(),
   /**
    * Skonto für Rechnungen an diesen Kunden; null = Vorgabe aus den Firmendaten, leer = kein Skonto, fehlt = unverändert.
@@ -95,7 +98,11 @@ export const contactSchema = z.object({
   debitorNr: personenkonto("debitor"),
   kreditorNr: personenkonto("kreditor"),
   /** Stundensatz in Cent für Leistungseinträge (#417); null = keiner, fehlt = unverändert */
-  hourlyRateCents: z.optional(z.nullable(inCents(z.number().int("Stundensatz in ganzen Cent").min(0, "Stundensatz nicht negativ").max(100_000_00)))),
+  hourlyRateCents: z.optional(
+    z.nullable(inCents(z.number().int("Stundensatz in ganzen Cent").min(0, "Stundensatz nicht negativ").max(100_000_00, "Stundensatz: höchstens 100.000 €"))),
+  ),
+  /** Bankverbindung für neue Rechnungen und Angebote (#1887); null = Standard, fehlt = unverändert */
+  bankverbindungId: z.optional(z.nullable(z.uuid())),
 });
 
 export type ContactRole = "kunde" | "lieferant";
@@ -171,8 +178,8 @@ export interface UstIdMatch {
   archived: boolean;
 }
 
-/** USt-IdNr. ohne Leerzeichen und in Großbuchstaben, wie sie gespeichert wird */
-const compactUstId = (value: string) => value.replace(/\s/g, "").toUpperCase();
+/** Gespeichert ist die Nummer, wie sie eingegeben wurde; verglichen wird wie normalizeUstId (ohne Punkte und Bindestriche, GR als EL) */
+const ustIdWieNormalisiert = sql`regexp_replace(regexp_replace(upper(${schema.contacts.ustId}), '[[:space:]./-]', '', 'g'), '^GR', 'EL')`;
 
 /**
  * Kontakte aller Rollen mit derselben USt-IdNr., auch archivierte; excludeId nimmt den Kontakt aus, den das Formular
@@ -185,8 +192,8 @@ export async function findContactsByUstId(
   excludeId?: string,
   wanted: { isCustomer?: boolean; isSupplier?: boolean } = {},
 ): Promise<UstIdMatch[]> {
-  const compact = compactUstId(ustId);
-  if (!compact) return [];
+  const nummer = normalizeUstId(ustId);
+  if (!nummer) return [];
   const rows = await db
     .select({
       id: schema.contacts.id,
@@ -197,7 +204,7 @@ export async function findContactsByUstId(
       archivedAt: schema.contacts.archivedAt,
     })
     .from(schema.contacts)
-    .where(and(sql`upper(replace(${schema.contacts.ustId}, ' ', '')) = ${compact}`, excludeId ? ne(schema.contacts.id, excludeId) : undefined))
+    .where(and(sql`${ustIdWieNormalisiert} = ${nummer}`, excludeId ? ne(schema.contacts.id, excludeId) : undefined))
     // Aktive zuerst: Ein archivierter Kontakt darf einen aktiven mit derselben USt-IdNr. nicht verdecken; dann die mit den
     // gewünschten Rollen, damit sie nicht hinter fünf anderen aus der Liste fallen
     .orderBy(
@@ -227,7 +234,7 @@ function clean(input: ContactInput) {
   for (const rolle of ["debitor", "kreditor"] as const) {
     const nr = input[`${rolle}Nr`];
     const problem = nr == null ? null : personenkontoProblem(rolle, nr);
-    if (problem) throw new ContactError(problem);
+    if (problem) throw new ContactError(problem, { felder: [`${rolle}Nr`] });
   }
   return {
     ...input,
@@ -248,16 +255,21 @@ export async function createContact(actor: string, input: ContactInput): Promise
 }
 
 /** Legt einen Kontakt in der laufenden Transaktion an; auch für den CSV-Import, der alle Zeilen in einer Transaktion anlegt */
-export async function insertContact(tx: Tx, input: ContactInput): Promise<Contact> {
+/**
+ * `id` und `vergeben: false` nur für die Übernahme aus einer anderen Instanz (#488): Ansprechpartner und Textbausteine
+ * behalten ihren Kontakt, und ein Kunde ohne Nummer bleibt ohne, wie er dort war.
+ */
+export async function insertContact(tx: Tx, input: ContactInput, { id, vergeben = true }: { id?: string; vergeben?: boolean } = {}): Promise<Contact> {
   const values = clean(input);
+  await assertBankverbindungWaehlbar(tx, values.bankverbindungId);
   // Ohne eigene Nummer vergibt Haben die nächste, wenn in den Einstellungen ein Format steht; nur an Kunden,
   // ein reiner Lieferant hat keine Kundennummer (#224)
   // Eine eigene Nummer geht immer über die Sperre der Firmenzeile, damit keine gleichzeitige Vergabe sie doppelt nimmt
-  const kundennummer = values.isCustomer || values.kundennummer ? await takeCustomerNumber(tx, values.kundennummer) : null;
+  const kundennummer = values.kundennummer || (vergeben && values.isCustomer) ? await takeCustomerNumber(tx, values.kundennummer) : null;
   const [created] = await samePersonenkonto(tx, () =>
     tx
       .insert(schema.contacts)
-      .values({ ...values, kundennummer })
+      .values({ ...values, kundennummer, ...(id ? { id } : {}) })
       .returning(),
   );
   return created!;
@@ -276,7 +288,7 @@ async function samePersonenkonto<T>(tx: Tx, write: () => Promise<T>): Promise<T>
       const nr = Number(/\((\d+)\)/.exec(String((error as { cause?: { detail?: string } }).cause?.detail))?.[1]);
       const column = rolle === "debitor" ? schema.contacts.debitorNr : schema.contacts.kreditorNr;
       const [owner] = Number.isFinite(nr) ? await tx.select({ name: schema.contacts.name }).from(schema.contacts).where(eq(column, nr)) : [];
-      throw new ContactError(`${PERSONENKONTO_LABEL[rolle]} ${nr} hat schon „${owner?.name ?? "einen anderen Kontakt"}“.`);
+      throw new ContactError(`${PERSONENKONTO_LABEL[rolle]} ${nr} hat schon „${owner?.name ?? "einen anderen Kontakt"}“.`, { felder: [`${rolle}Nr`] });
     }
     throw error;
   }
@@ -285,24 +297,19 @@ async function samePersonenkonto<T>(tx: Tx, write: () => Promise<T>): Promise<T>
 /** Änderungen erhöhen per Trigger die Version; alte Stände bleiben in contact_versions. */
 export async function updateContact(actor: string, id: string, input: ContactInput): Promise<Contact> {
   return withActor(actor, async (tx) => {
-    const [updated] = await samePersonenkonto(tx, () => tx.update(schema.contacts).set(clean(input)).where(eq(schema.contacts.id, id)).returning());
+    const values = clean(input);
+    const [current] = await tx.select({ kundennummer: schema.contacts.kundennummer }).from(schema.contacts).where(eq(schema.contacts.id, id));
+    if (!current) throw new ContactError("Kontakt nicht gefunden.");
+    await assertBankverbindungWaehlbar(tx, values.bankverbindungId);
+    if (current.kundennummer !== values.kundennummer && (await customerNumberLocked(tx, id))) {
+      throw new ContactError(
+        `Die Kundennummer ${current.kundennummer} ist gesperrt, weil festgeschriebene Belege im Nummernkreis dieses Kunden sie in der Nummer tragen.`,
+      );
+    }
+    const [updated] = await samePersonenkonto(tx, () => tx.update(schema.contacts).set(values).where(eq(schema.contacts.id, id)).returning());
     if (!updated) throw new ContactError("Kontakt nicht gefunden.");
     return updated;
   });
-}
-
-/**
- * Trägt eine IBAN in einen Kontakt ein, der noch keine hat (#410: ausdrücklich bestätigte IBAN aus einer E-Rechnung).
- * Eine vorhandene IBAN überschreibt Haben nie; false, wenn der Kontakt inzwischen eine hat. In der Transaktion des
- * Aufrufers, damit Bestätigung und Kontakt zusammen gelten. Die Version erhöht wie bei jeder Änderung der Trigger.
- */
-export async function setContactIbanIfEmpty(tx: Tx, id: string, iban: string): Promise<boolean> {
-  const updated = await tx
-    .update(schema.contacts)
-    .set({ iban })
-    .where(and(eq(schema.contacts.id, id), sql`coalesce(${schema.contacts.iban}, '') = ''`))
-    .returning({ id: schema.contacts.id });
-  return updated.length > 0;
 }
 
 export async function setContactArchived(actor: string, id: string, archived: boolean) {

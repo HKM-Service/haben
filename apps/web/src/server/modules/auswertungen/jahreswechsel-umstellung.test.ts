@@ -2,6 +2,7 @@ import { JOURNAL_KENNZAHLEN } from "@haben/core";
 import type postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
+import { kleinunternehmerStand } from "./test-umsatz-stand.ts";
 
 /*
  * Voranmeldung und EÜR über den Jahreswechsel 2026/2027 (#542, #1116, docs/adr/journal-als-quelle.md): Umstellungen zum 1.1.2027 über die Firmendaten (saveCompany mit ihren Sperren) und die
@@ -47,7 +48,7 @@ const NEUJAHR = "2027-01-02";
 describe.skipIf(!testDatabaseUrl)("Jahreswechsel 2026/2027: Umstellungen zum 1.1. und Rücklastschrift (Postgres)", () => {
   let figures: typeof import("../umsatzsteuer/vat-figures.ts");
   let bank: typeof import("../bank/index.ts");
-  let invoices: typeof import("../rechnungen/invoices.ts");
+  let invoices: typeof import("../rechnungen/index.ts");
   let contacts: typeof import("../stammdaten/contacts.ts");
   let company: typeof import("../stammdaten/company.ts");
   let guard: typeof import("../auswertungen/settings-guard.ts");
@@ -64,7 +65,7 @@ describe.skipIf(!testDatabaseUrl)("Jahreswechsel 2026/2027: Umstellungen zum 1.1
     sql = await setupTestDb();
     figures = await import("../umsatzsteuer/vat-figures.ts");
     bank = await import("../bank/index.ts");
-    invoices = await import("../rechnungen/invoices.ts");
+    invoices = await import("../rechnungen/index.ts");
     contacts = await import("../stammdaten/contacts.ts");
     company = await import("../stammdaten/company.ts");
     guard = await import("../auswertungen/settings-guard.ts");
@@ -133,7 +134,7 @@ describe.skipIf(!testDatabaseUrl)("Jahreswechsel 2026/2027: Umstellungen zum 1.1
       lines: [{ description: "Leistung", quantity: 1000, unit: "Monat", unitPrice: net, taxRate: ku ? 0 : 1900 }],
       ...extra,
     } as never);
-    return invoices.finalizeInvoice(actor, d.id);
+    return invoices.finalizeInvoice(actor, d.id, kleinunternehmerStand);
   }
   async function beleg(date: string, net: number, tax: number) {
     seq++;
@@ -220,7 +221,8 @@ describe.skipIf(!testDatabaseUrl)("Jahreswechsel 2026/2027: Umstellungen zum 1.1
       await zahlung({ invoiceId: a.id }, "12.01.27", "1.000,00");
       const b = await rechnung("2027-01-15", 50_000);
       await zahlung({ invoiceId: b.id }, "20.01.27", "595,00");
-      expect(await va(DEZ)).toEqual({});
+      // Umsatz als Kleinunternehmer in Kz 48 im Monat der Leistung, auch bei Ist (#1268)
+      expect(await va(DEZ)).toEqual({ kz48: 100_000 });
       expect(await va(JAN)).toEqual({ kz81: 50_000, tax81: 9_500 });
       const e = await euer(2027);
       expect(e).toMatchObject({ einnahmenSteuerpflichtig: 50_000, vereinnahmteUst: 9_500, gewinn: 159_500 });

@@ -132,7 +132,7 @@ export async function importEtsyLedger(actor: string, entries: EtsyLedgerEntry[]
       accountName: null,
       added: 0,
       messages: [
-        "Für Etsy gibt es noch kein Konto. Lege unter Bank ein Konto der Art Zahlungsdienstleister mit Anbieter Etsy an; dann übernimmt Haben den Zahlungsverlauf.",
+        "Für Etsy gibt es noch kein Konto. Lege es unter Bank › Konto verbinden › Zahlungsdienstleister hinzufügen › Etsy Payments an; dann übernimmt Haben den Zahlungsverlauf.",
       ],
     };
   }
@@ -167,7 +167,7 @@ export async function importEtsyLedger(actor: string, entries: EtsyLedgerEntry[]
     imported = await withActor(actor, (tx) => storeBatch(tx, input, account.id));
   } catch (error) {
     // Abgelehnt (Vertrag oder Konflikt): gespeichert ist nichts, der Grund steht wie bei Enable Banking im Importprotokoll
-    if (error instanceof BankError) await withActor(actor, (tx) => recordRefusedBatch(tx, account.id, input, error.message));
+    if (error instanceof BankError) await withActor(actor, (tx) => recordRefusedBatch(tx, account.id, input, error));
     throw error;
   }
   result.added = imported.added;

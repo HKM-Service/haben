@@ -1,6 +1,7 @@
 import type postgres from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { leeren, setupTestDb, testDatabaseUrl } from "../../test-db.ts";
+import { kleinunternehmerStand } from "./test-umsatz-stand.ts";
 
 function dkbCsv(rows: string[][]) {
   const header = `"Girokonto";"DE12 1203 0000 1234 5678 90"\n""\n"Kontostand vom 01.10.2026:";"10.000,00 €"\n""\n`;
@@ -25,8 +26,8 @@ const row = (date: string, party: string, purpose: string, amount: string) => [
 ];
 
 describe.skipIf(!testDatabaseUrl)("Auswertungen (Postgres)", () => {
-  let bank: typeof import("../bank/bank.ts");
-  let invoices: typeof import("../rechnungen/invoices.ts");
+  let bank: typeof import("../bank/index.ts");
+  let invoices: typeof import("../rechnungen/index.ts");
   let contacts: typeof import("../stammdaten/contacts.ts");
   let documents: typeof import("../belege/documents.ts");
   let reports: typeof import("./reports.ts");
@@ -35,8 +36,8 @@ describe.skipIf(!testDatabaseUrl)("Auswertungen (Postgres)", () => {
 
   beforeAll(async () => {
     sql = await setupTestDb();
-    bank = await import("../bank/bank.ts");
-    invoices = await import("../rechnungen/invoices.ts");
+    bank = await import("../bank/index.ts");
+    invoices = await import("../rechnungen/index.ts");
     contacts = await import("../stammdaten/contacts.ts");
     documents = await import("../belege/documents.ts");
     reports = await import("./reports.ts");
@@ -106,7 +107,7 @@ describe.skipIf(!testDatabaseUrl)("Auswertungen (Postgres)", () => {
       note: "",
       lines: [{ description: "Leistungen August", quantity: 1000, unit: "Psch.", unitPrice: 400_000, taxRate: 1900 }],
     });
-    const invoice = await invoices.finalizeInvoice(actor, draft.id);
+    const invoice = await invoices.finalizeInvoice(actor, draft.id, kleinunternehmerStand);
 
     const telekom = await bookedDocument(1, {
       supplierName: "Telekom",
@@ -167,7 +168,14 @@ describe.skipIf(!testDatabaseUrl)("Auswertungen (Postgres)", () => {
     await bank.allocate(actor, { kind: "invoice", transactionId: tx(200_000), invoiceId: invoice.id, amount: 100_000 });
     const [wrong] = await sql`select id from allocations`;
     await bank.reverseAllocation(actor, wrong!.id, "2026-10-01");
-    await bank.allocate(actor, { kind: "invoice", transactionId: tx(200_000), invoiceId: invoice.id, amount: 200_000 });
+    // Der aufgehobene Teil bezieht sich auf seine Aufhebung, der nie zugeordnete Rest steht für sich (#1454)
+    await bank.allocateSplit(actor, {
+      transactionId: tx(200_000),
+      parts: [
+        { kind: "invoice", invoiceId: invoice.id, amount: 100_000, reassignsId: wrong!.id as string },
+        { kind: "invoice", invoiceId: invoice.id, amount: 100_000, reassignsId: null },
+      ],
+    });
     await bank.allocate(actor, { kind: "document", transactionId: tx(-4590), documentId: telekom, amount: -4590 });
     await bank.allocate(actor, { kind: "ustVorauszahlung", transactionId: tx(-50_000), amount: -50_000 });
     await bank.allocate(actor, { kind: "gebuehren", transactionId: tx(-990), amount: -990 });
@@ -293,7 +301,7 @@ describe.skipIf(!testDatabaseUrl)("Auswertungen (Postgres)", () => {
         note: "",
         lines: [{ description: "Leistungen Oktober", quantity: 1000, unit: "Psch.", unitPrice: 100_000, taxRate: 1900 }],
       });
-      const invoice = await invoices.finalizeInvoice(actor, draft.id);
+      const invoice = await invoices.finalizeInvoice(actor, draft.id, kleinunternehmerStand);
       // Unbezahlt: Die EÜR hätte im Oktober nichts, der Umsatz zählt mit der Buchung der Rechnung
       expect(await reports.umsatzImMonat("2026-10")).toBe(100_000);
       await invoices.cancelInvoice(actor, invoice.id, "2026-11-03");

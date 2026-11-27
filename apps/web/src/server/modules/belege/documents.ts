@@ -15,11 +15,12 @@ import {
   rateMonth,
   periodRange,
   type VatPeriod,
-  isKapitalgesellschaft,
+  privatZulaessig,
   SELF_ASSESSED_TAX_KEYS,
   taxOf,
   VOLLER_ABZUG,
   normalizeUstId,
+  ustIdAufbauProblem,
   ustIdProblem,
   maxDegressiveRate,
   usesUsefulLife,
@@ -46,6 +47,8 @@ import { db, schema, type Db, type Tx } from "../../db/index.ts";
 import { fileInUse } from "../../db/file-in-use.ts";
 import { today } from "../../today.ts";
 import { describeExtractionError, extractDocument, extractionAvailable, type ExtractedFields } from "./extraction.ts";
+import { isPaused, type RequestGate } from "./extraction-limits.ts";
+import { enqueue, isRunning, kick, requeueInterrupted, SYSTEM_ACTOR } from "./extraction-queue.ts";
 import { loadFile, removeFile, sniff, storeFile } from "../../storage.ts";
 import { findDocumentByReference, type DocumentReference } from "./external-reference.ts";
 import { MAX_DOCUMENT_SIZE } from "../../grenzen.ts";
@@ -285,6 +288,7 @@ async function applyFields(
         ...(reverseCharge && !doc.reverseCharge ? { reverseCharge } : {}),
         extractedBy,
         extractionStatus: "fertig",
+        extractionQueuePosition: null,
         extractionError: warnings.length > 0 ? warnings.join(" · ") : null,
         extraction: hint ? { ...raw, eigeneRechnung: ownInvoiceRecord(ownInvoice) } : raw,
         updatedAt: new Date(),
@@ -321,39 +325,43 @@ function textLinesOf(bytes: Uint8Array, kind: string) {
   return kind === "pdf" ? pdfTextLines(bytes) : Promise.resolve(null);
 }
 
-async function setExtractionState(actor: string, id: string, status: "laeuft" | "fehler" | "keine", error: string | null) {
+async function setExtractionState(actor: string, id: string, status: "fehler" | "wartet", error: string | null) {
   await withActor(actor, (tx) =>
     tx
       .update(schema.documents)
-      .set({ extractionStatus: status, extractionError: error, updatedAt: new Date() })
+      // Nur ein wartender Beleg behält seinen Platz in der Warteschlange
+      .set({ extractionStatus: status, extractionError: error, ...(status === "wartet" ? {} : { extractionQueuePosition: null }), updatedAt: new Date() })
       .where(and(eq(schema.documents.id, id), sql`${schema.documents.lockedAt} is null`)),
   );
 }
 
-/** Auslesungen, die in diesem Prozess laufen; was sonst auf „läuft“ steht, hat ein Neustart abgebrochen */
-const runningExtractions = new Set<string>();
-
-/** KI-Auslesung; läuft im Hintergrund, der Beleg zeigt solange „wird ausgelesen“. */
-export async function runExtraction(actor: string, id: string): Promise<void> {
-  // Vor dem ersten await eintragen, damit getDocument den Lauf nie für abgebrochen hält
-  runningExtractions.add(id);
-  try {
-    const [doc] = await db.select().from(schema.documents).where(eq(schema.documents.id, id));
-    if (!doc || doc.lockedAt) return;
-    await extract(actor, doc);
-  } finally {
-    runningExtractions.delete(id);
-  }
+/**
+ * Reiht Belege zur KI-Auslesung ein (extraction-queue.ts) und stößt die Warteschlange an; mit `first` vor allen
+ * Wartenden. Gibt die Zahl der eingereihten Belege und den Durchgang zurück, der sie ausliest.
+ */
+export async function queueExtraction(actor: string, ids: readonly string[], options: { first?: boolean } = {}) {
+  const queued = await enqueue(actor, ids, options);
+  return { queued, work: kick(extractQueued) };
 }
 
-async function extract(actor: string, doc: Document): Promise<void> {
-  const id = doc.id;
-  await setExtractionState(actor, id, "laeuft", null);
+/** Nach einem Neustart oder „Fortsetzen“: abgebrochene Auslesungen wieder einreihen und die Warteschlange weiterlaufen lassen */
+export async function resumeExtractionQueue(): Promise<void> {
+  await requeueInterrupted();
+  await kick(extractQueued);
+}
+
+/** Ein Beleg aus der Warteschlange, schon auf „läuft“; Fehler stehen danach am Beleg */
+async function extractQueued(id: string, gate: RequestGate): Promise<void> {
+  const [doc] = await db.select().from(schema.documents).where(eq(schema.documents.id, id));
+  if (!doc || doc.lockedAt) return;
   try {
     const bytes = await loadFile(doc.sha256);
     const sniffed = sniff(bytes);
     if (!sniffed) throw new DocumentError("Dateityp unbekannt");
-    const [{ extraction, fields }, lines] = await Promise.all([extractDocument(bytes, sniffed.kind), textLinesOf(bytes, sniffed.kind)]);
+    const [{ extraction, fields }, lines] = await Promise.all([
+      extractDocument(bytes, sniffed.kind, undefined, undefined, gate),
+      textLinesOf(bytes, sniffed.kind),
+    ]);
     const gross = totalsOf(fields.amounts).gross;
     const ownInvoice = await detectOwnInvoiceFor({
       parties: partiesOfExtraction(extraction),
@@ -362,9 +370,11 @@ async function extract(actor: string, doc: Document): Promise<void> {
       gross,
       currency: fields.currency,
     });
-    await applyFields(actor, id, fields, "ki", extraction, true, ownInvoice);
+    await applyFields(SYSTEM_ACTOR, id, fields, "ki", extraction, true, ownInvoice);
   } catch (error) {
-    await setExtractionState(actor, id, "fehler", describeExtractionError(error));
+    // Angehalten, während die Anfrage auf ihren Platz in den Grenzen wartete: Der Beleg wartet an seinem Platz weiter
+    if (isPaused(error)) await setExtractionState(SYSTEM_ACTOR, id, "wartet", null);
+    else await setExtractionState(SYSTEM_ACTOR, id, "fehler", describeExtractionError(error));
   }
 }
 
@@ -401,10 +411,11 @@ async function latestWithFile(sha256: string): Promise<string | null> {
   return row?.id ?? null;
 }
 
-/** Legt die Zeile an; null, wenn dieselbe Datei gleichzeitig angelegt wurde */
+/** Legt die Zeile an, mit `fields` gleich in derselben Transaktion ausgefüllt; null, wenn dieselbe Datei gleichzeitig angelegt wurde */
 async function insertDocument(
   actor: string,
   row: { sha256: string; filename: string; mimeType: string; size: number; note: string; reference: DocumentReference | null },
+  fields: DocumentInput | null,
 ): Promise<string | null> {
   const { reference, ...values } = row;
   return withActor(actor, async (tx) => {
@@ -417,6 +428,7 @@ async function insertDocument(
         where: sql`${schema.documents.replacesDocumentId} is null and ${schema.documents.recurringDocumentId} is null`,
       })
       .returning({ id: schema.documents.id });
+    if (created && fields) await updateDocumentIn(tx, created.id, fields);
     return created?.id ?? null;
   });
 }
@@ -424,12 +436,13 @@ async function insertDocument(
 /**
  * Legt einen Beleg ab. E-Rechnungen werden sofort gelesen; andere PDFs und Fotos
  * gehen an die KI-Auslesung im Hintergrund, falls eingerichtet. Mit externer Referenz (REST-API) liefert dieselbe
- * Referenz den vorhandenen Beleg, auch bei gleichzeitigen Anfragen.
+ * Referenz den vorhandenen Beleg, auch bei gleichzeitigen Anfragen. Mit `fields` (Duplikat, #1295) stehen diese Felder am
+ * Beleg, ausgelesen wird dann nichts.
  */
 export async function uploadDocument(
   actor: string,
   file: { bytes: Uint8Array; filename: string },
-  options: { background?: (work: Promise<void>) => void; reference?: DocumentReference; note?: string } = {},
+  options: { background?: (work: Promise<void>) => void; reference?: DocumentReference; note?: string; fields?: DocumentInput } = {},
 ): Promise<UploadResult> {
   const problem = documentFileProblem(file);
   if (problem) throw new DocumentError(problem.message);
@@ -446,7 +459,7 @@ export async function uploadDocument(
   const row = { sha256, filename: file.filename.slice(0, 200), mimeType: type.mimeType, size: file.bytes.byteLength, note: options.note ?? "", reference };
   let id: string | null;
   try {
-    id = await insertDocument(actor, row);
+    id = await insertDocument(actor, row, options.fields ?? null);
   } catch (error) {
     // Gleichzeitig mit derselben Referenz angelegt: der andere Beleg gilt. Die eigene Datei bleibt liegen, denn eine
     // dritte Anfrage mit derselben Datei könnte sie gerade nutzen; unter ihrem Hash schadet sie nicht.
@@ -457,6 +470,7 @@ export async function uploadDocument(
   if (!id) {
     return { id: (await latestWithFile(sha256))!, duplicate: true };
   }
+  if (options.fields) return { id, duplicate: false };
 
   if (type.kind === "pdf" || type.kind === "xml") {
     try {
@@ -491,9 +505,8 @@ export async function uploadDocument(
   }
 
   if (extractionAvailable() && (type.kind === "pdf" || type.kind === "jpeg" || type.kind === "png" || type.kind === "webp")) {
-    runningExtractions.add(id);
-    await setExtractionState(actor, id, "laeuft", null);
-    const work = runExtraction(actor, id);
+    // Vorn in die Warteschlange, wie die Liste ihn oben zeigt: Ausgelesen wird dort von oben nach unten
+    const { work } = await queueExtraction(actor, [id], { first: true });
     if (options.background) options.background(work);
     else await work;
   }
@@ -508,62 +521,66 @@ async function lockOpen(tx: Tx, id: string): Promise<Document> {
 }
 
 export async function updateDocument(actor: string, id: string, input: DocumentInput): Promise<void> {
-  await withActor(actor, async (tx) => {
-    const previous = await lockOpen(tx, id);
-    const parsed = documentInputSchema.parse(input);
-    // Nur eine neue Zuordnung wird geprüft: ein Kontakt, der inzwischen kein Lieferant mehr ist, bleibt am Beleg
-    if (parsed.supplierContactId && parsed.supplierContactId !== previous.supplierContactId) {
-      const problem = await contactRoleProblem(tx, parsed.supplierContactId, "lieferant", "Lieferant nicht gefunden.");
-      if (problem) throw new DocumentError(problem);
+  await withActor(actor, (tx) => updateDocumentIn(tx, id, input));
+}
+
+/** Wie updateDocument, in einer laufenden Transaktion; etwa gleich nach dem Anlegen eines Duplikats */
+async function updateDocumentIn(tx: Tx, id: string, input: DocumentInput): Promise<void> {
+  const previous = await lockOpen(tx, id);
+  const parsed = documentInputSchema.parse(input);
+  // Nur eine neue Zuordnung wird geprüft: ein Kontakt, der inzwischen kein Lieferant mehr ist, bleibt am Beleg
+  if (parsed.supplierContactId && parsed.supplierContactId !== previous.supplierContactId) {
+    const problem = await contactRoleProblem(tx, parsed.supplierContactId, "lieferant", "Lieferant nicht gefunden.");
+    if (problem) throw new DocumentError(problem);
+  }
+  // Eigene Sachkonten (#270): am Beleg oder je Zeile, passend zur Kategorie; ein archiviertes nur, wenn schon gewählt
+  const beleg = parsed.splits.length > 0 ? { ownAccountId: null, category: null } : parsed;
+  const bisher = { beleg: previous.ownAccountId, zeilen: (await loadSplits(id, tx)).map((s) => s.ownAccountId) };
+  const [kontoProblem] = await documentOwnAccountProblems(tx, beleg, parsed.splits, bisher);
+  if (kontoProblem) throw new DocumentError(kontoProblem);
+  const rate = await resolveRate(tx, parsed, previous, (await loadCompany(tx)).tageskurs);
+  const amounts = euroAmounts({ ...parsed, exchangeRate: rate.exchangeRate });
+  if (parsed.erstattetBezahltes) {
+    const problem = erstattetBezahltesProblem(totalsOf(amounts, parsed.reverseCharge), parsed.reverseCharge, parsed.payment, parsed.category);
+    if (problem) throw new DocumentError(problem);
+    // Dieselbe Sperre wie bei jeder Änderung am gebuchten Beleg: Ein gemeldeter Zeitraum bleibt unberührt (#786)
+    if (!previous.erstattetBezahltes && parsed.documentDate && (await periodReported(tx, parsed.documentDate))) {
+      throw new DocumentError(
+        "Der Belegmonat ist schon gemeldet; die Vorsteuerminderung ließe sich nach § 17 Abs. 1 Satz 2 UStG nicht mehr in ihm ziehen. Lass die Angabe weg oder nimm ein Belegdatum im laufenden Zeitraum.",
+      );
     }
-    // Eigene Sachkonten (#270): am Beleg oder je Zeile, passend zur Kategorie; ein archiviertes nur, wenn schon gewählt
-    const beleg = parsed.splits.length > 0 ? { ownAccountId: null, category: null } : parsed;
-    const bisher = { beleg: previous.ownAccountId, zeilen: (await loadSplits(id, tx)).map((s) => s.ownAccountId) };
-    const [kontoProblem] = await documentOwnAccountProblems(tx, beleg, parsed.splits, bisher);
-    if (kontoProblem) throw new DocumentError(kontoProblem);
-    const rate = await resolveRate(tx, parsed, previous, (await loadCompany(tx)).tageskurs);
-    const amounts = euroAmounts({ ...parsed, exchangeRate: rate.exchangeRate });
-    if (parsed.erstattetBezahltes) {
-      const problem = erstattetBezahltesProblem(totalsOf(amounts, parsed.reverseCharge), parsed.reverseCharge, parsed.payment, parsed.category);
-      if (problem) throw new DocumentError(problem);
-      // Dieselbe Sperre wie bei jeder Änderung am gebuchten Beleg: Ein gemeldeter Zeitraum bleibt unberührt (#786)
-      if (!previous.erstattetBezahltes && parsed.documentDate && (await periodReported(tx, parsed.documentDate))) {
-        throw new DocumentError(
-          "Der Belegmonat ist schon gemeldet; die Vorsteuerminderung ließe sich nach § 17 Abs. 1 Satz 2 UStG nicht mehr in ihm ziehen. Lass die Angabe weg oder nimm ein Belegdatum im laufenden Zeitraum.",
-        );
-      }
-    }
-    await tx.delete(schema.documentAmounts).where(eq(schema.documentAmounts.documentId, id));
-    if (amounts.length > 0) {
-      await tx.insert(schema.documentAmounts).values(amounts.map((a) => ({ documentId: id, ...a })));
-    }
-    // Aufgeteilt: Kategorie und Anlage stehen in den Zeilen bzw. gibt es nicht (Anlagegüter lassen sich nicht aufteilen)
-    await replaceSplits(tx, id, parsed.splits, amounts);
-    const { amounts: _amounts, splits, asset, ...fields } = parsed;
-    const category = splits.length > 0 ? null : fields.category;
-    const ownAccountId = splits.length > 0 ? null : fields.ownAccountId;
-    await tx
-      .update(schema.documents)
-      .set({
-        ...fields,
-        ...rate,
-        category,
-        ownAccountId,
-        asset: category === "anlage" ? (asset ?? null) : null,
-        supplierUstId: fields.supplierUstId.replace(/\s/g, "").toUpperCase(),
-        ...totalsOf(amounts, fields.reverseCharge),
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.documents.id, id));
-  });
+  }
+  await tx.delete(schema.documentAmounts).where(eq(schema.documentAmounts.documentId, id));
+  if (amounts.length > 0) {
+    await tx.insert(schema.documentAmounts).values(amounts.map((a) => ({ documentId: id, ...a })));
+  }
+  // Aufgeteilt: Kategorie und Anlage stehen in den Zeilen bzw. gibt es nicht (Anlagegüter lassen sich nicht aufteilen)
+  await replaceSplits(tx, id, parsed.splits, amounts);
+  const { amounts: _amounts, splits, asset, ...fields } = parsed;
+  const category = splits.length > 0 ? null : fields.category;
+  const ownAccountId = splits.length > 0 ? null : fields.ownAccountId;
+  await tx
+    .update(schema.documents)
+    .set({
+      ...fields,
+      ...rate,
+      category,
+      ownAccountId,
+      asset: category === "anlage" ? (asset ?? null) : null,
+      supplierUstId: fields.supplierUstId.replace(/\s/g, "").toUpperCase(),
+      ...totalsOf(amounts, fields.reverseCharge),
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.documents.id, id));
 }
 
 export async function getDocument(id: string) {
   let [doc] = await db.select().from(schema.documents).where(eq(schema.documents.id, id));
   if (!doc) return null;
   // Nur lesend (Steuerberatung) bleibt der Beleg, wie er ist; freigeben darf ihn erst der Inhaber beim Öffnen
-  if (doc.extractionStatus === "laeuft" && !runningExtractions.has(id) && !isReadOnly()) {
-    // Server während der Auslesung neu gestartet: Beleg wieder freigeben statt ewig „läuft“
+  if (doc.extractionStatus === "laeuft" && doc.extractionQueuePosition === null && !isRunning(id) && !isReadOnly()) {
+    // Vor der Warteschlange (#1735) begonnen und vom Neustart abgebrochen: Beleg wieder freigeben statt ewig „läuft“.
+    // Was mit Platz in der Warteschlange abbrach, reiht resumeExtractionQueue beim Start wieder ein
     [doc] = await withActor("system:auslesung", (tx) =>
       tx
         .update(schema.documents)
@@ -642,14 +659,14 @@ function missingRateIssue(doc: Document, todayDate: string): string {
 function igErwerbIssues(doc: Document, amounts: DocumentAmount[]): BookingIssue[] {
   const issues: BookingIssue[] = [];
   if (amounts.some((a) => a.taxRate === 0)) issues.push({ text: "Beim innergemeinschaftlichen Erwerb steht jede Zeile auf 19 % oder 7 %" });
-  // Geprüft wie die USt-IdNr. einer Lieferung in der Zusammenfassenden Meldung: Länderkennzeichen eines anderen Mitgliedstaats
+  // Geprüft wie die USt-IdNr. einer Lieferung in der Zusammenfassenden Meldung, dazu der Aufbau je Mitgliedstaat (#1413)
   const ustId = normalizeUstId(doc.supplierUstId ?? "");
   const feld = "supplierUstId";
   if (!ustId) issues.push({ text: "Beim innergemeinschaftlichen Erwerb fehlt die USt-IdNr. des Lieferanten", feld });
   else if (ustId.startsWith("DE"))
     issues.push({ text: "Lieferant mit deutscher USt-IdNr.: kein innergemeinschaftlicher Erwerb, die Rechnung muss deutsche Umsatzsteuer ausweisen", feld });
   else {
-    const problem = ustIdProblem(ustId, "L");
+    const problem = ustIdProblem(ustId, "L") ?? ustIdAufbauProblem(ustId);
     if (problem) issues.push({ text: `Lieferant ${problem}`, feld });
   }
   return issues;
@@ -757,7 +774,7 @@ export async function bookDocumentIn(tx: Tx, id: string): Promise<void> {
   const vorab = bookingIssueList(doc, amounts, today(), splits);
   const issues = vorab.map((issue) => issue.text);
   // GmbH und UG: privat Genutztes ist Arbeitslohn oder verdeckte Gewinnausschüttung, keine Entnahme
-  if (doc.privateShare > 0 && isKapitalgesellschaft(company.rechtsform)) issues.push("Einen Privatanteil gibt es nur im Einzelunternehmen");
+  if (doc.privateShare > 0 && !privatZulaessig(company.rechtsform)) issues.push("Einen Privatanteil gibt es nur im Einzelunternehmen");
   if (doc.category === "anlage" && doc.asset?.method === "elektro" && !elektroAvailable(company.rechtsform)) issues.push(ELEKTRO_NUR_EINZELUNTERNEHMEN);
   issues.push(
     ...igErwerbFirmaIssues(
@@ -852,36 +869,39 @@ export async function deleteDocument(actor: string, id: string): Promise<void> {
 }
 
 export async function listDocuments() {
-  return db
-    .select({
-      id: schema.documents.id,
-      filename: schema.documents.filename,
-      mimeType: schema.documents.mimeType,
-      status: schema.documents.status,
-      extractedBy: schema.documents.extractedBy,
-      extractionStatus: schema.documents.extractionStatus,
-      supplierName: schema.documents.supplierName,
-      invoiceNumber: schema.documents.invoiceNumber,
-      documentDate: schema.documents.documentDate,
-      category: schema.documents.category,
-      /** Eigenes Sachkonto (#270): Nummer und Name statt des Kontos der Kategorie; null ohne eigenes Konto */
-      ownAccount: sql<string | null>`(select o.account || ' ' || o.name from own_accounts o where o.id = ${schema.documents.ownAccountId})`,
-      /** Zahl der Kontierungszeilen (#271); 0 = die Kategorie gilt für den ganzen Beleg */
-      splitCount: sql<number>`(select count(*)::int from document_splits s where s.document_id = ${schema.documents.id})`,
-      gross: schema.documents.gross,
-      currency: schema.documents.currency,
-      externalSource: schema.documents.externalSource,
-      externalId: schema.documents.externalId,
-      lockedAt: schema.documents.lockedAt,
-      uploadedAt: schema.documents.uploadedAt,
-      /** Aus einem Dauerbeleg angelegt */
-      recurringDocumentId: schema.documents.recurringDocumentId,
-      /** Storniert am (#237); der Beleg bleibt gebucht */
-      cancelledOn: schema.documentCancellations.date,
-    })
-    .from(schema.documents)
-    .leftJoin(schema.documentCancellations, eq(schema.documentCancellations.documentId, schema.documents.id))
-    .orderBy(sql`${schema.documents.status} = 'gebucht'`, desc(schema.documents.documentDate), desc(schema.documents.uploadedAt));
+  return (
+    db
+      .select({
+        id: schema.documents.id,
+        filename: schema.documents.filename,
+        mimeType: schema.documents.mimeType,
+        status: schema.documents.status,
+        extractedBy: schema.documents.extractedBy,
+        extractionStatus: schema.documents.extractionStatus,
+        supplierName: schema.documents.supplierName,
+        invoiceNumber: schema.documents.invoiceNumber,
+        documentDate: schema.documents.documentDate,
+        category: schema.documents.category,
+        /** Eigenes Sachkonto (#270): Nummer und Name statt des Kontos der Kategorie; null ohne eigenes Konto */
+        ownAccount: sql<string | null>`(select o.account || ' ' || o.name from own_accounts o where o.id = ${schema.documents.ownAccountId})`,
+        /** Zahl der Kontierungszeilen (#271); 0 = die Kategorie gilt für den ganzen Beleg */
+        splitCount: sql<number>`(select count(*)::int from document_splits s where s.document_id = ${schema.documents.id})`,
+        gross: schema.documents.gross,
+        currency: schema.documents.currency,
+        externalSource: schema.documents.externalSource,
+        externalId: schema.documents.externalId,
+        lockedAt: schema.documents.lockedAt,
+        uploadedAt: schema.documents.uploadedAt,
+        /** Aus einem Dauerbeleg angelegt */
+        recurringDocumentId: schema.documents.recurringDocumentId,
+        /** Storniert am (#237); der Beleg bleibt gebucht */
+        cancelledOn: schema.documentCancellations.date,
+      })
+      .from(schema.documents)
+      .leftJoin(schema.documentCancellations, eq(schema.documentCancellations.documentId, schema.documents.id))
+      // Nur nach dem Hochladen, der neueste oben: Ändert sich der Status (ausgelesen, gebucht), bleibt die Zeile, wo sie ist (#1735)
+      .orderBy(desc(schema.documents.uploadedAt), desc(schema.documents.id))
+  );
 }
 
 /** Vorsteuer aus gebuchten Belegen eines Monats oder Quartals (nach Belegdatum), für Kz 66; ohne die vorgetragene aus einer Eröffnung */
