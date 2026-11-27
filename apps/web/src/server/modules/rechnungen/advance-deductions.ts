@@ -59,6 +59,7 @@ export async function openAbschlaege(exceptInvoiceId: string | null = null, q: D
     id: r.id,
     contactId: r.contactId,
     quoteId: r.quoteId,
+    brandProfileId: r.brandProfileId,
     number: r.number!,
     issueDate: r.issueDate,
     advanceType: r.advanceType,

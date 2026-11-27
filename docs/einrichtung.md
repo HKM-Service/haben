@@ -113,7 +113,7 @@ Seltenes steht eingeklappt, mit dem Gesetzten in der Überschrift: **Handelsregi
 
 | Feld | Wofür |
 | --- | --- |
-| Name | Absender auf Rechnungen, Datenlieferant in der Voranmeldung. Pflicht für beides. Steht auch oben in der Navigation unter „Haben“, damit du bei [mehreren Instanzen](installation.md#mehrere-instanzen) siehst, in welcher Firma du gerade bist: am Desktop in bis zu zwei Zeilen, am Handy in einer. Ist er länger als zwei Zeilen, klappt er am Desktop beim Überfahren der Marke nach unten ganz auf |
+| Name | Absender auf Rechnungen, Datenlieferant in der Voranmeldung. Pflicht für beides. Steht auch oben in der Navigation unter der Marke, damit du bei [mehreren Instanzen](installation.md#mehrere-instanzen) siehst, in welcher Firma du gerade bist: am Desktop in bis zu zwei Zeilen, am Handy in einer. Ist er länger als zwei Zeilen, klappt er am Desktop beim Überfahren der Marke nach unten ganz auf |
 | Art des Betriebs bzw. Gegenstand des Unternehmens | z. B. „Softwareentwicklung“; für die Anlage EÜR, bei GmbH und UG für die Gewerbesteuererklärung, siehe [Jahreserklärungen](jahreserklaerung.md) |
 | E-Mail | Absender auf Rechnungen. Pflicht zum Festschreiben einer Rechnung |
 | Straße und Hausnummer, PLZ, Ort | Anschrift auf Rechnungen und in der Voranmeldung. Pflicht für beides; die PLZ hat fünf Ziffern |
@@ -134,7 +134,7 @@ Seltenes steht eingeklappt, mit dem Gesetzten in der Überschrift: **Handelsregi
 | Standard-Zahlungsziel in Tagen | Vorgabe für neue Rechnungen (0 bis 120 Tage) |
 | Skonto | Vorgabe für neue Rechnungen, bis zu drei Stufen aus Satz und Frist in Tagen, z. B. 2 % in 10 Tagen; am Kunden und in der Rechnung änderbar (siehe [Skonto](rechnungen-zahlung.md#skonto)) |
 | Standardformat für Rechnungen | ZUGFeRD (PDF mit eingebettetem XML), XRechnung (CII) oder XRechnung (UBL). Vorgabe für neue Rechnungen |
-| Standard-Texte | Einleitung und Hinweis neuer Rechnungen und Angebote, Einleitung und Schluss von Mahnungen je Stufe und die Texte von Auftragsbestätigung und Lieferschein legst du als [Standard-Textbaustein](rechnungen.md#standard-je-belegart) unter **Textbausteine** fest, etwa eine Anrede oder „Für die erbrachten Leistungen berechne ich Ihnen:“. Eigene Texte der [Standardmarke](beleggestaltung.md#markenprofile) gehen bei Rechnungen und Angeboten vor. Bei [sichtbaren Textbausteinen](#bereiche-ausblenden) verweisen die Firmendaten dorthin. |
+| Standard-Texte | Einleitung und Hinweis neuer Rechnungen und Angebote, Einleitung und Schluss von Mahnungen je Stufe und die Texte von Auftragsbestätigung und Lieferschein legst du als [Standard-Textbaustein](rechnungen.md#standard-je-belegart) unter **Textbausteine** fest, etwa eine Anrede oder „Für die erbrachten Leistungen berechne ich Ihnen:“. Bei [sichtbaren Textbausteinen](#bereiche-ausblenden) verweisen die Firmendaten dorthin. |
 | Versteuerung | Ist oder Soll, siehe unten |
 | Kleinunternehmer nach § 19 UStG | Haken setzen, wenn du die Kleinunternehmerregelung nutzt, siehe unten |
 | Gründungsdatum | Datum der tatsächlichen Aufnahme deiner unternehmerischen Tätigkeit, siehe [Kleinunternehmer](#kleinunternehmer) |
@@ -160,7 +160,7 @@ Das Zeichen gilt für alle Zugänge der Instanz, auch für die [Steuerberatung](
 
 ### Beleggestaltung
 
-<a id="logo"></a><a id="akzentfarbe"></a><a id="logo-und-blatt"></a><a id="briefpapier"></a><a id="fußzeile"></a><a id="layouts"></a><a id="markenprofile"></a>Logo, Akzentfarbe, Schrift, Briefpapier, Fußzeile, Layouts und Markenprofile stehen unter [Beleggestaltung](beleggestaltung.md).
+<a id="logo"></a><a id="akzentfarbe"></a><a id="logo-und-blatt"></a><a id="briefpapier"></a><a id="fußzeile"></a><a id="layouts"></a>Logo, Akzentfarbe, Schrift, Briefpapier, Fußzeile, Layouts und Markenprofile stehen unter [Beleggestaltung](beleggestaltung.md).
 
 ## Persönliche Angaben
 

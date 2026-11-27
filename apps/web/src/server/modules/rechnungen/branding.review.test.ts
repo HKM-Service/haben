@@ -87,6 +87,16 @@ describe.skipIf(!testDatabaseUrl)("Wirksame Markenangaben beim Festschreiben (Po
     expect(finalized.pdf?.length).toBeGreaterThan(0);
   });
 
+  // Ein Storno wird nicht bezahlt: Ein inzwischen ungültiges Konto der Marke darf ihn nicht verhindern
+  it.each(["privat", "ausgeschlossen"] as const)("storniert eine Rechnung der Marke auch, wenn ihr Konto inzwischen %s ist", async (state) => {
+    const created = await invoices.createDraft(actor, draft());
+    const finalized = await invoices.finalizeInvoice(actor, created.id, kleinunternehmerStand);
+    await makeAccountUnavailable(state);
+
+    const storno = await invoices.cancelInvoice(actor, finalized.id, "2026-10-05");
+    expect(storno).toMatchObject({ kind: "storno", status: "final", brandProfileId, seller: { brand: "HKMcore", name: "Beispielfirma GmbH" } });
+  });
+
   // Die Detail-Loader brauchen die Problemliste, um den bestehenden Entwurf weiter zur Bearbeitung anzuzeigen.
   it.each(["privat", "ausgeschlossen"] as const)(
     "meldet ein inzwischen %s gesetztes Markenkonto am Rechnungsentwurf als Problem statt zu werfen",

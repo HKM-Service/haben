@@ -108,6 +108,13 @@ docker compose exec app mkdir -p -m 0700 /tmp/haben-passkey
 docker compose exec app bun /app/apps/web/src/server/first-passkey-code-cli.ts --ausgabe /tmp/haben-passkey/einmalcode.json
 ```
 
+Mit den Quadlets:
+
+```sh
+podman exec haben-app mkdir -p -m 0700 /tmp/haben-passkey
+podman exec haben-app bun /app/apps/web/src/server/first-passkey-code-cli.ts --ausgabe /tmp/haben-passkey/einmalcode.json
+```
+
 Die neue Datei enthält Code, E-Mail und Ablaufzeit. Der Ausgabeordner muss dem App-Konto gehören und Modus `0700` haben; die Datei erhält `0600`. Übernimm den Code über einen geschützten Weg, etwa den vorhandenen Passwortmanager, und entferne die Datei anschließend. Der Befehl gibt den Code nicht aus und überschreibt keine vorhandene Datei. Für eine Neuausgabe wählst du einen neuen Dateinamen. Er legt kein Konto an und ändert weder Passwort noch vorhandene Passkeys.
 
 ## Datenablage

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod/mini";
 import { InvoiceEditor } from "../../../components/InvoiceEditor.tsx";
-import { customerDraft } from "../../../lib/invoice.ts";
+import { customerDraft, schlussrechnungEntwurf } from "../../../lib/invoice.ts";
 import { getNewInvoice } from "../../../server/functions/invoices.ts";
 
 export const Route = createFileRoute("/_app/rechnungen/neu")({
@@ -25,24 +25,8 @@ function NewInvoicePage() {
     abschlag ? [] : data.contactPersons,
     data.bankverbindungen,
   );
-  // Von einer Abschlagsrechnung aus: dazu Steuer, Preismodus und Angebot; abgezogen werden die offenen
-  // Abschläge dieses Angebots, ohne Angebot alle offenen Abschläge des Kunden
-  const initial =
-    abschlag && withContact
-      ? {
-          ...withContact,
-          taxTreatment: abschlag.taxTreatment,
-          taxDetails: abschlag.taxDetails,
-          exemptionReason: abschlag.exemptionReason,
-          priceMode: abschlag.priceMode,
-          propertyRetention: abschlag.propertyRetention,
-          variant: "schluss" as const,
-          quoteId: abschlag.quoteId,
-          deducts: data.abschlaege
-            .filter((a) => a.contactId === withContact.contactId && (!abschlag.quoteId || a.quoteId === abschlag.quoteId))
-            .map((a) => a.id),
-        }
-      : (withContact ?? data.draft);
+  // Von einer Abschlagsrechnung aus: Steuer, Preismodus, Angebot und Marke wie dort (schlussrechnungEntwurf)
+  const initial = abschlag && withContact ? schlussrechnungEntwurf(withContact, abschlag, data.abschlaege) : (withContact ?? data.draft);
   return (
     <InvoiceEditor
       key={abschlag ? abschlag.id : (withContact?.contactId ?? "neu")}

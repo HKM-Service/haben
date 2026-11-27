@@ -1,4 +1,4 @@
-import { brandProfileInputSchema, designWithDefaults, type LetterheadDesign, type BrandProfileInput } from "@haben/core";
+import { activeFooterColumns, brandProfileInputSchema, designWithDefaults, type LetterheadDesign, type BrandProfileInput } from "@haben/core";
 import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, type FormEvent } from "react";
@@ -11,6 +11,12 @@ import { AccentField } from "./AccentField.tsx";
 import { DesignOptionFields } from "./DesignPanel.tsx";
 import { Field } from "./Field.tsx";
 import { NoticeBanner } from "./NoticeBanner.tsx";
+
+/** Nur Spalten, die gelten: Ausgeschaltete eigene Spalten der Firma erbt die Marke nicht (wie mitWirksamerFusszeile auf dem Server) */
+function wirksameFusszeile(design: LetterheadDesign): LetterheadDesign {
+  const footerColumns = activeFooterColumns(design);
+  return { ...design, footerColumns, footerCustom: footerColumns !== null };
+}
 
 export function BrandProfileForm({
   profile,
@@ -35,7 +41,7 @@ export function BrandProfileForm({
     intro: profile?.intro ?? "",
     note: profile?.note ?? "",
     defaultForNew: profile?.defaultForNew ?? false,
-    design: profile?.design ?? baseDesign,
+    design: wirksameFusszeile(profile?.design ?? baseDesign),
   }));
   const change = (fields: Partial<BrandProfileInput>) => setValue((current) => ({ ...current, ...fields }));
   const design = designWithDefaults(value.design);
@@ -120,7 +126,10 @@ export function BrandProfileForm({
                 Briefpapier enthält bereits Fußzeile und alle Pflichtangaben der Firma
               </label>
             </section>
-            <BrandFooterFields columns={design.footerColumns} onChange={(footerColumns) => changeDesign({ footerColumns })} />
+            <BrandFooterFields
+              columns={activeFooterColumns(design)}
+              onChange={(footerColumns) => changeDesign({ footerColumns, footerCustom: footerColumns !== null })}
+            />
           </div>
         </details>
       </fieldset>

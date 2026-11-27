@@ -41,7 +41,7 @@ Die Erweiterung liegt jedem [Release von Haben](https://github.com/Speicherstadt
 1. Beim Release deiner Haben-Version unter **Assets** `haben-fuer-mein-elster-chrome-<Version>.zip` herunterladen und in einen eigenen Ordner entpacken, etwa `haben-fuer-mein-elster`.
 2. Im Browser `chrome://extensions` öffnen (Brave: `brave://extensions`), oben rechts den **Entwicklermodus** einschalten.
 3. **Entpackte Erweiterung laden** und den entpackten Ordner wählen (den, in dem `manifest.json` liegt).
-4. Die Erweiterung über das Puzzle-Symbol an die Symbolleiste anheften. Sie hat dasselbe Symbol wie Haben, ein dunkles „H“ auf Grün.
+4. Die Erweiterung über das Puzzle-Symbol an die Symbolleiste anheften. Ihr Symbol ist ein dunkles „H“ auf Grün.
 
 Nach einem Update von Haben lädst du das neue ZIP, entpackst es in denselben Ordner und klickst bei der Erweiterung auf **Neu laden**. Wer das Repository klont, baut sie selbst mit `bun run --cwd apps/elster-helfer build` und lädt den Ordner `apps/elster-helfer/dist`.
 

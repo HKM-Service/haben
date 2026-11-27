@@ -50,6 +50,8 @@ export interface AbschlagOption {
   contactId: string | null;
   /** Angebot, zu dem der Abschlag gehört */
   quoteId: string | null;
+  /** Marke des Abschlags; die Schlussrechnung übernimmt sie */
+  brandProfileId: string | null;
   number: string;
   issueDate: string;
   gross: number;

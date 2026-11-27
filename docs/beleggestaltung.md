@@ -110,23 +110,25 @@ weiterhin den rechtlichen Firmennamen. Ohne eigene Spalten entsteht die Fußzeil
 Im Rechnungs- und Angebotseditor wählst du unter **Marke / Rechnungsprofil** das passende
 Profil. **Gemeinsame Firmengestaltung** verwendet die bisherigen Einstellungen. Ein Profil
 kann als Standard für neue Belege gewählt werden. Seine Einleitung und sein Schlusstext werden
-dabei vorgeschlagen. Vorhandene Entwürfe behalten ihre Auswahl. Wiederkehrende Rechnungen
-verwenden die Marke ihrer Vorlage.
+dabei vorgeschlagen, vor den [Standard-Textbausteinen](rechnungen.md#standard-je-belegart).
+Vorhandene Entwürfe behalten ihre Auswahl. Wiederkehrende Rechnungen verwenden die Marke ihrer
+Vorlage.
 
 Rechtlicher Rechnungsaussteller, Anschrift, Register- und Steuerangaben, Buchhaltung und
 Nummernvergabe bleiben gemeinsam. Marken können eigene E-Mail, Telefon und Website sowie
-ein Bankkonto der Firma verwenden; private oder ausgeschlossene Konten stehen nicht zur Wahl.
+ein Bankkonto der Firma verwenden; private, ausgeschlossene und Konten von Zahlungsdienstleistern
+stehen nicht zur Wahl.
 Leere E-Mail, Telefon und Kontowahl übernehmen die Firmendaten. Wählst du im Beleg ein
 [weiteres Zahlungskonto](rechnungen-zahlung.md#zahlungskonto), gilt es statt des Kontos der Marke;
-eine Lastschrift nennt immer das Konto aus den Firmendaten. Neue Profile starten mit der
-gemeinsamen Gestaltung; ihre Bilder lädst du gesondert hoch.
+eine Lastschrift nennt immer das Konto aus den Firmendaten. Storno und Korrektur nennen das
+Konto aus den Firmendaten, wenn das der Marke inzwischen nicht mehr zur Wahl steht. Neue Profile
+starten mit der gemeinsamen Gestaltung samt Layout je Belegart; ihre Bilder lädst du gesondert hoch.
 
-Rechnungen aus Angeboten, Storno, Korrektur, Mahnung und Lieferschein behalten die
-Markenzuordnung des Ausgangsbelegs. Festgeschriebene PDFs und XML-Dateien ändern sich nicht,
+Rechnungen aus Angeboten, Schlussrechnungen, Storno, Korrektur, Kopie, Auftragsbestätigung,
+Mahnung und Lieferschein behalten die Markenzuordnung des Ausgangsbelegs. Festgeschriebene PDFs und XML-Dateien ändern sich nicht,
 wenn du später das Profil bearbeitest. **Deaktivieren** entfernt eine Marke aus der Auswahl
 für neue Belege; vorhandene Zuordnungen bleiben erhalten. **Aktivieren** macht sie wieder
 auswählbar.
 
 Die Einstellungen oben auf dieser Seite gelten für **Gemeinsame Firmengestaltung**. Eine Marke
-bearbeitest du stattdessen in ihrem Profil; das Layout je Belegart übernimmt sie beim Anlegen aus
-der gemeinsamen Gestaltung.
+bearbeitest du stattdessen in ihrem Profil.

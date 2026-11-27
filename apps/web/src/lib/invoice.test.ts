@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { customerDraft, einzigerAnsprechpartner, invoiceTitle } from "./invoice.ts";
+import { customerDraft, einzigerAnsprechpartner, invoiceTitle, schlussrechnungEntwurf, type SchlussAbschlag } from "./invoice.ts";
 
 describe("invoiceTitle", () => {
   it("nennt Abschlags- und Schlussrechnung nur bei Rechnungen", () => {
@@ -7,6 +7,32 @@ describe("invoiceTitle", () => {
     expect(invoiceTitle("rechnung", "abschlag")).toBe("Abschlagsrechnung");
     expect(invoiceTitle("storno", "schluss")).toBe("Stornorechnung");
     expect(invoiceTitle("angebot")).toBe("Angebot");
+  });
+});
+
+describe("schlussrechnungEntwurf", () => {
+  const abschlag = (id: string, quoteId: string | null, contactId = "k1"): SchlussAbschlag => ({
+    id,
+    contactId,
+    quoteId,
+    brandProfileId: "marke-hkmcore",
+    taxTreatment: "regulaer",
+    taxDetails: null,
+    exemptionReason: "",
+    priceMode: "brutto",
+    propertyRetention: true,
+  });
+
+  // Der Editor schickt die Marke immer mit; ohne sie trüge die Schlussrechnung die Standardmarke statt der des Abschlags
+  it("übernimmt Marke, Steuer, Preismodus und Angebot des Abschlags und zieht die Abschläge dieses Angebots ab", () => {
+    const entwurf = schlussrechnungEntwurf({ contactId: "k1", brandProfileId: "standardmarke" }, abschlag("a1", "q1"), [
+      abschlag("a1", "q1"),
+      abschlag("a2", "q1"),
+      abschlag("a3", "q2"),
+      abschlag("a4", "q1", "k2"),
+    ]);
+    expect(entwurf).toMatchObject({ brandProfileId: "marke-hkmcore", variant: "schluss", quoteId: "q1", priceMode: "brutto", propertyRetention: true });
+    expect(entwurf.deducts).toEqual(["a1", "a2"]);
   });
 });
 

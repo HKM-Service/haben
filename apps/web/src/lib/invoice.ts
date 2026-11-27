@@ -78,3 +78,35 @@ export function customerDraft<S extends { days: number }, L, D extends { format:
     bankverbindungId: bankverbindungen.some((b) => b.id === contact.bankverbindungId) ? contact.bankverbindungId! : null,
   };
 }
+
+/** Was eine Schlussrechnung von einer Abschlagsrechnung übernimmt (AbschlagOption) */
+export interface SchlussAbschlag {
+  id: string;
+  contactId: string | null;
+  quoteId: string | null;
+  brandProfileId: string | null;
+  taxTreatment: DraftInput["taxTreatment"];
+  taxDetails: DraftInput["taxDetails"];
+  exemptionReason: string;
+  priceMode: NonNullable<DraftInput["priceMode"]>;
+  propertyRetention: boolean;
+}
+
+/**
+ * Schlussrechnung von einer Abschlagsrechnung aus: Steuer, Preismodus, Angebot und Marke wie beim Abschlag; abgezogen
+ * werden die offenen Abschläge dieses Angebots, ohne Angebot alle offenen Abschläge des Kunden
+ */
+export function schlussrechnungEntwurf<D extends { contactId: string | null }>(draft: D, abschlag: SchlussAbschlag, abschlaege: readonly SchlussAbschlag[]) {
+  return {
+    ...draft,
+    brandProfileId: abschlag.brandProfileId,
+    taxTreatment: abschlag.taxTreatment,
+    taxDetails: abschlag.taxDetails,
+    exemptionReason: abschlag.exemptionReason,
+    priceMode: abschlag.priceMode,
+    propertyRetention: abschlag.propertyRetention,
+    variant: "schluss" as const,
+    quoteId: abschlag.quoteId,
+    deducts: abschlaege.filter((a) => a.contactId === draft.contactId && (!abschlag.quoteId || a.quoteId === abschlag.quoteId)).map((a) => a.id),
+  };
+}

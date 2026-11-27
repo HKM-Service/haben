@@ -1,4 +1,4 @@
-import { brandProfileInputSchema } from "@haben/core";
+import { activeFooterColumns, brandProfileInputSchema, designWithDefaults } from "@haben/core";
 import type { Seller } from "@haben/einvoice";
 import type postgres from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -114,6 +114,22 @@ describe.skipIf(!testDatabaseUrl)("Marken der gemeinsamen GmbH (Postgres)", () =
     });
     await sql`update bank_accounts set purpose = 'privat' where id = ${account!.id}`;
     await expect(brands.brandSeller(seller, await brands.brandProfile(saved.id))).rejects.toThrow(/Bankkonto/);
+  });
+
+  // Seit #1651 gilt footerColumns nur mit footerCustom; das Formular der Marke übernimmt footerCustom: false aus der Firmenvorgabe
+  it("setzt eigene Fußspalten der Marke wirksam, auch wenn die Firmenvorgabe keine eigenen hat", async () => {
+    const { layouts: _layouts, ...vorgabe } = designWithDefaults(null);
+    const spalten = ["HKMcore\n{firma}", "IBAN {iban}", "USt-IdNr. {ustid}"];
+    const saved = await brands.saveBrandProfile(actor, null, input("HKMcore", { design: { ...vorgabe, footerColumns: spalten } }));
+    expect(activeFooterColumns(brands.brandLetterhead(await brands.brandProfile(saved.id)).options!)).toEqual(spalten);
+    const ohne = await brands.saveBrandProfile(actor, saved.id, input("HKMcore", { design: { ...vorgabe, footerColumns: null } }));
+    expect(activeFooterColumns(brands.brandLetterhead(await brands.brandProfile(ohne.id)).options!)).toBeNull();
+  });
+
+  it("lehnt bei einer GmbH eigene Fußspalten der Marke mit nur einem Teil der Pflichtangaben ab (§ 35a GmbHG)", async () => {
+    await sql`update company set rechtsform = 'gmbh' where id = 1`;
+    const spalten = ["HKMcore\n{firma}\nSitz {sitz}", "IBAN {iban}", "USt-IdNr. {ustid}"];
+    await expect(brands.saveBrandProfile(actor, null, input("HKMcore", { design: { footerColumns: spalten } }))).rejects.toThrow(/Pflichtangaben/);
   });
 
   it("kann das Firmen-Standardprofil nicht über die Markenverwaltung verändern", async () => {

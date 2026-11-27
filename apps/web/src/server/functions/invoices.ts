@@ -113,10 +113,25 @@ async function invoiceEditorContext() {
   return {
     ...context,
     abschlaege: abschlaege.map(
-      ({ id, contactId, quoteId, number, issueDate, gross, rates, taxTreatment, taxDetails, exemptionReason, priceMode, propertyRetention }) => ({
+      ({
         id,
         contactId,
         quoteId,
+        brandProfileId,
+        number,
+        issueDate,
+        gross,
+        rates,
+        taxTreatment,
+        taxDetails,
+        exemptionReason,
+        priceMode,
+        propertyRetention,
+      }) => ({
+        id,
+        contactId,
+        quoteId,
+        brandProfileId,
         number,
         issueDate,
         gross,

@@ -9,6 +9,8 @@ export interface BrandedDraft {
   brandProfileId: string | null;
   bankverbindungId: string | null;
   paymentMethod?: string;
+  /** Storno und Korrektur zahlt niemand: Dort sperrt ein ungültig gewordenes Konto der Marke den Beleg nicht */
+  kind?: string;
 }
 
 /**
@@ -17,10 +19,12 @@ export interface BrandedDraft {
  */
 const keepsOwnBank = (draft: BrandedDraft) => draft.bankverbindungId !== null || draft.paymentMethod === "lastschrift";
 
+const bankOptions = (draft: BrandedDraft) => ({ keepBank: keepsOwnBank(draft), bankOptional: draft.kind === "storno" || draft.kind === "korrektur" });
+
 /** Verkäufer des Entwurfs mit seinem Zahlungskonto, dazu die Marke; im Verkäufer bleibt immer die rechtliche Firma erhalten. */
 export async function documentSeller(q: Db | Tx, company: Company, draft: BrandedDraft): Promise<Seller> {
   const seller = await draftSeller(q, company, draft);
-  return draft.brandProfileId ? brandSeller(seller, await brandProfile(draft.brandProfileId, q), q, keepsOwnBank(draft)) : seller;
+  return draft.brandProfileId ? brandSeller(seller, await brandProfile(draft.brandProfileId, q), q, bankOptions(draft)) : seller;
 }
 
 /** Firmendaten und der für diesen Beleg wirksame Aussteller; Pflichtfeld- und Formatprüfung sehen dieselben Angaben wie das Dokument. */
@@ -41,5 +45,5 @@ export async function documentBranding(q: Db | Tx, company: Company, draft: Bran
   const seller = await draftSeller(q, company, draft);
   if (!draft.brandProfileId) return { seller, letterhead: await loadLetterhead() };
   const profile = await brandProfile(draft.brandProfileId, q);
-  return { seller: await brandSeller(seller, profile, q, keepsOwnBank(draft)), letterhead: brandLetterhead(profile) };
+  return { seller: await brandSeller(seller, profile, q, bankOptions(draft)), letterhead: brandLetterhead(profile) };
 }
