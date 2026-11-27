@@ -24,12 +24,16 @@ export async function logoInfo(): Promise<{ format: "png" | "jpg"; sha256: strin
   return row ?? null;
 }
 
-export async function saveLogo(actor: string, data: Uint8Array): Promise<void> {
+export function prepareLogo(data: Uint8Array) {
   if (data.length === 0) throw new LogoError("Die Datei ist leer.");
   if (data.length > MAX_LOGO_BYTES) throw new LogoError("Das Logo darf höchstens 1 MB groß sein.");
   const format = logoFormat(data);
   if (!format) throw new LogoError("Als Logo gehen PNG und JPEG.");
-  const values = { logo: Buffer.from(data), format, sha256: createHash("sha256").update(data).digest("hex"), createdAt: new Date() };
+  return { logo: Buffer.from(data), format, sha256: createHash("sha256").update(data).digest("hex"), createdAt: new Date() };
+}
+
+export async function saveLogo(actor: string, data: Uint8Array): Promise<void> {
+  const values = prepareLogo(data);
   await withActor(actor, (tx) =>
     tx
       .insert(schema.companyLogo)

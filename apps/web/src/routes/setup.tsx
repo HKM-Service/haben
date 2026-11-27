@@ -5,24 +5,27 @@ import { authClient } from "../lib/auth-client.ts";
 import { errorMessage } from "../lib/format.ts";
 import { getAuthState } from "../server/functions/setup.ts";
 import { Field } from "../components/Field.tsx";
+import { SetupPasskeyStep } from "../components/SetupPasskeyStep.tsx";
+import { getFirstPasskeySetup } from "../server/functions/first-passkey.ts";
+import { HkmLogo } from "../components/HkmLogo.tsx";
 
 // Die Anleitung nennt, wo der Einrichtungscode steht (Log des Servers)
 const CODE_DOCS = "https://haben.app/einrichtung.html#konto-anlegen";
 
 export const Route = createFileRoute("/setup")({
   beforeLoad: async () => {
-    const state = await getAuthState();
+    const [state, fromCode] = await Promise.all([getAuthState(), getFirstPasskeySetup()]);
     // SSO-Modus: Passkeys gibt es nicht, nach der Einrichtung geht es nur über die Anmeldeseite hinein
     if (state.oidc.only && state.user) throw redirect({ to: "/" });
     if (state.initialized && !state.user) throw redirect({ to: "/login" });
-    return { state };
+    return { state, fromCode };
   },
   head: () => ({ meta: [{ title: "Einrichtung · Haben" }] }),
   component: SetupPage,
 });
 
 function SetupPage() {
-  const { state } = Route.useRouteContext();
+  const { state, fromCode } = Route.useRouteContext();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -48,26 +51,12 @@ function SetupPage() {
     }
   }
 
-  async function addPasskey() {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await authClient.passkey.addPasskey({ name: "Haben" });
-      if (result?.error) throw new Error(result.error.message);
-      // Danach ein paar Fragen zur Einrichtung (#266); sie lassen sich überspringen, die Übersicht erinnert daran
-      await router.navigate({ to: "/einrichtung" });
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <main className="auth-page">
       <div className="card auth-card">
-        <div className="brand" style={{ color: "var(--ink)", padding: 0 }}>
-          <span className="brand-mark">H</span>Haben
+        <div className="auth-logo">
+          <HkmLogo className="brand-hkm-voll" />
+          <span className="visually-hidden">HKM finanz</span>
         </div>
         {state.oidc.only ? (
           <>
@@ -79,19 +68,7 @@ function SetupPage() {
             <SsoSignIn name={state.oidc.name} label={`Mit ${state.oidc.name} einrichten`} />
           </>
         ) : state.user ? (
-          <>
-            <h1 style={{ fontSize: 24 }}>Passkey einrichten</h1>
-            <p className="muted">
-              Mit einem Passkey meldest du dich künftig mit Fingerabdruck, Gesicht oder PIN deines Geräts an, ohne Passwort. Das Passwort bleibt als
-              Rückfallebene.
-            </p>
-            <button type="button" className="btn btn-primary" onClick={addPasskey} disabled={busy}>
-              Passkey hinzufügen
-            </button>
-            <button type="button" className="btn" onClick={() => router.navigate({ to: "/einrichtung" })}>
-              Später
-            </button>
-          </>
+          <SetupPasskeyStep fromCode={fromCode} />
         ) : (
           <form className="stack" onSubmit={createAccount}>
             <h1 style={{ fontSize: 24 }}>Haben einrichten</h1>

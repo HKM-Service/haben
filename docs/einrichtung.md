@@ -44,6 +44,12 @@ Passkeys verwaltest du unter **Einstellungen › Sicherheit › Passkeys**: weit
 
 Unter **Einstellungen › Sicherheit › Passwort ändern** gibst du dein bisheriges Passwort ein und bestätigst das neue Passwort mit mindestens 12 Zeichen durch erneute Eingabe. Alle Sitzungen enden, auch die im aktuellen Browser und die per Passkey eröffneten. Danach kannst du dich mit dem neuen Passwort oder einem vorhandenen Passkey anmelden. Im Änderungsprotokoll steht der Wechsel ohne Passwort oder Hash.
 
+### Ersten Passkey mit Einmalcode einrichten
+
+Für ein bereits angelegtes Inhaberkonto ohne Passkey kann die Person, die Haben betreibt, einen [Einmalcode bereitstellen](installation-konfiguration.md#einmalcode-für-den-ersten-passkey). Auf der Anmeldeseite wählst du **Einmalcode verwenden**, fügst den Code ein und klickst **Code einlösen**. Danach öffnet **Passkey hinzufügen** die Abfrage deines Geräts oder Schlüsselbunds, auf dem Mac etwa mit Touch ID. Für künftige Anmeldungen wählst du **Mit Passkey anmelden**.
+
+Der Code gilt 15 Minuten und nur einmal. Eine Neuausgabe entwertet den vorherigen Code. Ein wegen Kontosperre oder vorhandenem Passkey abgewiesener Code bleibt ungültig, auch wenn du die Sperre oder den Passkey später entfernst. Die Passkey-Registrierung entwertet offene Codes. Sobald ein Passkey vorhanden ist, lässt sich dieser Weg nicht mehr verwenden; weitere Passkeys fügst du nach der Anmeldung in den Einstellungen hinzu. Konto und Passwort bleiben erhalten. Mit **Abmelden** brichst du die Einrichtung ab; für einen neuen Versuch brauchst du einen neuen Code. Im SSO-Modus gibt es diesen Weg nicht.
+
 ## Fragen zur Einrichtung
 
 Nach dem ersten Konto stellt Haben ein paar Fragen in drei Schritten:
@@ -68,7 +74,7 @@ Deine Steuerberatung bekommt auf Wunsch einen eigenen Zugang, der nur lesen kann
 
 Die **Einstellungen** (unten links in der Navigation) sind in Bereiche geteilt: **Firma**, **Persönliche Angaben**, **Bereiche** ([Menüpunkte ein- und ausblenden](#bereiche-ausblenden)), **Rechnungen** (Nummernkreis, Nummernformat, Einheiten, Vorlagen für den Zahlungsplan, Standardanhänge für Angebote, Kundennummern), **Beleggestaltung** (Farbe, Logo und Blatt, Briefpapier, Fußzeile, Layouts), **ELSTER** (Zertifikat, ERiC), **E-Mail** (Versand, Belege-Postfach), **Bank** (Kontoabruf, Google Play, App Store), **Eigene Konten** ([Sachkonten mit eigener Nummer](buchhaltung.md#eigene-konten)), **Sicherheit** (Passkeys, Passwort, Zugänge), **Fremdwährung** (Umrechnungskurse), **KI-Assistenten und API** (MCP, [REST-API](api.md), Belegauslesung), **Eigene Seiten** ([eigene Werkzeuge im Menü](eigene-seiten.md)) und **Export** (Jahresarchiv, DATEV, Änderungsprotokoll prüfen, Backup). Links aus der App, etwa „Zertifikat hochladen“ in der Übersicht, führen direkt in den passenden Bereich; die Adresse lautet dann z. B. `/einstellungen?bereich=elster`. Darunter öffnet **Dokumentation** diese Seiten in einem neuen Tab. Am Handy zeigt **Einstellungen** zuerst die Liste der Bereiche, „‹ Einstellungen“ oben führt aus einem Bereich zurück.
 
-Ebenfalls unten links wählst du **Farbe** und **Modus**: Wald (Grün, Standard), Ozean, Pflaume oder Graphit, jeweils hell, dunkel oder **System**, das der Einstellung deines Geräts folgt. Die Wahl gilt für diesen Browser und wird dort gespeichert, nicht auf dem Server; auf einem anderen Gerät wählst du sie neu. Rechnungen und PDFs bleiben in jeder Farbe gleich.
+Ebenfalls unten links wählst du **Farbe** und **Modus**: HKM (Schwarz, Weiß und Blau, Standard), Wald, Ozean, Pflaume oder Graphit, jeweils hell, dunkel oder **System**, das der Einstellung deines Geräts folgt. Die Wahl gilt für diesen Browser und wird dort gespeichert, nicht auf dem Server; auf einem anderen Gerät wählst du sie neu. Rechnungen und PDFs bleiben in jeder Farbe gleich.
 
 Darunter steht die **Version** von Haben, die auf dem Server läuft, verlinkt mit den Versionshinweisen auf GitHub. Nach einem Update siehst du dort, ob der neue Stand angekommen ist.
 
@@ -114,7 +120,7 @@ Unter **Einstellungen › Firma** hinterlegst du die Angaben, die auf Rechnungen
 | Standard-Zahlungsziel in Tagen | Vorgabe für neue Rechnungen (0 bis 120 Tage) |
 | Skonto | Vorgabe für neue Rechnungen, bis zu drei Stufen aus Satz und Frist in Tagen, z. B. 2 % in 10 Tagen; am Kunden und in der Rechnung änderbar (siehe [Skonto](rechnungen-zahlung.md#skonto)) |
 | Standardformat für Rechnungen | ZUGFeRD (PDF mit eingebettetem XML), XRechnung (CII) oder XRechnung (UBL). Vorgabe für neue Rechnungen |
-| Standard-Einleitung für Rechnungen, für Angebote | Steht in neuen Rechnungen bzw. Angeboten als Einleitung über den Positionen, etwa eine Anrede oder „Für die erbrachten Leistungen berechne ich Ihnen:“. Im Beleg änderbar; bestehende Belege ändern sich nicht. Leer = keine Einleitung, höchstens 2000 Zeichen |
+| Standard-Einleitung für Rechnungen, für Angebote | Einleitung für neue Rechnungen bzw. Angebote, etwa eine Anrede oder „Für die erbrachten Leistungen berechne ich Ihnen:“. Eine nicht leere Einleitung der [Standardmarke](#markenprofile) hat Vorrang. Im Beleg änderbar; bestehende Belege ändern sich nicht. Sind beide Vorgaben leer, bleibt die Einleitung leer; höchstens 2000 Zeichen |
 | Versteuerung | Ist oder Soll, siehe unten |
 | Kleinunternehmer nach § 19 UStG | Haken setzen, wenn du die Kleinunternehmerregelung nutzt, siehe unten |
 | Gründungsdatum | Datum der tatsächlichen Aufnahme deiner unternehmerischen Tätigkeit, siehe [Kleinunternehmer](#kleinunternehmer) |
@@ -130,13 +136,45 @@ Mehr zu den Pflichtangaben auf Rechnungen steht in [Rechnungen](rechnungen.md).
 
 Unter **Einstellungen › Firma › Zeichen in der Navigation** wählst du, woran du die Firma oben links in der Navigation erkennst. Das hilft vor allem, wenn du [mehrere Firmen als eigene Instanzen](installation.md#mehrere-instanzen) führst.
 
-- **„H“ in der Farbe des Themes:** wie ab Werk.
+- **Logo „HKM finanz“:** wie ab Werk, in Weiß auf der Navigation.
 - **„H“ in eigener Farbe:** mit dem Farbfeld oder als Hex-Wert `#RRGGBB`. Die Schrift darauf ist weiß oder schwarz, je nachdem, was sich besser liest; so ist das „H“ in jeder Farbe lesbar (Kontrast mindestens 4,5 : 1 nach WCAG). Hebt sich eine sehr dunkle Farbe kaum von der Navigation ab, bekommt die Kachel eine feine helle Kante.
-- **Logo aus der Beleggestaltung:** statt des „H“ steht das [Logo](#logo) der Belege auf weißer Fläche, in einem Quadrat so groß wie das „H“. Am besten wirkt ein quadratisches Bildzeichen; ein breiter Schriftzug wird darin klein. Das geht nur, wenn ein Logo hochgeladen ist, und es ändert sich mit diesem Logo. Wird es entfernt, zeigt die Navigation wieder die eigene Farbe bzw. das „H“ des Themes.
+- **Logo aus der Beleggestaltung:** statt des „H“ steht das [Logo](#logo) der Belege auf weißer Fläche, in einem Quadrat so groß wie das „H“. Am besten wirkt ein quadratisches Bildzeichen; ein breiter Schriftzug wird darin klein. Das geht nur, wenn ein Logo hochgeladen ist, und es ändert sich mit diesem Logo. Wird es entfernt, zeigt die Navigation wieder die eigene Farbe bzw. das Logo „HKM finanz“.
 
 Mit [Firmenportal](installation.md#firmenportal) steht das Zeichen auch dort auf der Kachel der Firma, nach dem nächsten Abgleich mit `portal` oder, ohne Werkzeug, nachdem es jemand dort eingetragen hat.
 
 Das Zeichen gilt für alle Zugänge der Instanz, auch für die [Steuerberatung](steuerberatung.md), und hängt nicht an der Beleggestaltung: Ändern sich [Akzentfarbe](#akzentfarbe), Layout oder Logo-Einstellungen der Belege, bleibt die eigene Farbe, und Firmen mit gleich aussehenden Belegen haben trotzdem verschiedene Zeichen. Das Theme (Hell, Dunkel, Farbe der Oberfläche) wählt dagegen jeder Zugang für sich. Die Änderung steht im Änderungsprotokoll.
+
+### Markenprofile
+
+Unter **Einstellungen › Beleggestaltung › Markenprofile** legst du Marken derselben Firma an,
+zum Beispiel HKMcore. Ein Markenname reicht zunächst. Über **Bearbeiten** ergänzt du später
+Logo, Briefpapier, Farbe, Schrift und Kontaktdaten. Logo und Briefpapier werden beim Hochladen
+sofort gespeichert; die übrigen Angaben mit **Marke speichern**.
+
+Unter **Logo, Briefpapier und Gestaltung › Fußzeile** kannst du eigene Fußspalten je Marke
+eingeben. Die Platzhalter werden mit den Firmen- und Markendaten gefüllt; `{firma}` nennt
+weiterhin den rechtlichen Firmennamen. Ohne eigene Spalten entsteht die Fußzeile automatisch.
+
+Im Rechnungs- und Angebotseditor wählst du unter **Marke / Rechnungsprofil** das passende
+Profil. **Gemeinsame Firmengestaltung** verwendet die bisherigen Einstellungen. Ein Profil
+kann als Standard für neue Belege gewählt werden. Seine Einleitung und sein Schlusstext werden
+dabei vorgeschlagen. Vorhandene Entwürfe behalten ihre Auswahl. Wiederkehrende Rechnungen
+verwenden die Marke ihrer Vorlage.
+
+Rechtlicher Rechnungsaussteller, Anschrift, Register- und Steuerangaben, Buchhaltung und
+Nummernvergabe bleiben gemeinsam. Marken können eigene E-Mail, Telefon und Website sowie
+ein Bankkonto der Firma verwenden; private oder ausgeschlossene Konten stehen nicht zur Wahl.
+Leere E-Mail, Telefon und Kontowahl übernehmen die Firmendaten. Neue Profile starten mit der
+gemeinsamen Gestaltung; ihre Bilder lädst du gesondert hoch.
+
+Rechnungen aus Angeboten, Storno, Korrektur, Mahnung und Lieferschein behalten die
+Markenzuordnung des Ausgangsbelegs. Festgeschriebene PDFs und XML-Dateien ändern sich nicht,
+wenn du später das Profil bearbeitest. **Deaktivieren** entfernt eine Marke aus der Auswahl
+für neue Belege; vorhandene Zuordnungen bleiben erhalten. **Aktivieren** macht sie wieder
+auswählbar.
+
+Die folgenden Gestaltungseinstellungen gelten für **Gemeinsame Firmengestaltung**. Eine Marke
+bearbeitest du stattdessen in ihrem Profil.
 
 ### Logo
 

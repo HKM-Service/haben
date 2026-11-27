@@ -6,20 +6,23 @@ import { db, schema, type Db, type Tx } from "../../db/index.ts";
 import { UserError } from "../../errors.ts";
 import { loadBackground } from "./background.ts";
 import { loadLogo } from "./logo.ts";
+import { brandLetterhead, brandProfile } from "./brand-profiles.ts";
 
 /** Briefkopf von Rechnungen, Angeboten und Mahnungen: Gestaltung aus dem Standardprofil, dazu das Logo */
 
 export class AccentColorError extends UserError {}
 
 /** Ohne gespeichertes Profil gelten die Vorgaben; Einstellungen, die eine ältere Zeile nicht kennt, ebenso */
-export async function loadDesign(q: Db | Tx = db): Promise<LetterheadDesign> {
+export async function loadDesign(q: Db | Tx = db, profileId?: string | null): Promise<LetterheadDesign> {
+  if (profileId) return designWithDefaults((await brandProfile(profileId, q)).settings);
   const profiles = schema.letterheadProfiles;
   const [row] = await q.select({ settings: profiles.settings }).from(profiles).where(eq(profiles.isDefault, true));
   return designWithDefaults(row?.settings);
 }
 
 /** Heutige Gestaltung für jedes neu erzeugte PDF, auch für Mahnung und Lieferschein zu älteren Belegen; schon festgeschriebene PDFs bleiben */
-export async function loadLetterhead(): Promise<Letterhead> {
+export async function loadLetterhead(profileId?: string | null): Promise<Letterhead> {
+  if (profileId) return brandLetterhead(await brandProfile(profileId));
   const [logo, background, design] = await Promise.all([loadLogo(), loadBackground(), loadDesign()]);
   const { accent, layouts: _layouts, ...options } = design;
   return { accent, options, ...(logo ? { logo } : {}), ...(background ? { background } : {}) };

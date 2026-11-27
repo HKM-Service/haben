@@ -222,7 +222,7 @@ export function DesignOptionFields({
   );
 }
 
-function AccentField({ accent, onChange }: { accent: string; onChange: (accent: string) => void }) {
+export function AccentField({ accent, onChange }: { accent: string; onChange: (accent: string) => void }) {
   const weak = ACCENT_PATTERN.test(accent) && contrastOnWhite(accent) < MIN_TEXT_CONTRAST;
   const custom = !SWATCHES.some((swatch) => swatch.hex === accent.toUpperCase());
   return (

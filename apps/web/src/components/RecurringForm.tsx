@@ -1,3 +1,5 @@
+import { BrandProfileSelect } from "./BrandProfileSelect.tsx";
+import type { BrandProfileOption } from "./BrandProfilesCard.tsx";
 import {
   fillPlaceholders,
   formatDecimal,
@@ -45,6 +47,7 @@ export interface RecurringValues {
   name: string;
   active: boolean;
   contactId: string;
+  brandProfileId?: string | null;
   format: InvoiceFormat;
   paymentTermDays: number;
   intro: string;
@@ -80,10 +83,24 @@ interface LineState {
 
 let nextKey = 1;
 
+function recurringLineState(line: RecurringValues["lines"][number]): LineState {
+  return {
+    key: nextKey++,
+    description: line.description,
+    detail: line.detail,
+    itemNumber: line.itemNumber ?? "",
+    quantity: formatQuantity(line.quantity),
+    unit: line.unit,
+    unitPrice: line.unitPrice ? formatDecimal(line.unitPrice) : "",
+    taxRate: line.taxRate,
+  };
+}
+
 /** Formular für eine Vorlage; Platzhalter wie {monat} werden in der Vorschau ersetzt */
 export function RecurringForm({
   initial,
   contacts,
+  brandProfiles = [],
   textBlocks = [],
   units = [],
   kleinunternehmer,
@@ -94,6 +111,7 @@ export function RecurringForm({
   initial: RecurringValues;
   /** Nur Kunden stehen zur Auswahl; der gewählte bleibt sichtbar */
   contacts: ContactChoice[];
+  brandProfiles?: BrandProfileOption[];
   /** Kopf- und Fußtexte zum Einfügen */
   textBlocks?: TextBlockOption[];
   /** Eigene Einheiten (#748) neben den festen */
@@ -105,6 +123,7 @@ export function RecurringForm({
 }) {
   const [name, setName] = useState(initial.name);
   const [active, setActive] = useState(initial.active);
+  const [brandProfileId, setBrandProfileId] = useState(initial.brandProfileId ?? null);
   const [contactId, setContactId] = useState(initial.contactId);
   /** Getippter Name, wenn der Dialog für einen neuen Kunden offen ist; null = geschlossen */
   const [newContactName, setNewContactName] = useState<string | null>(null);
@@ -124,18 +143,7 @@ export function RecurringForm({
   const [mode, setMode] = useState(initial.mode);
   const [sendByMail, setSendByMail] = useState(initial.sendByMail);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initial.paymentMethod);
-  const [lines, setLines] = useState<LineState[]>(() =>
-    initial.lines.map((line) => ({
-      key: nextKey++,
-      description: line.description,
-      detail: line.detail,
-      itemNumber: line.itemNumber ?? "",
-      quantity: formatQuantity(line.quantity),
-      unit: line.unit,
-      unitPrice: line.unitPrice ? formatDecimal(line.unitPrice) : "",
-      taxRate: line.taxRate,
-    })),
-  );
+  const [lines, setLines] = useState<LineState[]>(() => initial.lines.map(recurringLineState));
 
   const special = taxTreatment !== "regulaer";
   /** Bruttopreise nur mit Steuerausweis */
@@ -197,6 +205,7 @@ export function RecurringForm({
       name: name.trim(),
       active,
       contactId,
+      brandProfileId,
       format,
       paymentTermDays: term,
       intro,
@@ -236,6 +245,7 @@ export function RecurringForm({
                   />
                 )}
               </Field>
+              <BrandProfileSelect profiles={brandProfiles} value={brandProfileId} onChange={setBrandProfileId} />
               <Field label="Kunde" error={error("contact")}>
                 {(control) => (
                   <ContactCombobox

@@ -281,8 +281,9 @@ export function renderLohnPdf(
 
 /** Fußzeile wie auf der Rechnung: Kontakt, Bank, Steuernummern */
 export function footerColumns(seller: InvoiceDocument["seller"], t: Texts = TEXTS.de): string[][] {
-  const contact = [seller.name, ...addressLines(seller, t), seller.email];
+  const contact = [...(seller.brand ? [seller.brand] : []), seller.name, ...addressLines(seller, t), seller.email];
   if (seller.telefon) contact.push(`${t.phone} ${seller.telefon}`);
+  if (seller.website) contact.push(seller.website);
   const bank: string[] = [];
   if (seller.bank) bank.push(seller.bank);
   if (accountHolder(seller) !== seller.name) bank.push(`${t.accountHolder} ${accountHolder(seller)}`);

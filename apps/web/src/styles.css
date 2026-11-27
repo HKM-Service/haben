@@ -16,6 +16,12 @@
 @font-face { font-family: "IBM Plex Sans"; font-style: italic; font-weight: 600; font-display: swap; src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-ext-600-italic.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
 @font-face { font-family: "IBM Plex Sans"; font-style: italic; font-weight: 600; font-display: swap; src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-italic.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
 
+/* HKM finanz: Manrope, die Hausschrift von HKM, als variable Schrift (200 bis 800), selbst ausgeliefert wie IBM Plex
+   (fontsource, SIL OFL 1.1). Sie hat keine Kursive, der Browser stellt sie schräg; IBM Plex Sans bleibt als
+   Rückfall für fehlende Zeichen. Zu den Ziffern siehe die Regel für body weiter unten. */
+@font-face { font-family: "Manrope"; font-style: normal; font-weight: 200 800; font-display: swap; src: url("@fontsource-variable/manrope/files/manrope-latin-ext-wght-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C4,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Manrope"; font-style: normal; font-weight: 200 800; font-display: swap; src: url("@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+
 :root {
   /* Papier liegt wie eine Karte auf dem Grund: Haarlinie, Kante, Körper und ein weiter, weicher Schatten nach unten */
   --paper-shadow: 0 0 0 1px rgb(0 0 0 / 0.05), 0 2px 4px -1px rgb(0 0 0 / 0.08), 0 12px 24px -6px rgb(0 0 0 / 0.16), 0 32px 64px -16px rgb(0 0 0 / 0.22);
@@ -50,7 +56,12 @@
   --info-soft: #e6eef8;
   --danger-ink: #9b1c1c;
   --danger-soft: #fbe4e4;
-  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  /* Erledigt, gültig, angenommen (Status „ok“, Erfolgsmeldung): ab Werk der Akzent. Eine Farbe mit blauem Akzent setzt
+     hier Grün, sonst sähe „Bezahlt“ aus wie „Teilbezahlt“ (--info-ink) und wie ein Link */
+  --ok-dot: var(--accent);
+  --ok-ink: var(--accent-ink);
+  --ok-soft: var(--accent-soft);
+  --sans: "Manrope", "IBM Plex Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   /* Einheitliche Höhe für Eingabefelder, Auswahllisten und Buttons; auf Touch-Geräten 44px als Tippfläche */
   --control-h: 40px;
@@ -84,6 +95,14 @@ html { scroll-padding-top: calc(var(--below-head) + 16px); scroll-padding-bottom
 
 /* Farben: Auswahl unten in der Navigation (lib/theme.ts), gespeichert im Browser. Ohne data-theme gilt Wald, ohne data-mode hell. */
 :root { color-scheme: light; }
+/* HKM (Standard in lib/theme.ts): die Farben von HKM. Schwarz und Weiß wie das Logo, das Blau #2048D8 nur als Akzent,
+   kühle neutrale Flächen. Die Navigation ist schwarz, darauf steht das Logo in Weiß. */
+[data-theme="hkm"] {
+  --accent: #2048d8; --accent-hover: #1737ad; --accent-ink: #1b3fc2; --accent-soft: #e9efff; --accent-tint: #f3f6ff;
+  --brand: #7f9bff; --nav: #000000; --nav-active: #2a2a2f; --nav-ink: #b4b4bb;
+  --ink: #111113; --ink-2: #353c49; --muted: #4d596c; --ground: #f2f5fa; --line: #d8dfe9; --line-soft: #ebeff5; --line-strong: #bcc7d6;
+  --ok-dot: #1f8a4c; --ok-ink: #176b3b; --ok-soft: #e4f4ea;
+}
 [data-theme="ozean"] {
   --accent: #1d5fa8; --accent-hover: #164a84; --accent-ink: #174d8a; --accent-soft: #e4eefa; --accent-tint: #eef4fb;
   --brand: #4a90d9; --nav: #131c2b; --nav-active: #24324a; --nav-ink: #b6c2d4;
@@ -117,12 +136,18 @@ html { scroll-padding-top: calc(var(--below-head) + 16px); scroll-padding-bottom
   --danger-ink: #f2a8a8; --danger-soft: #371d1e;
   --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.3);
 }
+[data-theme="hkm"][data-mode="dark"] { --accent: #7f9bff; --accent-hover: #9db2ff; --accent-ink: #a9bbff; --accent-soft: #1c2650; --accent-tint: #161c38; --ok-dot: #4cc38a; --ok-ink: #7fd8ab; --ok-soft: #173326; }
 [data-theme="ozean"][data-mode="dark"] { --accent: #6aa8f0; --accent-hover: #8cbcf5; --accent-ink: #93bdf0; --accent-soft: #1b2d47; --accent-tint: #172338; }
 [data-theme="pflaume"][data-mode="dark"] { --accent: #c99ad8; --accent-hover: #d8b2e4; --accent-ink: #d7aee5; --accent-soft: #35233d; --accent-tint: #281d2e; }
 [data-theme="graphit"][data-mode="dark"] { --accent: #e4e4e7; --accent-hover: #fafafa; --accent-ink: #e4e4e7; --accent-soft: #2c2c31; --accent-tint: #222226; }
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); font-size: 14px; }
+/* HKM finanz: Manrope unterschneidet Punkt und Komma vor der „1“ um 0,12 em, in „24.11.2026“ verschwindet der Punkt dann
+   unter der 1. Tabellenziffern sind nicht unterschnitten, deshalb gelten sie für jede Zahl, nicht nur für Beträge.
+   Zeilenabstand fest auf 1,3 wie bisher mit IBM Plex Sans: Manropes eigener Wert ist 1,366, mit „normal“ würde jede Zeile
+   ohne eigene Angabe höher und jede Seite länger; Höhen und Raster bleiben so, wie sie entworfen sind. */
+body { font-variant-numeric: tabular-nums; line-height: 1.3; }
 a { color: var(--link); }
 a:hover { color: var(--link-hover); }
 /* Sichtbarer Tastaturfokus für alles, was keinen eigenen hat */
@@ -159,6 +184,19 @@ h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .brand-mark-kante { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nav-ink) 60%, transparent); }
 /* Logo als Zeichen (#504): auf Weiß wie auf dem Beleg, damit auch ein dunkles Logo auf dunkler Navigation zu sehen ist */
 .brand-logo { display: block; width: 40px; height: 40px; padding: 3px; border-radius: 10px; background: #fff; object-fit: contain; flex-shrink: 0; }
+/* HKM finanz: Ab Werk steht statt „H“ und „Haben“ das Logo aus dem HKM-Logo-System, in der Schriftfarbe (weiß auf der
+   Navigation). 56px hoch, über der Mindestgröße von 40px; eingeklappt der Bogen mit dem Kürzel „F“. Der Name steht im
+   Logo, der Text daneben ist deshalb nur für Hilfstechnik da und für den Hinweis der eingeklappten Leiste. Am Desktop
+   steht der Firmenname unter dem Logo (unten bei der einfahrbaren Leiste): Neben dem 73px breiten Logo blieben ihm
+   nur rund 100px, darunter hat er die ganze Breite. */
+/* Der Firmenname braucht mit Manrope 18px Zeilenabstand: Die Zeichenhöhe (1,366 em bei 13px) ragte aus 16px heraus, und
+   ein zweizeiliger Name mäße sich als abgeschnitten. Der aufgeklappte Name beginnt entsprechend 40px über der Unterkante. */
+.brand-firma, .brand-firma-voll { line-height: 18px; }
+.brand-firma-voll { top: calc(100% - 40px); }
+.brand-hkm { display: flex; flex-shrink: 0; }
+.brand-hkm-voll { display: block; width: auto; height: 56px; }
+.brand-hkm-kurz { display: none; width: auto; height: 36px; }
+.brand-name-hkm { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .nav-mark-choice { display: flex; gap: 24px; align-items: start; flex-wrap: wrap; }
 .nav-mark-choice > fieldset { flex: 1 1 280px; margin: 0; padding: 0; border: 0; }
 /* Alle drei Optionen gleich hoch, auch die mit Hinweis darunter */
@@ -201,6 +239,11 @@ button.nav-foot-link { width: 100%; background: none; border: 0; font: inherit; 
 .nav .nav-search-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .nav-search-label { flex: 1; }
 .nav-kbd { color: var(--nav-ink); }
+/* HKM finanz: „Schnellsuche“, „Strg K“ und „/“ passen nicht nebeneinander in die 200px breite Zeile, das „/“ ragte über
+   den Rand des Knopfs (mit „Strg“ statt „⌘“ schon knapp, mit Manrope um 12px). Sichtbar bleibt das Hauptkürzel; „/“ öffnet
+   die Suche weiter und steht in aria-keyshortcuts. */
+.nav .nav-search-btn .nav-kbd + .nav-kbd { display: none; }
+.nav .nav-search-btn { padding-right: 8px; }
 @media (max-width: 860px) {
   .nav .nav-search-btn { width: 44px; height: 44px; margin: 0; padding: 0; justify-content: center; color: var(--nav-ink-strong); }
   .nav-search-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -225,6 +268,12 @@ button.nav-foot-link { width: 100%; background: none; border: 0; font: inherit; 
   [data-nav="collapsed"] .brand-text,
   [data-nav="collapsed"] .nav-collapse-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   [data-nav="collapsed"] .brand-firma-voll { display: none; }
+  /* Logo ab Werk: der Firmenname darunter, linksbündig mit dem Logo; mit eigenem Zeichen bleibt die Zeile wie bisher */
+  .nav .brand:has(> .brand-hkm) { flex-direction: column; align-items: flex-start; }
+  [data-nav="collapsed"] .nav .brand:has(> .brand-hkm) { align-items: center; }
+  /* Nur in der Leiste: Die Vorschau in den Einstellungen zeigt weiter das ganze Logo */
+  [data-nav="collapsed"] .nav .brand-hkm-voll { display: none; }
+  [data-nav="collapsed"] .nav .brand-hkm-kurz { display: block; }
   [data-nav="collapsed"] .nav-collapse-btn { width: 40px; min-height: 40px; padding: 0; justify-content: center; }
   /* Schnellsuche eingeklappt nur als Lupe; Strg+K bleibt, das Kürzel steht in aria-keyshortcuts */
   [data-nav="collapsed"] .nav .nav-search-btn { width: 40px; height: 40px; min-height: 40px; padding: 0; justify-content: center; }
@@ -236,6 +285,8 @@ button.nav-foot-link { width: 100%; background: none; border: 0; font: inherit; 
      mit; verschoben steht er wie das Flyout bei 68px, 4px neben der Leiste. Esc setzt data-nav-tip="aus" (routes/_app.tsx) */
   /* Die Marke zeigt ihren eigenen, sonst verborgenen Text als Hinweis: „Haben“ und die Firma, in der man bucht (#504) */
   :root[data-nav="collapsed"]:not([data-nav-tip="aus"]) :is(.nav-tip-anker:is(:hover, :focus-visible) > .nav-tip, .brand:is(:hover, :focus-visible) > .brand-text) { display: block; height: auto; overflow: visible; clip: auto; position: fixed; z-index: 41; width: max-content; max-width: 240px; padding: 4px 8px; border-radius: 8px; background: var(--nav-active); box-shadow: 0 8px 24px rgb(0 0 0 / 0.18); color: var(--nav-ink-strong); font-size: 13px; font-weight: 500; line-height: 20px; text-align: left; white-space: normal; overflow-wrap: anywhere; transform: translateX(calc(50% + 36px)); }
+  /* Im Hinweis ist der sonst verborgene Name „HKM finanz“ zu lesen, über der Firma */
+  :root[data-nav="collapsed"]:not([data-nav-tip="aus"]) .brand:is(:hover, :focus-visible) > .brand-text > .brand-name-hkm { display: block; position: static; width: auto; height: auto; overflow: visible; clip: auto; }
   /* Unsichtbare Brücke über die 16px bis zum Symbol, damit der Zeiger den Hinweis erreicht (WCAG 1.4.13) */
   :root[data-nav="collapsed"]:not([data-nav-tip="aus"]) :is(.nav-tip-anker:is(:hover, :focus-visible) > .nav-tip, .brand:is(:hover, :focus-visible) > .brand-text)::before { content: ""; position: absolute; top: 0; bottom: 0; right: 100%; width: 16px; }
 }
@@ -283,6 +334,8 @@ button.nav-foot-link { width: 100%; background: none; border: 0; font: inherit; 
   /* Rechts 8px Abstand zum Menüknopf */
   .brand { padding: 0 8px 0 12px; flex: 1 1 0; min-width: 0; }
   .brand-mark, .brand-logo { width: 36px; height: 36px; border-radius: 9px; }
+  /* Am Handy die Mindestgröße des Logos, nur in der Leiste: passt in ihre 60px Höhe. Karten und Vorschau bleiben bei 56px */
+  .nav .brand-hkm-voll { height: 40px; }
   .brand-mark { font-size: 21px; }
   .brand-text { line-height: 22px; }
   .brand-firma { display: block; white-space: nowrap; text-overflow: ellipsis; }
@@ -606,7 +659,7 @@ textarea.autogrow { field-sizing: content; min-height: 8lh; max-height: 70vh; }
    ab „notice“ auch das Wort, „urgent“ bekommt eine Fläche. Der negative Rand hält den Punkt in derselben Spalte wie
    bei den ruhigen Zeilen darüber und darunter. */
 .status { --status-dot: var(--muted); --status-ink: var(--ink-2); --status-soft: var(--line-soft); display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; vertical-align: middle; }
-.status-ok { --status-dot: var(--accent); --status-ink: var(--accent-ink); --status-soft: var(--accent-soft); }
+.status-ok { --status-dot: var(--ok-dot); --status-ink: var(--ok-ink); --status-soft: var(--ok-soft); }
 .status-info { --status-dot: var(--info-ink); --status-ink: var(--info-ink); --status-soft: var(--info-soft); }
 .status-warn { --status-dot: var(--warn-dot); --status-ink: var(--warn-ink); --status-soft: var(--warn-soft); }
 .status-danger { --status-dot: var(--danger-ink); --status-ink: var(--danger-ink); --status-soft: var(--danger-soft); }
@@ -659,7 +712,7 @@ textarea.autogrow { field-sizing: content; min-height: 8lh; max-height: 70vh; }
 .banner { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: 10px; font-size: 14px; background: var(--warn-soft); color: var(--warn-ink); }
 .banner-info { background: var(--info-soft); color: var(--info-ink); }
 .banner-warn { background: var(--warn-soft); color: var(--warn-ink); }
-.banner-ok { background: var(--accent-soft); color: var(--accent-ink); }
+.banner-ok { background: var(--ok-soft); color: var(--ok-ink); }
 .banner-danger { background: var(--danger-soft); color: var(--danger-ink); }
 .banner a { color: inherit; font-weight: 500; }
 .banner-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 16px; }
@@ -721,6 +774,9 @@ textarea.autogrow { field-sizing: content; min-height: 8lh; max-height: 70vh; }
 
 .auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .auth-card { width: 100%; max-width: 420px; }
+/* Logo auf den Karten von Anmeldung, Einrichtung, Einladung und OAuth-Zustimmung, in der Schriftfarbe. Eigene Klasse statt
+   .brand: Die Regeln der Navigation (eingeklappte Leiste, Handy-Leiste) gelten für die Karten nicht, das Logo bleibt 56px hoch. */
+.auth-logo { display: flex; color: var(--ink); }
 
 /* Tabellenlisten */
 .table { display: flex; flex-direction: column; }

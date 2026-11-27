@@ -1,3 +1,4 @@
+import { checkedBrandProfileId, defaultBrandProfileId } from "../stammdaten/index.ts";
 import { INTERNAL_ERROR, isUniqueViolation, UserError, userMessage } from "../../errors.ts";
 import {
   addMonthsAnchored,
@@ -38,6 +39,7 @@ export const recurringInputSchema = z.object({
   name: z.string().trim().min(1, "Bezeichnung fehlt").max(200),
   active: z.boolean(),
   contactId: z.uuid(),
+  brandProfileId: z.uuid().nullable().optional(),
   format: z.enum(["zugferd", "xrechnung-cii", "xrechnung-ubl"]),
   paymentTermDays: z.number().int().min(0).max(120),
   /** Einleitung über den Positionen; Platzhalter wie bei den Positionen */
@@ -115,7 +117,11 @@ export async function createRecurring(actor: string, input: RecurringInput): Pro
   return withActor(actor, async (tx) => {
     const row = values(input);
     await checkCustomer(tx, row.contactId);
-    const [created] = await tx.insert(schema.recurringInvoices).values(row).returning();
+    const brandProfileId = await checkedBrandProfileId(input.brandProfileId === undefined ? await defaultBrandProfileId(tx) : input.brandProfileId, null, tx);
+    const [created] = await tx
+      .insert(schema.recurringInvoices)
+      .values({ ...row, brandProfileId })
+      .returning();
     return created!;
   });
 }
@@ -124,7 +130,12 @@ export async function updateRecurring(actor: string, id: string, input: Recurrin
   return withActor(actor, async (tx) => {
     const row = values(input);
     const [previous] = await tx
-      .select({ contactId: schema.recurringInvoices.contactId, nextDate: schema.recurringInvoices.nextDate, anchorDay: schema.recurringInvoices.anchorDay })
+      .select({
+        brandProfileId: schema.recurringInvoices.brandProfileId,
+        contactId: schema.recurringInvoices.contactId,
+        nextDate: schema.recurringInvoices.nextDate,
+        anchorDay: schema.recurringInvoices.anchorDay,
+      })
       .from(schema.recurringInvoices)
       .where(eq(schema.recurringInvoices.id, id))
       .for("update");
@@ -135,7 +146,16 @@ export async function updateRecurring(actor: string, id: string, input: Recurrin
     const anchorDay = row.nextDate === previous.nextDate ? previous.anchorDay : row.anchorDay;
     const [updated] = await tx
       .update(schema.recurringInvoices)
-      .set({ ...row, anchorDay, lastError: null })
+      .set({
+        ...row,
+        anchorDay,
+        brandProfileId: await checkedBrandProfileId(
+          input.brandProfileId === undefined ? previous.brandProfileId : input.brandProfileId,
+          previous.brandProfileId,
+          tx,
+        ),
+        lastError: null,
+      })
       .where(eq(schema.recurringInvoices.id, id))
       .returning();
     return updated!;
@@ -202,6 +222,7 @@ export function invoiceForDate(
   const reference = period ?? { from: date, to: date };
   return {
     contactId: recurring.contactId,
+    brandProfileId: recurring.brandProfileId,
     issueDate: date,
     serviceFrom: period?.from ?? null,
     serviceTo: period?.to ?? null,

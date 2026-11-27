@@ -18,11 +18,14 @@ describe("THEME_SCRIPT", () => {
     expect(run("ozean")).toEqual({ theme: "ozean", mode: "light" });
     expect(run("pflaume", "dunkel")).toEqual({ theme: "pflaume", mode: "dark" });
     expect(run("graphit", "hell", true)).toEqual({ theme: "graphit", mode: "light" });
+    expect(run("hkm", "dunkel")).toEqual({ theme: "hkm", mode: "dark" });
+    expect(run("wald")).toEqual({ theme: "wald", mode: "light" });
   });
 
-  it("fällt ohne oder mit unbekannter Wahl auf Wald hell zurück", () => {
-    expect(run(null)).toEqual({ theme: "wald", mode: "light" });
-    expect(run("<script>", "<script>")).toEqual({ theme: "wald", mode: "light" });
+  it("fällt ohne oder mit unbekannter Wahl auf HKM hell zurück", () => {
+    expect(run(null)).toEqual({ theme: "hkm", mode: "light" });
+    expect(run("<script>", "<script>")).toEqual({ theme: "hkm", mode: "light" });
+    expect(run(null, "dunkel")).toEqual({ theme: "hkm", mode: "dark" });
   });
 
   it("folgt bei System der Einstellung des Geräts", () => {

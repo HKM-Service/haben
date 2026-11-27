@@ -220,8 +220,8 @@ export async function faktenZeigen(page: Page, ...zeilen: string[]): Promise<voi
 const DESKTOP = { width: 1440, height: 900 };
 const HANDY_AXE = { width: 320, height: 720 };
 const HANDY_BREITE = { width: 390, height: 844 };
-/** Die Farben außer Wald hell, als „Farbe“ oder „Farbe:dunkel“ wie in barrierefreiheit.spec.ts */
-const THEMES = ["ozean", "pflaume", "graphit", "wald:dunkel", "ozean:dunkel", "pflaume:dunkel", "graphit:dunkel"];
+/** Die Farben außer dem Standard HKM hell, als „Farbe“ oder „Farbe:dunkel“ wie in barrierefreiheit.spec.ts */
+const THEMES = ["wald", "ozean", "pflaume", "graphit", "hkm:dunkel", "wald:dunkel", "ozean:dunkel", "pflaume:dunkel", "graphit:dunkel"];
 
 export async function axeVerstoesse(page: Page, rules?: string[]): Promise<string[]> {
   const builder = new AxeBuilder({ page }).withTags(WCAG);

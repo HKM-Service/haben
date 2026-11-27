@@ -3,6 +3,9 @@ const MIRRORED = [
   "fontSize",
   "fontWeight",
   "fontStyle",
+  // Tabellenziffern und Unterschneidung ändern Breiten und damit den Umbruch; nicht darauf bauen, dass der Spiegel sie erbt
+  "fontVariantNumeric",
+  "fontKerning",
   "letterSpacing",
   "wordSpacing",
   "lineHeight",

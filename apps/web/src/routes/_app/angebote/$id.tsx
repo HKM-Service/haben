@@ -1,10 +1,10 @@
-import { discountFromColumns, formatEuro, TAX_TREATMENTS, type UnitLabel } from "@haben/core";
+import { formatEuro, TAX_TREATMENTS } from "@haben/core";
 import { Link, createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Icon } from "../../../components/Icon.tsx";
 import { InvoiceAttachments } from "../../../components/InvoiceAttachments.tsx";
-import { InvoiceEditor } from "../../../components/InvoiceEditor.tsx";
+import { QuoteDraftEditor } from "../../../components/QuoteDraftEditor.tsx";
 import { QuoteChoices } from "../../../components/QuoteChoices.tsx";
 import { QuotePlan } from "../../../components/QuotePlan.tsx";
 import { BillingStatus, QuoteStatus } from "../../../components/QuoteStatus.tsx";
@@ -25,70 +25,7 @@ export const Route = createFileRoute("/_app/angebote/$id")({
 type Detail = Awaited<ReturnType<typeof getQuoteDetail>>;
 function QuotePage() {
   const data = Route.useLoaderData();
-  const { quote } = data;
-  const draftAction = useAction();
-  if (quote.status === "draft") {
-    return (
-      <InvoiceEditor
-        key={`${quote.id}-${String(quote.updatedAt)}`}
-        action={draftAction}
-        id={quote.id}
-        kind="angebot"
-        initial={{
-          contactId: quote.contactId,
-          contactPersonId: quote.contactPersonId,
-          issueDate: quote.issueDate,
-          validUntil: quote.validUntil,
-          serviceFrom: quote.serviceFrom,
-          serviceTo: quote.serviceTo,
-          paymentTermDays: 0,
-          format: "zugferd",
-          intro: quote.intro,
-          note: quote.note,
-          buyerOrderReference: quote.buyerOrderReference,
-          sellerOrderReference: quote.sellerOrderReference,
-          despatchAdviceReference: quote.despatchAdviceReference,
-          taxTreatment: quote.taxTreatment,
-          taxDetails: quote.taxDetails,
-          exemptionReason: quote.exemptionReason,
-          priceMode: quote.priceMode,
-          language: quote.language,
-          discount: discountFromColumns(quote.discountPercent, quote.discountAmount),
-          paymentPlan: quote.paymentPlan,
-          paymentPlanInConfirmation: quote.paymentPlanInConfirmation,
-          lines: data.lines.map((line) => ({
-            description: line.description,
-            detail: line.detail,
-            itemNumber: line.itemNumber,
-            quantity: line.quantity,
-            unit: line.unit as UnitLabel,
-            unitPrice: line.unitPrice,
-            taxRate: line.taxRate as 1900 | 700 | 0,
-            discount: discountFromColumns(line.discountPercent, line.discountAmount),
-            kind: line.kind,
-          })),
-        }}
-        planTemplates={data.planTemplates}
-        contactPersons={data.contactPersons}
-        contacts={data.contacts}
-        seller={data.company}
-        sellerIssues={data.sellerIssues}
-        letterIssues={data.letterIssues}
-        issues={data.issues}
-        numberCounters={data.numberCounters}
-        numberRunning={data.numberRunning}
-        numberFormat={data.numberFormat}
-        corrects={null}
-        bundesland={data.bundesland}
-        kleinunternehmer={data.kleinunternehmer}
-        articles={data.articles}
-        units={data.units}
-        textBlocks={data.textBlocks}
-        attachments={<InvoiceAttachments kind="angebot" ownerId={quote.id} attachments={data.attachments} editable />}
-      />
-    );
-  }
-  return <FinalQuote data={data} />;
+  return data.quote.status === "draft" ? <QuoteDraftEditor data={data} /> : <FinalQuote data={data} />;
 }
 
 function FinalQuote({ data }: { data: Detail }) {

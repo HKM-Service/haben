@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_app/rechnungen/wiederkehrend/$id")({
 });
 
 function RecurringDetailPage() {
-  const { recurring, invoices, contacts, textBlocks, units, defaults, sevdesk } = Route.useLoaderData();
+  const { recurring, invoices, contacts, brandProfiles, textBlocks, units, defaults, sevdesk } = Route.useLoaderData();
   const router = useRouter();
   const navigate = useNavigate();
   const save = useServerFn(saveRecurring);
@@ -69,6 +69,7 @@ function RecurringDetailPage() {
             name: recurring.name,
             active: recurring.active,
             contactId: recurring.contactId,
+            brandProfileId: recurring.brandProfileId,
             format: recurring.format,
             paymentTermDays: recurring.paymentTermDays,
             intro: recurring.intro,
@@ -88,6 +89,7 @@ function RecurringDetailPage() {
             paymentMethod: recurring.paymentMethod,
           }}
           contacts={contacts}
+          brandProfiles={brandProfiles}
           textBlocks={textBlocks}
           units={units}
           kleinunternehmer={defaults.kleinunternehmer}

@@ -19,7 +19,7 @@ function nextMonthStart(today: string): string {
 }
 
 function NewRecurringPage() {
-  const { contacts, textBlocks, units, defaults, today } = Route.useLoaderData();
+  const { contacts, brandProfiles, textBlocks, units, defaults, today } = Route.useLoaderData();
   const navigate = useNavigate();
   const save = useServerFn(saveRecurring);
   const { busy, notice, run } = useAction();
@@ -39,6 +39,7 @@ function NewRecurringPage() {
           name: "",
           active: true,
           contactId: "",
+          brandProfileId: defaults.brandProfileId,
           format: defaults.format,
           paymentTermDays: defaults.paymentTermDays,
           intro: "",
@@ -58,6 +59,7 @@ function NewRecurringPage() {
           paymentMethod: "ueberweisung",
         }}
         contacts={contacts}
+        brandProfiles={brandProfiles}
         textBlocks={textBlocks}
         units={units}
         kleinunternehmer={defaults.kleinunternehmer}

@@ -1,3 +1,8 @@
+import { deductionPreviewLines } from "../lib/editor-deductions.ts";
+import { SellerNotices } from "./SellerNotices.tsx";
+import { BrandDesignPanel } from "./BrandDesignPanel.tsx";
+import { BrandProfileSelect } from "./BrandProfileSelect.tsx";
+import type { EditorBrandProfile } from "../server/modules/stammdaten/index.ts";
 import {
   type LetterheadDesign,
   type InvoicePaymentMethod,
@@ -140,6 +145,7 @@ export function InvoiceEditor({
   initial,
   contacts,
   seller,
+  brandProfiles = [],
   sellerIssues,
   letterIssues = [],
   issues,
@@ -174,6 +180,7 @@ export function InvoiceEditor({
   contacts: ContactOption[];
   /** Gestaltung aus dem Profil und das Logo; die Firmendaten fürs Blatt liest der Server */
   seller: { logo?: string | null; design?: LetterheadDesign };
+  brandProfiles?: EditorBrandProfile[];
   sellerIssues: string[];
   /** GmbH und UG: fehlende Pflichtangaben für Geschäftsbriefe (§ 35a GmbHG); nur ein Hinweis, keine Sperre */
   letterIssues?: string[];
@@ -239,6 +246,7 @@ export function InvoiceEditor({
   /** Rechnung oder Angebot, an dem Kunde und Steuer noch frei wählbar sind */
   const editable = kind === "rechnung" || quote;
 
+  const [brandProfileId, setBrandProfileId] = useState(initial.brandProfileId ?? null);
   const [contactId, setContactId] = useState(initial.contactId ?? "");
   const [contactPersonId, setContactPersonId] = useState(initial.contactPersonId ?? "");
   /** Offener Dialog „Neuer Kunde“ mit dem vorgetragenen Namen; null = geschlossen */
@@ -312,22 +320,7 @@ export function InvoiceEditor({
   const foreign = kind === "rechnung" && currencyCode !== "EUR";
   const amountLabel = grossPrices ? "Brutto" : "Netto";
   // Vorschau: je Abschlagsrechnung und Steuersatz eine negative Position, wie beim Speichern
-  const deductionPreview = [
-    ...deducted.flatMap((a) =>
-      a.rates
-        .filter((r) => r.base !== 0)
-        .map((r) => ({
-          description: `Abzüglich Abschlagsrechnung ${a.number} vom ${formatDate(a.issueDate)}`,
-          quantity: 1000,
-          unit: "Psch." as UnitLabel,
-          unitPrice: -(grossPrices ? r.base + r.tax : r.base),
-          taxRate: r.rate as 1900 | 700 | 0,
-          valid: true,
-          deductionOf: a.id,
-        })),
-    ),
-    ...keptDeductions.map((line) => ({ ...line, valid: true })),
-  ];
+  const deductionPreview = [...deductionPreviewLines(deducted, grossPrices), ...keptDeductions.map((line) => ({ ...line, valid: true }))];
   const title = invoiceTitle(kind, variant);
   const term = Number(paymentTermDays);
   const termValid = Number.isInteger(term) && term >= 0 && term <= 120;
@@ -526,6 +519,7 @@ export function InvoiceEditor({
 
   function draft(): DraftInput {
     return {
+      brandProfileId,
       contactId: contactId || null,
       contactPersonId: contactPersonId || null,
       issueDate,
@@ -656,7 +650,8 @@ export function InvoiceEditor({
     });
   };
 
-  const currentSellerIssues = alreadyPaid || (!quote && kind !== "rechnung") ? sellerIssues.filter((i) => i !== "IBAN fehlt") : sellerIssues;
+  const profileSellerIssues = brandProfiles.find((profile) => profile.id === brandProfileId)?.sellerIssues ?? sellerIssues;
+  const currentSellerIssues = alreadyPaid || (!quote && kind !== "rechnung") ? profileSellerIssues.filter((i) => i !== "IBAN fehlt") : profileSellerIssues;
   const blocking = [...currentSellerIssues.map((i) => `Firmendaten: ${i}`), ...(dirty ? [] : issues.filter((i) => !i.startsWith("Firmendaten")))];
 
   return (
@@ -754,37 +749,17 @@ export function InvoiceEditor({
         </div>
       </div>
 
-      {blocking.length > 0 && (
-        <div className="banner" role="status">
-          <Icon name="alert" />
-          <span>
-            Vor dem Festschreiben: {blocking.join(", ")}.{" "}
-            {currentSellerIssues.length > 0 && (
-              <Link to="/einstellungen" search={{ bereich: "firma" }}>
-                Firmendaten ergänzen
-              </Link>
-            )}
-          </span>
-        </div>
-      )}
-      {letterIssues.length > 0 && (
-        <div className="banner" role="status" id="letter-issues">
-          <Icon name="alert" />
-          <span>
-            Pflichtangaben für Geschäftsbriefe unvollständig (§ 35a GmbHG): {letterIssues.join(", ")}. Festschreiben geht trotzdem, der Fuß nennt dann nur, was
-            eingetragen ist.{" "}
-            <Link to="/einstellungen" search={{ bereich: "firma" }}>
-              Firmendaten ergänzen
-            </Link>
-          </span>
-        </div>
-      )}
+      <SellerNotices blocking={blocking} currentSellerIssues={currentSellerIssues} letterIssues={letterIssues} />
       <NoticeBanner notice={notice} />
 
       <PreviewLayout
         preview={preview}
         design={{
-          panel: <DesignPanel draft={designDraft} vatRates={distinctVatRates(parsed.filter((l) => l.valid))} logo={logo} onLogoChanged={setLogo} />,
+          panel: (
+            <BrandDesignPanel profileId={brandProfileId}>
+              <DesignPanel draft={designDraft} vatRates={distinctVatRates(parsed.filter((l) => l.valid))} logo={logo} onLogoChanged={setLogo} />
+            </BrandDesignPanel>
+          ),
           onClosed: designDraft.discard,
         }}
         label="Vorschau"
@@ -823,7 +798,8 @@ export function InvoiceEditor({
               skonto: skonto.stufen,
               sepaMandateId: lastschrift ? mandateId || null : null,
               ...(paidPayment ? { paidPayment } : {}),
-              design: designDraft.changes,
+              brandProfileId,
+              design: brandProfileId ? {} : designDraft.changes,
             }}
           />
         }
@@ -878,6 +854,16 @@ export function InvoiceEditor({
                   </span>
                 </div>
               )}
+              <BrandProfileSelect
+                profiles={brandProfiles}
+                value={brandProfileId}
+                disabled={!editable}
+                onChange={(value) => {
+                  setBrandProfileId(value);
+                  designDraft.discard();
+                  setDirty(true);
+                }}
+              />
               <Field label="Kunde" error={error("contact")} style={{ gridColumn: "1 / -1" }}>
                 {(control) => (
                   <ContactCombobox

@@ -58,7 +58,7 @@ describe("BEREICHE", () => {
 });
 
 describe("navMark", () => {
-  it("ab Werk das „H“ des Themes", () => {
+  it("ab Werk das Standardzeichen, das Logo „HKM finanz“", () => {
     expect(navMark({ color: null, logo: false }, null)).toBeNull();
     expect(navMark({ color: null, logo: false }, "a".repeat(64))).toBeNull();
   });
@@ -76,7 +76,7 @@ describe("navMark", () => {
     expect(navMark({ color: "#1D4ED8", logo: false }, sha)).toEqual({ background: "#1D4ED8", ink: "#FFFFFF", kante: true });
   });
 
-  it("eine ungültige Farbe ergibt das „H“ des Themes statt eines kaputten Stils", () => {
+  it("eine ungültige Farbe ergibt das Standardzeichen statt eines kaputten Stils", () => {
     for (const color of ["red", "#1D4ED", "url(x)", ""]) expect(navMark({ color, logo: false }, null)).toBeNull();
   });
 });

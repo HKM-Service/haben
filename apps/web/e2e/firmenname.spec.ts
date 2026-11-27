@@ -5,7 +5,7 @@ import { SESSION } from "./daten.ts";
 import { axeVerstoesse } from "./einrichtung.ts";
 
 /**
- * Mehrere Firmen (#504): Unter „Haben“ steht der Name aus den Firmendaten, damit man sieht, in welcher Instanz man
+ * Mehrere Firmen (#504): Unter dem Logo „HKM finanz“ steht der Name aus den Firmendaten, damit man sieht, in welcher Instanz man
  * bucht. Mit den Daten und der Sitzung aus app.spec.ts (Projekt „mit-daten“); geschrieben wird nichts, lange Namen
  * setzt der Test nur in die Seite. Dass die Steuerberatung den Namen sieht, prüft steuerberatung.spec.ts.
  */
@@ -26,9 +26,10 @@ async function nameSetzen(page: Page, name: string): Promise<void> {
     }, name);
 }
 
-test("zeigt den Namen der Firma unter „Haben“", async ({ page }) => {
+test("zeigt den Namen der Firma unter dem Logo", async ({ page }) => {
   await page.goto("/");
-  const marke = nav(page).getByRole("link", { name: `Haben ${FIRMA}` });
+  // Das Logo ist Schmuck; den Namen „HKM finanz“ trägt der für Hilfstechnik bestimmte Text daneben
+  const marke = nav(page).getByRole("link", { name: `HKM finanz ${FIRMA}` });
   await expect(marke).toBeVisible();
   // Den ganzen Namen zeigt das Aufklappen beim Überfahren (unten), kein title: der ist nicht gestaltbar und nicht per Tastatur zu erreichen
   await expect(marke.locator(".brand-firma")).not.toHaveAttribute("title");
@@ -71,9 +72,11 @@ test("ein langer Firmenname wird nach zwei Zeilen gekürzt und läuft nicht aus 
   expect(ueberlauf).toEqual({ nav: 0, marke: 0 });
 });
 
-// „Haben“ bleibt so groß und weiß wie ohne Firmennamen (18px, halbfett); der Name steht kleiner darunter, voll deckend
-// und im Grau der Navigation (--nav-ink), damit „Haben“ die Hauptzeile bleibt
-test("„Haben“ bleibt, wie es ist, der Name steht kleiner darunter", async ({ page }) => {
+// Ab Werk trägt das Logo „HKM finanz“ den Namen: 56px hoch am Desktop, 40px am Handy (Mindestgröße des Logos), in Weiß;
+// eingeklappt wäre es der Bogen mit dem Kürzel. Der Text „HKM finanz“ ist nur für Hilfstechnik da. Der Firmenname steht
+// kleiner dazu, voll deckend und im Grau der Navigation (--nav-ink): am Desktop unter dem Logo und bündig mit ihm und den
+// Symbolen der Menüpunkte, am Handy rechts daneben
+test("ab Werk steht das Logo, der Firmenname kleiner darunter, am Handy daneben", async ({ page }) => {
   for (const breite of [1280, 375]) {
     await page.setViewportSize({ width: breite, height: 812 });
     await page.goto("/");
@@ -81,18 +84,19 @@ test("„Haben“ bleibt, wie es ist, der Name steht kleiner darunter", async ({
     const marke = await nav(page)
       .locator(".brand")
       .evaluate((el) => {
-        const text = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-        let haben: Text | null = null;
-        while (text.nextNode()) if (text.currentNode.textContent?.trim() === "Haben") haben = text.currentNode as Text;
-        const bereich = document.createRange();
-        bereich.selectNodeContents(haben!);
+        const logo = el.querySelector<SVGElement>(".brand-hkm-voll")!;
+        const name = el.querySelector<HTMLElement>(".brand-name-hkm")!;
         const firma = el.querySelector<HTMLElement>(".brand-firma")!;
-        const stil = getComputedStyle(haben!.parentElement!);
+        const rahmen = logo.getBoundingClientRect();
+        const lage = firma.getBoundingClientRect();
         return {
-          haben: `${stil.fontSize} ${stil.fontWeight}`,
+          logo: [Math.round(rahmen.width), Math.round(rahmen.height)],
+          logoFarbe: getComputedStyle(logo).color,
+          kuerzel: getComputedStyle(el.querySelector(".brand-hkm-kurz")!).display,
+          name: name.textContent,
+          nameBreite: Math.round(name.getBoundingClientRect().width),
           firma: Number.parseFloat(getComputedStyle(firma).fontSize),
           deckung: getComputedStyle(firma).opacity,
-          farbeHaben: stil.color,
           farbeFirma: getComputedStyle(firma).color,
           navInk: (() => {
             const probe = document.createElement("span");
@@ -102,21 +106,34 @@ test("„Haben“ bleibt, wie es ist, der Name steht kleiner darunter", async ({
             probe.remove();
             return farbe;
           })(),
-          darunter: firma.getBoundingClientRect().top >= bereich.getBoundingClientRect().bottom - 1,
+          darunter: lage.top >= rahmen.bottom - 1,
+          daneben: lage.left >= rahmen.right - 1,
+          logoLinks: Math.round(rahmen.left),
+          firmaLinks: Math.round(lage.left),
+          symbolLinks: Math.round(document.querySelector(".nav-body .nav-link svg")!.getBoundingClientRect().left),
         };
       });
-    expect(marke.haben, `${breite}px`).toBe("18px 600");
+    const handy = breite === 375;
+    expect(marke.logo, `${breite}px`).toEqual(handy ? [52, 40] : [73, 56]);
+    expect(marke.logoFarbe, `${breite}px`).toBe("rgb(255, 255, 255)");
+    expect(marke.kuerzel, `${breite}px`).toBe("none");
+    expect(marke.name, `${breite}px`).toBe("HKM finanz");
+    expect(marke.nameBreite, `${breite}px`).toBeLessThanOrEqual(1);
     expect(marke.firma, `${breite}px`).toBeLessThan(18);
     expect(marke.firma, `${breite}px`).toBeGreaterThanOrEqual(12);
     expect(marke.deckung, `${breite}px`).toBe("1");
-    expect(marke.farbeHaben, `${breite}px`).toBe("rgb(255, 255, 255)");
     expect(marke.farbeFirma, `${breite}px`).toBe(marke.navInk);
-    expect(marke.darunter, `${breite}px`).toBe(true);
+    expect(marke.darunter, `${breite}px`).toBe(!handy);
+    expect(marke.daneben, `${breite}px`).toBe(handy);
+    if (!handy) {
+      expect(marke.firmaLinks).toBe(marke.logoLinks);
+      expect(marke.logoLinks).toBe(marke.symbolLinks);
+    }
   }
 });
 
 // axe misst den Kontrast sonst nur im Standard-Theme; die Navigation hat in jedem Theme eigene Farben
-test("Name und „Haben“ sind in jeder Farbe hell und dunkel kontrastreich genug", async ({ page }) => {
+test("Name und Logo sind in jeder Farbe hell und dunkel kontrastreich genug", async ({ page }) => {
   const verstoesse: string[] = [];
   for (const { id } of THEMES) {
     for (const [modus, mode] of [
@@ -150,8 +167,8 @@ test("Name und „Haben“ sind in jeder Farbe hell und dunkel kontrastreich gen
 });
 
 // Der Seitenkopf klebt am Handy bei --nav-height (60px) unter der Navigation; mit dem Firmennamen darf die Leiste
-// nicht höher werden, sonst verdeckt sie beim Scrollen den Kopf. Der Name bekommt deshalb nur eine Zeile unter „Haben“,
-// dafür die ganze Breite neben dem Menüknopf. Auch ein langer Name auf 320px
+// nicht höher werden, sonst verdeckt sie beim Scrollen den Kopf. Der Name bekommt deshalb nur eine Zeile neben dem Logo,
+// dafür die ganze Breite bis zum Menüknopf. Auch ein langer Name auf 320px
 test("am Handy steht der Name in einer Zeile, und die Leiste bleibt so hoch wie --nav-height", async ({ page }) => {
   const gemessen: Record<string, { leiste: number; ueberlauf: number; zeilen: number }> = {};
   let variable = 0;
@@ -179,12 +196,27 @@ test("am Handy steht der Name in einer Zeile, und die Leiste bleibt so hoch wie 
   });
 });
 
-// Das Zeichen links von „Haben“ ist fest quadratisch, am Desktop 40 und am Handy 36 Pixel, für das „H“ wie für ein
-// Logo (#504). Ein breites Logo wird in der Kachel verkleinert und nimmt „Haben“ und dem Namen keinen Platz; die
+// Hat die Firma ein eigenes Zeichen gewählt, steht es links von „Haben“ und ist fest quadratisch, am Desktop 40 und am
+// Handy 36 Pixel, für das „H“ wie für ein Logo (#504). Ein breites Logo wird in der Kachel verkleinert und nimmt „Haben“ und dem Namen keinen Platz; die
 // Kachel bleibt bündig mit den Symbolen der Menüpunkte, rechts hat die Marke keinen Innenabstand mehr
 const BREITES_LOGO = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300"><rect width="900" height="300" fill="#b5462f"/></svg>',
 )}`;
+
+/** Setzt die Marke in der Seite auf ein eigenes Zeichen, so wie NavBrand und NavMarkSymbol es mit eigener Farbe ausgeben: das „H“ in der Kachel, daneben „Haben“ */
+async function eigenesZeichen(page: Page): Promise<void> {
+  await nav(page)
+    .locator(".brand")
+    .evaluate((el) => {
+      const h = document.createElement("span");
+      h.className = "brand-mark";
+      h.style.background = "#B5462F";
+      h.style.color = "#FFFFFF";
+      h.textContent = "H";
+      el.querySelector(".brand-hkm")!.replaceWith(h);
+      el.querySelector(".brand-name-hkm")!.replaceWith("Haben");
+    });
+}
 
 async function zeichenGemessen(page: Page): Promise<{ groesse: [number, number]; text: [number, number] }> {
   return page.evaluate(() => {
@@ -195,7 +227,7 @@ async function zeichenGemessen(page: Page): Promise<{ groesse: [number, number];
   });
 }
 
-test("das Zeichen ist fest quadratisch, am Desktop 40 und am Handy 36 Pixel, auch mit einem breiten Logo", async ({ page }) => {
+test("ein eigenes Zeichen ist fest quadratisch, am Desktop 40 und am Handy 36 Pixel, auch mit einem breiten Logo", async ({ page }) => {
   const gemessen: Record<string, { h: [number, number]; logo: [number, number]; gleicherPlatz: boolean }> = {};
   let nameDesktop = 0;
   let zeichenLinks = 0;
@@ -204,6 +236,7 @@ test("das Zeichen ist fest quadratisch, am Desktop 40 und am Handy 36 Pixel, auc
     await page.setViewportSize({ width: breite, height: 812 });
     await page.goto("/");
     await expect(nav(page).getByText(FIRMA)).toBeVisible();
+    await eigenesZeichen(page);
     const h = await zeichenGemessen(page);
     if (breite === 1280) {
       nameDesktop = h.text[1];
@@ -257,8 +290,8 @@ test("am Handy bleibt zwischen Name und Menüknopf Platz", async ({ page }) => {
   expect(abstaende["320px"]).toBeGreaterThanOrEqual(8);
 });
 
-// Ist der Name länger als zwei Zeilen, klappt er beim Überfahren und mit Fokus auf „Haben“ nach unten ganz auf, in der
-// Breite der Navigation und über den ersten Menüpunkten. Der Name in der Marke bleibt dabei, wo er ist („Haben“
+// Ist der Name länger als zwei Zeilen, klappt er beim Überfahren und mit Fokus auf die Marke nach unten ganz auf, in der
+// Breite der Navigation und über den ersten Menüpunkten. Der Name in der Marke bleibt dabei, wo er ist (das Logo
 // springt nicht); das Aufklappen ist ein zweites, für Hilfstechnik verborgenes Element (WCAG 1.4.13: es verschwindet mit
 // Escape, bleibt beim Hinüberfahren und mit dem Zeiger darauf stehen)
 const voll = (page: Page) => nav(page).locator(".brand-firma-voll");
@@ -270,7 +303,7 @@ test("ein langer Name klappt beim Überfahren nach unten ganz auf, ohne die Mark
   await nameSetzen(page, LANG);
   const lage = () =>
     page.evaluate(() => ({
-      mark: document.querySelector(".brand-mark")!.getBoundingClientRect().top,
+      mark: document.querySelector(".nav .brand")!.firstElementChild!.getBoundingClientRect().top,
       firma: document.querySelector(".brand-firma")!.getBoundingClientRect().top,
     }));
   const vorher = await lage();
@@ -285,11 +318,11 @@ test("ein langer Name klappt beim Überfahren nach unten ganz auf, ohne die Mark
     const rahmen = el.getBoundingClientRect();
     const navigation = document.querySelector<HTMLElement>("nav.nav")!.getBoundingClientRect();
     const mitte = document.elementFromPoint(rahmen.left + rahmen.width / 2, rahmen.top + rahmen.height - 4);
-    const zeichen = document.querySelector<HTMLElement>(".brand-mark")!.getBoundingClientRect();
+    const zeichen = document.querySelector<HTMLElement>(".nav .brand")!.firstElementChild!.getBoundingClientRect();
     const haben = document.querySelector<HTMLElement>(".brand-text")!.getBoundingClientRect();
     const name = document.querySelector<HTMLElement>(".brand-firma")!.getBoundingClientRect();
     return {
-      // Das Zeichen „H“ und die Zeile „Haben“ bleiben frei; der Text steht dort, wo vorher der gekürzte Name stand
+      // Das Logo bleibt frei; der Text steht dort, wo vorher der gekürzte Name stand
       zeichenFrei: rahmen.left >= zeichen.right || rahmen.top >= zeichen.bottom,
       habenFrei: rahmen.top >= haben.top + (name.top - haben.top) - 6,
       textGleich: Math.abs(el.getBoundingClientRect().left - name.left) <= 8 + 1,

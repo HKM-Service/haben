@@ -275,7 +275,8 @@ function NavBrand({ inhaber }: { inhaber: boolean }) {
     >
       <NavMarkSymbol mark={zeichen} />
       <span className="brand-text">
-        Haben
+        {/* HKM finanz: Ab Werk trägt das Logo den Namen, der Text ist dann nur für Hilfstechnik und den Hinweis der eingeklappten Leiste da */}
+        {zeichen ? "Haben" : <span className="brand-name-hkm">HKM finanz</span>}
         {/* Mehrere Firmen (#504): Der Name unter „Haben“ zeigt, in welcher Instanz man gerade arbeitet. Ist er länger
                 als zwei Zeilen, klappt er beim Überfahren und mit Fokus nach unten ganz auf (nur am Desktop); das
                 Element dafür ist für Hilfstechnik verborgen, der Name steht schon in der Marke */}

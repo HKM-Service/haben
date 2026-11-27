@@ -26,7 +26,7 @@ describe.skipIf(!testDatabaseUrl)("Zeichen in der Navigation (Postgres)", () => 
     await leeren(sql)`truncate company_logo, letterhead_profiles, company cascade`;
   });
 
-  it("ab Werk gilt das „H“ des Themes", async () => {
+  it("ab Werk gilt das Standardzeichen", async () => {
     expect(await navMark.loadNavMark()).toEqual({ color: null, logo: false });
   });
 

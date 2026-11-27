@@ -17,6 +17,7 @@ const CLI = "/app/apps/web/.output/haben-cli.js";
 const SKRIPTE = [
   "/app/apps/web/src/server/db/migrate.ts",
   "/app/apps/web/src/server/db/sso-uebernahme.ts",
+  "/app/apps/web/src/server/first-passkey-code-cli.ts",
   "/app/packages/elster/src/worker.ts",
   "/app/packages/elster/src/install-cli.ts",
 ];

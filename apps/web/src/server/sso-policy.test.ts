@@ -61,6 +61,7 @@ describe("Endpunkte je Betriebsart", () => {
   afterEach(() => vi.unstubAllEnvs());
   it.each([
     "/sign-in/email",
+    "/sign-in/first-passkey-code",
     "/sign-up/email",
     "/change-password",
     "/set-password",
@@ -86,6 +87,7 @@ describe("Endpunkte je Betriebsart", () => {
     expect(pathAllowed("/sign-in/social", true)).toBe(true);
     expect(pathAllowed("/callback/oidc", true)).toBe(true);
     expect(pathAllowed("/sign-in/email", false)).toBe(true);
+    expect(pathAllowed("/sign-in/first-passkey-code", false)).toBe(true);
     expect(pathAllowed("/passkey/verify-authentication", false)).toBe(true);
   });
 });

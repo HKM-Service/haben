@@ -4,6 +4,7 @@ import { errorMessage } from "../../lib/format.ts";
 import { decideOAuthConsent, getOAuthAvailable, getOAuthConsent } from "../../server/functions/oauth.ts";
 import { getAuthState } from "../../server/functions/setup.ts";
 import { NEVER_FRAMED_HEADERS } from "../../server/security-headers.ts";
+import { HkmLogo } from "../../components/HkmLogo.tsx";
 
 type Anfrage = Record<string, string>;
 type Ansicht = { clientName: string; redirectHost: string; fresh: boolean };
@@ -82,8 +83,9 @@ function ZustimmungsSeite() {
   return (
     <main className="auth-page">
       <div className="card auth-card stack">
-        <div className="brand" style={{ color: "var(--ink)", padding: 0 }}>
-          <span className="brand-mark">H</span>Haben
+        <div className="auth-logo">
+          <HkmLogo className="brand-hkm-voll" />
+          <span className="visually-hidden">HKM finanz</span>
         </div>
         <h1 style={{ fontSize: 24 }}>KI-Assistent verbinden</h1>
         {ansicht && (

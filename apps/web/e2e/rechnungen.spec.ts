@@ -1,3 +1,5 @@
+import { markenprofilePruefen } from "./markenprofile.ts";
+import { markenbildNachAbbrechenPruefen } from "./markenbilder.review.ts";
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
@@ -712,17 +714,38 @@ test("Textknöpfe: Doppelklick am rechten Rand markiert das Wort, das dort stand
   // Wo das letzte Wort der ersten Zeile steht, solange das Feld keinen Fokus hat
   const ziel = await einleitung.evaluate((feld: HTMLTextAreaElement, liste: string[]) => {
     const stil = getComputedStyle(feld);
-    const messen = document.createElement("canvas").getContext("2d")!;
-    messen.font = stil.font;
+    // Breiten in der Schrift des Felds messen, mit einem Element statt einer Zeichenfläche: getComputedStyle(…).font ist leer,
+    // sobald eine Angabe gilt, die die Kurzform nicht fasst (Tabellenziffern), und Canvas kennt font-variant-numeric nicht
+    const probe = document.createElement("span");
+    Object.assign(probe.style, {
+      position: "absolute",
+      visibility: "hidden",
+      whiteSpace: "pre",
+      fontFamily: stil.fontFamily,
+      fontSize: stil.fontSize,
+      fontWeight: stil.fontWeight,
+      fontStyle: stil.fontStyle,
+      fontVariantNumeric: stil.fontVariantNumeric,
+      fontKerning: stil.fontKerning,
+      letterSpacing: stil.letterSpacing,
+      wordSpacing: stil.wordSpacing,
+    });
+    document.body.append(probe);
+    const breiteVon = (text: string) => {
+      probe.textContent = text;
+      return probe.getBoundingClientRect().width;
+    };
     const links = parseFloat(stil.paddingLeft);
     const breite = feld.clientWidth - links - parseFloat(stil.paddingRight);
     let anzahl = 1;
-    while (messen.measureText(liste.slice(0, anzahl + 1).join(" ")).width <= breite) anzahl++;
-    const davor = messen.measureText(`${liste.slice(0, anzahl - 1).join(" ")} `).width;
+    while (breiteVon(liste.slice(0, anzahl + 1).join(" ")) <= breite) anzahl++;
+    const davor = breiteVon(`${liste.slice(0, anzahl - 1).join(" ")} `);
+    const wortBreite = breiteVon(liste[anzahl - 1]!);
+    probe.remove();
     const box = feld.getBoundingClientRect();
     return {
       wort: liste[anzahl - 1]!,
-      x: box.left + feld.clientLeft + links + davor + messen.measureText(liste[anzahl - 1]!).width / 2,
+      x: box.left + feld.clientLeft + links + davor + wortBreite / 2,
       y: box.top + feld.clientTop + parseFloat(stil.paddingTop) + parseFloat(stil.fontSize) / 2,
     };
   }, woerter);
@@ -776,11 +799,31 @@ test("Textknöpfe: am ersten Wort einer umbrochenen Zeile steht die Leiste über
   // Wie viele Wörter in die erste Zeile passen; das nächste beginnt die zweite Zeile
   const start = await einleitung.evaluate((feld: HTMLTextAreaElement, liste: string[]) => {
     const stil = getComputedStyle(feld);
-    const messen = document.createElement("canvas").getContext("2d")!;
-    messen.font = stil.font;
+    // Breiten in der Schrift des Felds messen, mit einem Element statt einer Zeichenfläche: getComputedStyle(…).font ist leer,
+    // sobald eine Angabe gilt, die die Kurzform nicht fasst (Tabellenziffern), und Canvas kennt font-variant-numeric nicht
+    const probe = document.createElement("span");
+    Object.assign(probe.style, {
+      position: "absolute",
+      visibility: "hidden",
+      whiteSpace: "pre",
+      fontFamily: stil.fontFamily,
+      fontSize: stil.fontSize,
+      fontWeight: stil.fontWeight,
+      fontStyle: stil.fontStyle,
+      fontVariantNumeric: stil.fontVariantNumeric,
+      fontKerning: stil.fontKerning,
+      letterSpacing: stil.letterSpacing,
+      wordSpacing: stil.wordSpacing,
+    });
+    document.body.append(probe);
+    const breiteVon = (text: string) => {
+      probe.textContent = text;
+      return probe.getBoundingClientRect().width;
+    };
     const breite = feld.clientWidth - parseFloat(stil.paddingLeft) - parseFloat(stil.paddingRight);
     let anzahl = 1;
-    while (messen.measureText(liste.slice(0, anzahl + 1).join(" ")).width <= breite) anzahl++;
+    while (breiteVon(liste.slice(0, anzahl + 1).join(" ")) <= breite) anzahl++;
+    probe.remove();
     return liste.slice(0, anzahl).join(" ").length + 1;
   }, woerter);
   await einleitung.evaluate((feld: HTMLTextAreaElement, von: number) => feld.setSelectionRange(von, von + 6), start);
@@ -2971,6 +3014,20 @@ test("Artikel-API: Rechte, Anlegen, Suchen und Ändern im Katalog (#297)", async
   const archived = await request.get(path, { headers: writer, params: { q: changes.description, archived: true } });
   expect(await archived.json()).toMatchObject({ data: [{ id: result.id, archived: true }], total: 1 });
 });
+
+test("Markenprofile wählen, Bilder zuordnen und Entwürfe behalten", async ({ request }, testInfo) => {
+  expect((await request.get("/api/logo?profile=ungueltig")).status()).toBe(401);
+  await markenprofilePruefen(page, testInfo);
+});
+
+for (const kind of ["Logo", "Briefpapier"] as const) {
+  test(`Markenbilder nach Abbrechen: ${kind} hochladen und erneut bearbeiten`, async () => {
+    await markenbildNachAbbrechenPruefen(page, kind, false);
+  });
+  test(`Markenbilder nach Abbrechen: ${kind} entfernen und erneut bearbeiten`, async () => {
+    await markenbildNachAbbrechenPruefen(page, kind, true);
+  });
+}
 
 test("Keine Fehler im Browser", async () => {
   expect(pageErrors).toEqual([]);

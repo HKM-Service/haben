@@ -32,8 +32,12 @@ const STEUERBERATUNG_LIEST = [
   "zugang.ts:getSteuerberatungStart",
 ];
 
-/** Ohne Anmeldung: Zustand für Anmelde- und Einrichtungsseite, Prüfung eines Einladungslinks, ob es die OAuth-Zustimmung gibt. Alle lesen nur. */
-const OEFFENTLICH = ["oauth.ts:getOAuthAvailable", "setup.ts:getAuthState", "zugang.ts:checkInvitation"];
+/**
+ * Ohne Anmeldung: Zustand für Anmelde- und Einrichtungsseite, Prüfung eines Einladungslinks, ob es die OAuth-Zustimmung gibt,
+ * ob die eigene Sitzung aus einem Einmalcode stammt (Einrichtungsseite, vor und nach der Anmeldung; ohne Sitzung false).
+ * Alle lesen nur.
+ */
+const OEFFENTLICH = ["first-passkey.ts:getFirstPasskeySetup", "oauth.ts:getOAuthAvailable", "setup.ts:getAuthState", "zugang.ts:checkInvitation"];
 
 /**
  * API-Routen mit Sitzung, die auch die Steuerberatung abrufen darf (nur GET, Dateien und Exporte). Ihr Handler steht in

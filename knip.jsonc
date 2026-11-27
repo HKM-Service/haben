@@ -11,7 +11,7 @@
       // Nitro lädt die Plugins über vite.config.ts, der Service Worker kommt aus public/
       "entry": ["src/**/*.test.{ts,tsx}", "src/server/plugins/*.ts", "e2e/*.ts", "playwright.*.ts", "public/sw.js"],
       // Nur aus styles.css per url() geladen
-      "ignoreDependencies": ["@fontsource/ibm-plex-mono", "@fontsource/ibm-plex-sans"]
+      "ignoreDependencies": ["@fontsource/ibm-plex-mono", "@fontsource/ibm-plex-sans", "@fontsource-variable/manrope"]
     },
     // Einstiegspunkte stehen in manifest.json und popup.html
     "apps/elster-helfer": {

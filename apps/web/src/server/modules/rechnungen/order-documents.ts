@@ -38,13 +38,14 @@ export async function confirmationPdf(quoteId: string) {
     choices,
     withPlan: quote.paymentPlanInConfirmation,
   });
-  const pdf = await withCustomLayout("auftragsbestaetigung", await loadLetterhead(), (letterhead) =>
+  const pdf = await withCustomLayout("auftragsbestaetigung", await loadLetterhead(quote.brandProfileId), (letterhead) =>
     buildConfirmationPdf({ ...doc, ...letterhead }, today(quote.decidedAt)),
   );
   return { pdf, filename: `${quote.language === "en" ? "Order-confirmation" : "Auftragsbestaetigung"}-${quote.number}.pdf` };
 }
 
 interface DeliverySource {
+  brandProfileId: string | null;
   number: string;
   issueDate: string;
   date: string;
@@ -62,6 +63,7 @@ async function deliverySource(source: "angebot" | "rechnung", id: string): Promi
     const { quote, lines, choices } = await acceptedQuote(id);
     const date = today(quote.decidedAt);
     return {
+      brandProfileId: quote.brandProfileId,
       number: quote.number,
       issueDate: quote.issueDate,
       date,
@@ -79,6 +81,7 @@ async function deliverySource(source: "angebot" | "rechnung", id: string): Promi
   }
   const lines = await db.select().from(schema.invoiceLines).where(eq(schema.invoiceLines.invoiceId, id)).orderBy(asc(schema.invoiceLines.position));
   return {
+    brandProfileId: invoice.brandProfileId,
     number: invoice.number,
     issueDate: invoice.issueDate,
     date: invoice.issueDate,
@@ -101,7 +104,7 @@ function orderReferencesOf(row: ReferenceColumns): OrderReferences {
 export async function deliveryNotePdf(source: "angebot" | "rechnung", id: string) {
   const base = await deliverySource(source, id);
   const seller = withCurrentLegalInfo(base.seller, await loadCompany());
-  const pdf = await withCustomLayout("lieferschein", await loadLetterhead(), (letterhead) =>
+  const pdf = await withCustomLayout("lieferschein", await loadLetterhead(base.brandProfileId), (letterhead) =>
     buildDeliveryNotePdf({
       reference: { kind: source, number: base.number, issueDate: base.issueDate },
       deliveryDate: base.deliveryDate,

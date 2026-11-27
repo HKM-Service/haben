@@ -314,8 +314,8 @@ export async function assignLayout(actor: string, type: LayoutDocumentType, ref:
 export class LayoutRenderError extends LayoutError {}
 
 /** Das eigene Layout, das für die Belegart gilt; null = eingebaut */
-export async function customLayoutFor(type: LayoutDocumentType) {
-  const ref = (await loadDesign()).layouts[type];
+export async function customLayoutFor(type: LayoutDocumentType, assigned?: LayoutRef) {
+  const ref = assigned ?? (await loadDesign()).layouts[type];
   if (ref.kind !== "eigen") return null;
   const [row] = await db.select().from(schema.belegLayouts).where(eq(schema.belegLayouts.id, ref.id));
   if (!row) throw new LayoutRenderError("Das zugeordnete Layout gibt es nicht mehr. Bitte unter Einstellungen › Beleggestaltung ein anderes wählen.");
@@ -327,7 +327,7 @@ export async function customLayoutFor(type: LayoutDocumentType) {
  * bei einem eigenen Layout zweimal: erst fängt pdfFrom die fertigen Daten ab, dann liefert es das PDF aus dem Render-Prozess.
  */
 export async function withCustomLayout<T>(type: LayoutDocumentType, letterhead: Letterhead, build: (letterhead: Letterhead) => T): Promise<T> {
-  const layout = await customLayoutFor(type);
+  const layout = await customLayoutFor(type, letterhead.layoutAssignments?.[type]);
   if (!layout) return build(letterhead);
   let request: PdfRequest | undefined;
   // Ganz durchlaufen lassen: buildEInvoice setzt das PDF erst nach einem await

@@ -27,7 +27,7 @@ export function navLinkSichtbar(link: NavBedingung & { to?: string }, { gesellsc
   return !(link.nurMitMitarbeitern && !hatMitarbeiter);
 }
 
-/** Zeichen der Firma in der Navigation (#504): Logo der Belege, „H“ in eigener Farbe oder null für das „H“ des Themes */
+/** Zeichen der Firma in der Navigation (#504): Logo der Belege, „H“ in eigener Farbe oder null für das Logo „HKM finanz“ */
 /** `kante`: helle Innenkante, wenn sich die Farbe in einem Theme nicht mit 3 : 1 von der Navigation abhebt */
 export type NavMark = { logo: string } | { background: string; ink: "#FFFFFF" | "#000000"; kante: boolean } | null;
 

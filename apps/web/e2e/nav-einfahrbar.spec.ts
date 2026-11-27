@@ -230,7 +230,7 @@ test("eingeklappt liegen Hinweis und Flyout über dem stehenden Seitenkopf", asy
   await expect.poll(flaeche).toBe(true);
 });
 
-test("eingeklappt zeigt die Marke beim Überfahren „Haben“ und die Firma, in der man bucht", async ({ page }) => {
+test("eingeklappt zeigt die Marke beim Überfahren „HKM finanz“ und die Firma, in der man bucht", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/", { waitUntil: "networkidle" });
   const firma = (await nav(page).locator(".brand-firma").textContent())?.trim();
@@ -241,6 +241,12 @@ test("eingeklappt zeigt die Marke beim Überfahren „Haben“ und die Firma, in
   const text = marke.locator(".brand-text");
   await expect(text).toBeVisible();
   await expect(text).toContainText(firma!);
+  // Der Name steht nur im Hinweis sichtbar, ausgeklappt trägt ihn das Logo
+  await expect(text.locator(".brand-name-hkm")).toBeVisible();
+  await expect(text.locator(".brand-name-hkm")).toHaveText("HKM finanz");
+  // Statt des Logos steht eingeklappt der Bogen mit dem Kürzel
+  await expect(marke.locator(".brand-hkm-kurz")).toBeVisible();
+  await expect(marke.locator(".brand-hkm-voll")).toBeHidden();
   expect(await text.evaluate((el) => el.getBoundingClientRect().width)).toBeGreaterThan(40);
 });
 

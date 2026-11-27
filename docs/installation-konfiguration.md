@@ -92,6 +92,17 @@ Bei Compose setzt `compose.yml` diese Variablen aus `.env` (`DATABASE_URL` und `
 
 In den App-Container reicht `compose.yml` nur die Variablen durch, die dort unter `app` › `environment` stehen. Andere, etwa `HABEN_SETUP_CODE`, `HABEN_SCHEDULER`, `HABEN_UPDATE_CHECK`, `LEXOFFICE_API_URL`, `FASTBILL_API_URL` oder `SEVDESK_API_URL`, wirken in `.env` allein nicht; trag sie in der `compose.override.yml` beim Dienst `app` unter `environment` ein. Bei den Quadlets gelten alle Zeilen aus `haben.env`.
 
+## Einmalcode für den ersten Passkey
+
+Für den vorhandenen, ungesperrten lokalen Inhaber ohne Passkey kann der Betreiber einen [Einmalcode zur Einrichtung](einrichtung.md#ersten-passkey-mit-einmalcode-einrichten) ausgeben. Verwende dieselbe Compose-Konfiguration wie beim Start der Anwendung:
+
+```sh
+docker compose exec app mkdir -p -m 0700 /tmp/haben-passkey
+docker compose exec app bun /app/apps/web/src/server/first-passkey-code-cli.ts --ausgabe /tmp/haben-passkey/einmalcode.json
+```
+
+Die neue Datei enthält Code, E-Mail und Ablaufzeit. Der Ausgabeordner muss dem App-Konto gehören und Modus `0700` haben; die Datei erhält `0600`. Übernimm den Code über einen geschützten Weg, etwa den vorhandenen Passwortmanager, und entferne die Datei anschließend. Der Befehl gibt den Code nicht aus und überschreibt keine vorhandene Datei. Für eine Neuausgabe wählst du einen neuen Dateinamen. Er legt kein Konto an und ändert weder Passwort noch vorhandene Passkeys.
+
 ## Datenablage
 
 | Was | Wo |

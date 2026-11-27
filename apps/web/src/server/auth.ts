@@ -9,6 +9,8 @@ import { atomicAuthCallback, authDatabase, authDatabaseProxy, authTransaction, p
 import { changePasswordRequest } from "./change-password.ts";
 import { schema } from "./db/index.ts";
 import { env } from "./env.ts";
+import { firstPasskeyCodePlugin } from "./first-passkey-code-plugin.ts";
+import { firstPasskeyRegistrationRequest } from "./first-passkey-registration.ts";
 import { oidcProvider, withoutProviderTokens } from "./oidc.ts";
 import { checkSetupCode } from "./setup-code.ts";
 import { confirmSsoSession, requireGrantedProof, revokeRejectedIdentity } from "./sso-callback.ts";
@@ -60,7 +62,11 @@ function createAuth() {
     logger: { level: "error", log: (_level, message) => console.error(`Better Auth: ${message.split("\n")[0]!.slice(0, 200)}`) },
     // Better-Call würde ungefangene Adapterfehler trotz deaktiviertem Logger samt SQL-Parametern ausgeben.
     onAPIError: { throw: true },
-    plugins: [...oidcProvider(), ...(sso ? [] : [passkey({ rpID: baseUrl.hostname, rpName: "Haben", origin: baseUrl.origin })]), tanstackStartCookies()],
+    plugins: [
+      ...oidcProvider(),
+      ...(sso ? [] : [passkey({ rpID: baseUrl.hostname, rpName: "Haben", origin: baseUrl.origin }), firstPasskeyCodePlugin()]),
+      tanstackStartCookies(),
+    ],
     user: {
       // Rolle und Sperre setzt nur der Server (Hooks unten, Modul zugang), nie die Anfrage
       additionalFields: {
@@ -193,6 +199,9 @@ async function handleAuthRequest(request: Request): Promise<Response> {
   }
   if (!ssoOnly() && request.method === "POST" && path.replace(/\/+$/, "") === "/api/auth/change-password") {
     return changePasswordRequest(current, request);
+  }
+  if (!ssoOnly() && request.method === "POST" && path.replace(/\/+$/, "") === "/api/auth/passkey/verify-registration") {
+    return firstPasskeyRegistrationRequest(current, request);
   }
   return current.handler(request);
 }

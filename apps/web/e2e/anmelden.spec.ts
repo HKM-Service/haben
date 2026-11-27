@@ -66,3 +66,31 @@ test("Wählt man im Autofill einen Passkey, den der Server ablehnt, zeigt die Se
   expect((await verify).ok()).toBe(false);
   await expect(page.getByRole("alert")).toHaveText("Passkey not found");
 });
+
+// Das Logo „HKM finanz“ auf der Karte hängt nicht an der Navigation: Es bleibt am Handy 56 Pixel hoch (nur die 60 Pixel hohe
+// Leiste nimmt die Mindestgröße von 40) und steht in seinem Kasten, auch wenn die Seitenleiste eingeklappt gespeichert ist
+test("Das Logo auf der Karte bleibt am Handy und bei eingeklappter Seitenleiste 56 Pixel hoch und in seinem Kasten", async ({ page }) => {
+  const gemessen: Record<string, { logo: [number, number]; imKasten: boolean; name: string | null }> = {};
+  for (const [fall, breite, eingeklappt] of [
+    ["Desktop", 1280, false],
+    ["Handy", 375, false],
+    ["Desktop, Leiste eingeklappt", 1280, true],
+  ] as const) {
+    await page.setViewportSize({ width: breite, height: 812 });
+    await page.evaluate((zu) => (zu ? localStorage.setItem("haben-nav", "collapsed") : localStorage.removeItem("haben-nav")), eingeklappt);
+    await page.reload({ waitUntil: "networkidle" });
+    if (eingeklappt) await expect(page.locator("html")).toHaveAttribute("data-nav", "collapsed");
+    gemessen[fall] = await page.locator(".auth-card .auth-logo").evaluate((el) => {
+      const kasten = el.getBoundingClientRect();
+      const logo = el.querySelector("svg")!.getBoundingClientRect();
+      return {
+        logo: [Math.round(logo.width), Math.round(logo.height)],
+        imKasten: logo.left >= kasten.left - 0.5 && logo.right <= kasten.right + 0.5,
+        name: el.querySelector(".visually-hidden")?.textContent ?? null,
+      };
+    });
+  }
+  await page.evaluate(() => localStorage.removeItem("haben-nav"));
+  const erwartet = { logo: [73, 56], imKasten: true, name: "HKM finanz" };
+  expect(gemessen).toEqual({ Desktop: erwartet, Handy: erwartet, "Desktop, Leiste eingeklappt": erwartet });
+});

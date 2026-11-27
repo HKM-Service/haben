@@ -1,3 +1,4 @@
+import { BrandDesignPanel } from "../../../../components/BrandDesignPanel.tsx";
 import {
   DEFAULT_INTEREST_MARKUP,
   DUNNING_LEVELS,
@@ -15,7 +16,7 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, type FormEvent } from "react";
 import { formatDate } from "../../../../lib/format.ts";
-import { DesignPanel, useDesignDraft } from "../../../../components/DesignPanel.tsx";
+import { DesignPanel, useDesignDraft, type DesignDraft } from "../../../../components/DesignPanel.tsx";
 import { PreviewButton, PreviewLayout, useDocumentPreview } from "../../../../components/DocumentPreview.tsx";
 import { FormattedTextarea } from "../../../../components/FormattedTextarea.tsx";
 import { NoticeBanner } from "../../../../components/NoticeBanner.tsx";
@@ -119,10 +120,7 @@ function NewDunningPage() {
       <NoticeBanner notice={notice} />
       <PreviewLayout
         preview={preview}
-        design={{
-          panel: <DesignPanel draft={designDraft} vatRates={0} positions={false} logo={logo} onLogoChanged={setLogo} />,
-          onClosed: designDraft.discard,
-        }}
+        design={dunningDesign(draft.brandProfileId, designDraft, logo, setLogo)}
         label="Vorschau"
         caption="PDF"
         sheet={<RenderedSheet label="Vorschau der Mahnung" render={renderDunningPreview} revision={logo} input={{ ...input(), design: designDraft.changes }} />}
@@ -226,4 +224,15 @@ function NewDunningPage() {
       </PreviewLayout>
     </>
   );
+}
+
+function dunningDesign(profileId: string | null, draft: DesignDraft, logo: string | null, onLogoChanged: (hash: string | null) => void) {
+  return {
+    panel: (
+      <BrandDesignPanel profileId={profileId}>
+        <DesignPanel draft={draft} vatRates={0} positions={false} logo={logo} onLogoChanged={onLogoChanged} />
+      </BrandDesignPanel>
+    ),
+    onClosed: draft.discard,
+  };
 }

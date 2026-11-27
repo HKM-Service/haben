@@ -69,6 +69,7 @@ export async function accountState(userId: string, q: Db | Tx = db): Promise<{ r
 export function loginMethod(path: string | undefined): string {
   if (path?.startsWith("/sign-in/passkey") || path?.startsWith("/passkey/")) return "passkey";
   if (path === "/sign-in/email") return "passwort";
+  if (path === "/sign-in/first-passkey-code") return "einmalcode";
   if (path?.startsWith("/callback/")) return "sso";
   if (path === "/sign-up/email") return "einrichtung";
   return path ?? "unbekannt";

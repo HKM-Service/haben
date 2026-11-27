@@ -1396,6 +1396,8 @@ export const invoices = pgTable(
     gross: integer("gross").$type<Cents>().notNull().default(0),
     /** Verkäufer und Käufer, wie sie auf der festgeschriebenen Rechnung stehen */
     seller: jsonb("seller").$type<Seller>(),
+    /** Marke derselben Firma; die rechtlichen Verkäuferdaten bleiben im versiegelten Verkäufer. */
+    brandProfileId: uuid("brand_profile_id").references((): AnyPgColumn => letterheadProfiles.id),
     buyer: jsonb("buyer").$type<Buyer>(),
     pdf: bytea("pdf"),
     pdfSha256: text("pdf_sha256"),
@@ -1602,6 +1604,7 @@ export const quotes = pgTable(
     tax: integer("tax").$type<Cents>().notNull().default(0),
     gross: integer("gross").$type<Cents>().notNull().default(0),
     seller: jsonb("seller").$type<Seller>(),
+    brandProfileId: uuid("brand_profile_id").references((): AnyPgColumn => letterheadProfiles.id),
     buyer: jsonb("buyer").$type<Buyer>(),
     pdf: bytea("pdf"),
     pdfSha256: text("pdf_sha256"),
@@ -1757,7 +1760,7 @@ export const letterheadBackground = pgTable(
   (t) => [check("letterhead_background_single", sql`${t.id} = 1`)],
 );
 
-/** Gestaltung der Belege (#113): heute genau ein Standardprofil, die Markenprofile aus #245 werden weitere Zeilen */
+/** Gemeinsame Firmengestaltung und auswählbare Markenprofile derselben rechtlichen Firma (#113, #245). */
 export const letterheadProfiles = pgTable(
   "letterhead_profiles",
   {
@@ -1765,10 +1768,31 @@ export const letterheadProfiles = pgTable(
     name: text("name").notNull(),
     isDefault: boolean("is_default").notNull().default(false),
     settings: jsonb("settings").$type<LetterheadDesign>().notNull(),
+    /** Das Standardprofil gehört zur Firma, weitere Profile sind deren Marken. */
+    defaultForNew: boolean("default_for_new").notNull().default(false),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    email: text("email").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    website: text("website").notNull().default(""),
+    bankAccountId: uuid("bank_account_id").references((): AnyPgColumn => bankAccounts.id),
+    intro: text("intro").notNull().default(""),
+    note: text("note").notNull().default(""),
+    /** Binärdaten bleiben wie die bisherigen Firmenbilder aus dem Audit-Log; die Inhaltsprüfwerte werden protokolliert. */
+    logo: bytea("logo"),
+    logoFormat: text("logo_format", { enum: ["png", "jpg"] }),
+    logoHash: text("logo_hash"),
+    background: bytea("background"),
+    backgroundFormat: text("background_format", { enum: ["png", "jpg"] }),
+    backgroundHash: text("background_hash"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex("letterhead_profiles_default").on(t.isDefault).where(sql`${t.isDefault}`),
+    uniqueIndex("letterhead_profiles_brand_default").on(t.defaultForNew).where(sql`${t.defaultForNew}`),
+    uniqueIndex("letterhead_profiles_brand_name").on(sql`lower(${t.name})`).where(sql`not ${t.isDefault} and ${t.archivedAt} is null`),
+    check("letterhead_profiles_brand_default_active", sql`not ${t.defaultForNew} or (not ${t.isDefault} and ${t.archivedAt} is null)`),
+    check("letterhead_profiles_logo_pair", sql`num_nonnulls(${t.logo}, ${t.logoFormat}, ${t.logoHash}) in (0, 3)`),
+    check("letterhead_profiles_background_pair", sql`num_nonnulls(${t.background}, ${t.backgroundFormat}, ${t.backgroundHash}) in (0, 3)`),
     // Die Typst-Vorlagen lesen die Farbe mit rgb(); anderes als #RRGGBB bräche jedes PDF
     check("letterhead_profiles_accent", sql`${t.settings} ->> 'accent' ~ '^#[0-9A-Fa-f]{6}$'`),
   ],
@@ -3752,6 +3776,7 @@ export const recurringInvoices = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    brandProfileId: uuid("brand_profile_id").references((): AnyPgColumn => letterheadProfiles.id),
     active: boolean("active").notNull().default(true),
     contactId: uuid("contact_id")
       .notNull()
