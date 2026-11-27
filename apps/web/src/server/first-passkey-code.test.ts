@@ -208,6 +208,24 @@ describe.skipIf(!testDatabaseUrl)("Erster Passkey mit Einmalcode (Postgres)", ()
     expect(await isFirstPasskeySession(other.session)).toBe(false);
   });
 
+  it("erkennt die Codesitzung auch, nachdem Better Auth sie über ihr erstes Ende hinaus verlängert hat", async () => {
+    const { isFirstPasskeySession } = await import("./first-passkey-session.ts");
+    const response = await redeem((await issueCode()).code);
+    const cookie = cookieOf(response.headers);
+    // Kurz vor dem Ende ist die Sitzung älter als updateAge (ein Tag): get-session verlängert sie um expiresIn (sieben Tage)
+    await database`update session set expires_at = clock_timestamp() + interval '1 hour'`;
+    const refreshed = await (await request("/get-session", undefined, { cookie })).json();
+    expect(new Date(refreshed.session.expiresAt).getTime()).toBeGreaterThan(Date.now() + 2 * 86_400_000);
+    // Das erste Ende der Sitzung ist vorbei, die verlängerte Sitzung gilt weiter
+    await database`update verification set expires_at = clock_timestamp() - interval '1 minute' where identifier like 'first-passkey-session:%'`;
+    const current = await (await request("/get-session", undefined, { cookie })).json();
+    expect(current.session.id).toBe(refreshed.session.id);
+    expect(await isFirstPasskeySession(current.session)).toBe(true);
+    // Endet die Sitzung selbst, endet auch die Einrichtung
+    await database`update session set expires_at = clock_timestamp() - interval '1 minute'`;
+    expect(await isFirstPasskeySession(current.session)).toBe(false);
+  });
+
   it("weist die Passkey-Registrierung für eine inzwischen gesperrte Sitzung weiter mit 401 ab", async () => {
     const response = await redeem((await issueCode()).code);
     await database`update "user" set locked_at = now() where id = ${ownerId}`;

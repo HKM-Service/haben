@@ -10,15 +10,21 @@ export async function markFirstPasskeySession(tx: Tx, session: SetupSession) {
   await tx.insert(schema.verification).values({ id: randomUUID(), identifier: PREFIX + session.id, value: session.userId, expiresAt: session.expiresAt });
 }
 
+/**
+ * Die Marke gilt, solange ihre Sitzung gilt. Better Auth verlängert eine genutzte Sitzung (updateAge), die Marke behält
+ * aber das erste Ende; maßgeblich ist deshalb das Ende der Sitzung in der Datenbank, nicht das der Marke.
+ */
 export async function isFirstPasskeySession(session: SetupSession): Promise<boolean> {
   const [marker] = await db
     .select({ id: schema.verification.id })
     .from(schema.verification)
+    .innerJoin(schema.session, eq(schema.session.id, session.id))
     .where(
       and(
         eq(schema.verification.identifier, PREFIX + session.id),
         eq(schema.verification.value, session.userId),
-        gt(schema.verification.expiresAt, sql`clock_timestamp()`),
+        eq(schema.session.userId, session.userId),
+        gt(schema.session.expiresAt, sql`clock_timestamp()`),
       ),
     )
     .limit(1);
