@@ -219,6 +219,12 @@ describe("Struktur der Module", () => {
         "env.ts",
         "errors.ts",
         "file-response.ts",
+        // Anmeldung per Einmalcode, neben setup-code.ts: Code, Better-Auth-Plugin, Sitzungsmarke, Passkey-Abschluss, Betreiberbefehl
+        "first-passkey-code.ts",
+        "first-passkey-code-cli.ts",
+        "first-passkey-code-plugin.ts",
+        "first-passkey-registration.ts",
+        "first-passkey-session.ts",
         "grenzen.ts",
         "lese-route.ts",
         "middleware.ts",
