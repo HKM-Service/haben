@@ -254,7 +254,7 @@ export async function updateDraft(actor: string, id: string, proposed: DraftInpu
     const quoteIds = await lockQuotes(tx, await quotesTouching(tx, [id, proposed.replacesInvoiceId], [proposed.quoteId]));
     const draft = await lockDraft(tx, id);
     if (draft.correctsId && proposed.brandProfileId !== undefined && proposed.brandProfileId !== draft.brandProfileId) {
-      throw new InvoiceError("Die Marke einer Korrektur wird von der ursprünglichen Rechnung übernommen.");
+      throw new InvoiceError("Storno und Korrektur übernehmen die Marke der ursprünglichen Rechnung.");
     }
     const replacesInvoiceId = proposed.replacesInvoiceId === undefined ? draft.replacesInvoiceId : proposed.replacesInvoiceId;
     await assertQuotesLocked(tx, quoteIds, [id, replacesInvoiceId], [proposed.quoteId]);
